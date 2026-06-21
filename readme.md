@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src=".github/assets/logo.png" width="180"/>
+<img src=".github/assets/logo.png" width="360"/>
 
 # NOCTEON COFFEE
 
