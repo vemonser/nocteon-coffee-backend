@@ -1,0 +1,102 @@
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  application:
+    name: nocteon-api
+
+  output:
+    ansi:
+      enabled: ALWAYS
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/nocteon_db}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope: email, profile
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+          github:
+            client-id: ${GITHUB_CLIENT_ID}
+            client-secret: ${GITHUB_CLIENT_SECRET}
+            scope: user:email, read:user
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+  mail:
+    host: ${SMTP_HOST:smtp.gmail.com}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME}
+    password: ${SMTP_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    mode: HTML
+    cache: true
+
+application:
+  
+  cloudinary:
+    cloud-name: ${CLOUDINARY_CLOUD_NAME}
+    api-key: ${CLOUDINARY_API_KEY}
+    api-secret: ${CLOUDINARY_API_SECRET}
+
+  frontend-url: ${FRONTEND_URL:http://localhost:4200}
+  security:
+    jwt:
+      access-token-expiration: 900000
+      refresh-token-expiration: 604800000
+    verification:
+      token-expiry-hours: 24
+    reset:
+      token-expiry-hours: 1
+    lockout:
+      max-attempts: 5
+      duration-minutes: 30
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+
+# ═══════════════════════════════════
+#              LOGGING
+# ═══════════════════════════════════
+logging:
+  pattern:
+    console: "%clr(%d{HH:mm:ss}){faint} %clr(%5p){highlight} %clr([%15.15t]){faint} %clr(%-30logger{0}){cyan} %clr(:){faint} %m%n"
+  level:
+    "[com.nocteon.nocteon_api]": DEBUG
+    "[org.springframework.security]": DEBUG
+    "[org.flywaydb]": INFO
