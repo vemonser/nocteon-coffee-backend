@@ -237,7 +237,7 @@ Journal
 ## Clone Repository
 
 ```bash
-git clone https://github.com/your-username/nocteon-coffee-backend.git
+git clone https://github.com/vemonser/nocteon-coffee-backend.git
 cd nocteon-coffee-backend
 ```
 
