@@ -4,9 +4,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
-
+import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
+import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.TastingNoteNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
@@ -30,6 +32,27 @@ public class TastingNoteService {
         private final TastingNoteRepository tastingNoteRepository;
         private final TastingNoteTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
+
+        public PageResponse<TastingNoteResponse> getAll(LookupFilterRequest filter) {
+                String language = LocaleContextHolder.getLocale().getLanguage();
+                Page<TastingNote> page = tastingNoteRepository.findAllPublic(
+                                language, filter.getSearch(), filter.toPageable());
+                return PageResponse.of(page.map(t -> buildResponse(t, language)));
+        }
+
+        public PageResponse<TastingNoteResponse> getAllDashboard(LookupFilterRequest filter) {
+                String language = LocaleContextHolder.getLocale().getLanguage();
+                Page<TastingNote> page = tastingNoteRepository.findAllDashboard(
+                                filter.getSearch(), filter.toPageable());
+                return PageResponse.of(page.map(t -> buildResponse(t, language)));
+        }
+
+        public TastingNoteResponse getBySlug(String slug) {
+                String language = LocaleContextHolder.getLocale().getLanguage();
+                TastingNote tastingNote = tastingNoteRepository.findBySlugAndLanguage(slug, language)
+                                .orElseThrow(TastingNoteNotFoundException::new);
+                return buildResponse(tastingNote, language);
+        }
 
         @Transactional
         public TastingNoteResponse create(TastingNoteRequest request) {
@@ -60,6 +83,7 @@ public class TastingNoteService {
                 }
                 translationRepository.saveAll(translations);
 
+                log.info("TastingNote created with slug: {}", slug);
                 return buildResponse(tastingNote, LocaleContextHolder.getLocale().getLanguage());
         }
 
@@ -95,21 +119,7 @@ public class TastingNoteService {
                                 .orElseThrow(TastingNoteNotFoundException::new);
                 tastingNote.softDelete();
                 tastingNoteRepository.save(tastingNote);
-        }
-
-        public TastingNoteResponse getBySlug(String slug) {
-                String language = LocaleContextHolder.getLocale().getLanguage();
-                TastingNote tastingNote = tastingNoteRepository.findBySlugAndLanguage(slug, language)
-                                .orElseThrow(TastingNoteNotFoundException::new);
-                return buildResponse(tastingNote, language);
-        }
-
-        public List<TastingNoteResponse> getAll() {
-                String language = LocaleContextHolder.getLocale().getLanguage();
-                return tastingNoteRepository.findAllWithLanguage(language)
-                                .stream()
-                                .map(b -> buildResponse(b, language))
-                                .toList();
+                log.info("TastingNote soft deleted: {}", slug);
         }
 
         private TastingNoteResponse buildResponse(TastingNote tastingNote, String language) {

@@ -34,15 +34,37 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(AbstractHttpConfigurer::disable)
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/api/auth/**",
-                                "/oauth2/**",
-                                "/login/oauth2/**")
-                        .permitAll()
-                        .anyRequest().authenticated())
+        .csrf(AbstractHttpConfigurer::disable)
+        .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .authorizeHttpRequests(auth -> auth
+        .requestMatchers(
+                "/api/auth/**",
+                "/oauth2/**",
+                "/login/oauth2/**",
+                "/api/categories",
+                "/api/categories/**",
+                "/api/origins",
+                "/api/origins/**",
+                "/api/farms",
+                "/api/farms/**",
+                "/api/roast-profiles",
+                "/api/roast-profiles/**",
+                "/api/processing-methods",
+                "/api/processing-methods/**",
+                "/api/coffee-varieties",
+                "/api/coffee-varieties/**",
+                "/api/tasting-notes",
+                "/api/tasting-notes/**",
+                "/api/brewing-methods",
+                "/api/brewing-methods/**",
+                "/api/pairings",
+                "/api/pairings/**",
+                "/api/products",
+                "/api/products/**"
+        ).permitAll()
+        .requestMatchers("/api/dashboard/**").authenticated()
+        .anyRequest().authenticated()
+        )
                 .oauth2Login(oauth2 -> oauth2
                         .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
                         .successHandler(oAuth2SuccessHandler)

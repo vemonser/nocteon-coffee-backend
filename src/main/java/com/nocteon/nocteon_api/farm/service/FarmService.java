@@ -4,13 +4,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.nocteon.nocteon_api.common.exception.invalid.InvalidFarmException;
+import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.FarmNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.farm.dto.request.FarmFilterRequest;
 import com.nocteon.nocteon_api.farm.dto.request.FarmRequest;
 import com.nocteon.nocteon_api.farm.dto.request.FarmTranslationRequest;
 import com.nocteon.nocteon_api.farm.dto.response.FarmResponse;
@@ -36,35 +39,61 @@ public class FarmService {
     private final OriginRepository originRepository;
     private final LookupServiceHelper helper;
 
+    public PageResponse<FarmResponse> getAll(FarmFilterRequest filter) {
+        String language = LocaleContextHolder.getLocale().getLanguage();
+        Page<Farm> page = farmRepository.findAllPublic(
+                language,
+                filter.getSearch(),
+                filter.getOriginSlug(),
+                filter.toPageable());
+        return PageResponse.of(page.map(f -> buildResponse(f, language)));
+    }
+
+    public PageResponse<FarmResponse> getAllDashboard(FarmFilterRequest filter) {
+        String language = LocaleContextHolder.getLocale().getLanguage();
+        Page<Farm> page = farmRepository.findAllDashboard(
+                filter.getSearch(),
+                filter.getOriginSlug(),
+                filter.toPageable());
+        return PageResponse.of(page.map(f -> buildResponse(f, language)));
+    }
+
+    public FarmResponse getBySlug(String slug) {
+        String language = LocaleContextHolder.getLocale().getLanguage();
+        Farm farm = farmRepository.findBySlugAndLanguage(slug, language)
+                .orElseThrow(FarmNotFoundException::new);
+        return buildResponse(farm, language);
+    }
+
     @Transactional
     public FarmResponse create(FarmRequest request, MultipartFile image) {
         helper.validateTranslations(request.getTranslations());
 
-        Origin origin = originRepository.findBySlug(request.getOriginSlug()).orElseThrow(OriginNotFoundException::new);
+        Origin origin = originRepository.findBySlug(request.getOriginSlug())
+                .orElseThrow(OriginNotFoundException::new);
 
         String englishName = request.getTranslations().stream()
                 .filter(t -> t.getLanguage().equals("en"))
                 .findFirst()
                 .map(FarmTranslationRequest::getName)
-                .orElseThrow(InvalidFarmException::new);
+                .orElseThrow(InvalidTranslationException::new);
 
         String slug = helper.generateUniqueSlug(englishName, farmRepository::existsBySlug);
-
         String imageUrl = helper.uploadImage(image, "farms");
 
         Farm farm = Farm.builder()
+                .origin(origin)
                 .slug(slug)
                 .imageUrl(imageUrl)
-                .origin(origin)
                 .build();
 
         farm = farmRepository.save(farm);
 
-        final Farm saveFarm = farm;
+        final Farm saved = farm;
         List<FarmTranslation> translations = new ArrayList<>();
         for (FarmTranslationRequest t : request.getTranslations()) {
             translations.add(FarmTranslation.builder()
-                    .farm(saveFarm)
+                    .farm(saved)
                     .language(t.getLanguage())
                     .name(t.getName())
                     .country(t.getCountry())
@@ -73,8 +102,7 @@ public class FarmService {
         }
         farmTranslationRepository.saveAll(translations);
 
-        log.info("Farm created with slug:: {}", slug);
-
+        log.info("Farm created with slug: {}", slug);
         return buildResponse(farm, LocaleContextHolder.getLocale().getLanguage());
     }
 
@@ -96,24 +124,26 @@ public class FarmService {
 
         if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
             helper.validateTranslations(request.getTranslations());
-
-            request.getTranslations().forEach(t -> farmTranslationRepository
-                    .findByFarmIdAndLanguage(farm.getId(), t.getLanguage())
-                    .ifPresentOrElse(
-                            existing -> {
-                                existing.setName(t.getName());
-                                existing.setCountry(t.getCountry());
-                                existing.setDescription(t.getDescription());
-                                farmTranslationRepository.save(existing);
-                            },
-                            () -> farmTranslationRepository.save(
-                                    FarmTranslation.builder()
-                                            .farm(farm)
-                                            .language(t.getLanguage())
-                                            .name(t.getName())
-                                            .country(t.getCountry())
-                                            .description(t.getDescription())
-                                            .build())));
+            request.getTranslations().forEach(t ->
+                farmTranslationRepository
+                        .findByFarmIdAndLanguage(farm.getId(), t.getLanguage())
+                        .ifPresentOrElse(
+                                existing -> {
+                                    existing.setName(t.getName());
+                                    existing.setCountry(t.getCountry());
+                                    existing.setDescription(t.getDescription());
+                                    farmTranslationRepository.save(existing);
+                                },
+                                () -> farmTranslationRepository.save(
+                                        FarmTranslation.builder()
+                                                .farm(farm)
+                                                .language(t.getLanguage())
+                                                .name(t.getName())
+                                                .country(t.getCountry())
+                                                .description(t.getDescription())
+                                                .build())
+                        )
+            );
         }
 
         farmRepository.save(farm);
@@ -140,30 +170,6 @@ public class FarmService {
         farm.softDelete();
         farmRepository.save(farm);
         log.info("Farm soft deleted: {}", slug);
-
-    }
-
-    public FarmResponse getBySlug(String slug) {
-        String language = LocaleContextHolder.getLocale().getLanguage();
-        Farm farm = farmRepository.findBySlugAndLanguage(slug, language)
-                .orElseThrow(FarmNotFoundException::new);
-        return buildResponse(farm, language);
-    }
-
-    public List<FarmResponse> getAll() {
-        String language = LocaleContextHolder.getLocale().getLanguage();
-        return farmRepository.findAllWithLanguage(language)
-                .stream()
-                .map(f -> buildResponse(f, language))
-                .toList();
-    }
-
-    public List<FarmResponse> getByOrigin(String originSlug) {
-        String language = LocaleContextHolder.getLocale().getLanguage();
-        return farmRepository.findAllByOriginSlugWithLanguage(originSlug, language)
-                .stream()
-                .map(f -> buildResponse(f, language))
-                .toList();
     }
 
     private FarmResponse buildResponse(Farm farm, String language) {

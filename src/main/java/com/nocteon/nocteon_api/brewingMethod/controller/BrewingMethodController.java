@@ -1,12 +1,11 @@
 package com.nocteon.nocteon_api.brewingMethod.controller;
 
-import java.util.List;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -14,32 +13,49 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+
 import com.nocteon.nocteon_api.brewingMethod.dto.request.BrewingMethodRequest;
 import com.nocteon.nocteon_api.brewingMethod.dto.response.BrewingMethodResponse;
 import com.nocteon.nocteon_api.brewingMethod.service.BrewingMethodService;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
+import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
+import com.nocteon.nocteon_api.common.dto.PageResponse;
+
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/brewing-methods")
+@RequestMapping("/api")
 @RequiredArgsConstructor
 public class BrewingMethodController {
 
     private final BrewingMethodService brewingMethodService;
 
-    @GetMapping
-    public ResponseEntity<ApiResponse<List<BrewingMethodResponse>>> getAll() {
-        return ResponseEntity.ok(ApiResponse.success(brewingMethodService.getAll(), "Brewing methods retrieved"));
+    // Public
+    @GetMapping("/brewing-methods")
+    public ResponseEntity<ApiResponse<PageResponse<BrewingMethodResponse>>> getAll(
+            @ModelAttribute LookupFilterRequest filter) {
+        return ResponseEntity.ok(
+                ApiResponse.success(brewingMethodService.getAll(filter), "Brewing method retrieved"));
     }
 
-    @GetMapping("/{slug}")
+    @GetMapping("/brewing-methods/{slug}")
     public ResponseEntity<ApiResponse<BrewingMethodResponse>> getBySlug(@PathVariable String slug) {
         return ResponseEntity.ok(ApiResponse.success(brewingMethodService.getBySlug(slug), "Brewing method retrieved"));
     }
 
-    @PostMapping
+    // ===== Dashboard Endpoints =====
+
+    @GetMapping("/dashboard/brewing-methods")
+    @PreAuthorize("hasAuthority('brewing_method:read')")
+    public ResponseEntity<ApiResponse<PageResponse<BrewingMethodResponse>>> getAllDashboard(
+            @ModelAttribute LookupFilterRequest filter) {
+        return ResponseEntity.ok(
+                ApiResponse.success(brewingMethodService.getAllDashboard(filter), "Brewing method retrieved"));
+    }
+
+    @PostMapping("/dashboard/brewing-methods")
     @PreAuthorize("hasAuthority('brewing_method:create')")
     public ResponseEntity<ApiResponse<BrewingMethodResponse>> create(
             @Valid @RequestBody BrewingMethodRequest request) {
@@ -47,15 +63,16 @@ public class BrewingMethodController {
                 .body(ApiResponse.success(brewingMethodService.create(request), "Brewing method created"));
     }
 
-    @PutMapping("/{slug}")
+    @PutMapping("/dashboard/brewing-methods/{slug}")
     @PreAuthorize("hasAuthority('brewing_method:update')")
     public ResponseEntity<ApiResponse<BrewingMethodResponse>> update(
             @PathVariable String slug,
             @Valid @RequestBody BrewingMethodRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(brewingMethodService.update(slug, request), "Brewing method updated"));
+        return ResponseEntity
+                .ok(ApiResponse.success(brewingMethodService.update(slug, request), "Brewing method updated"));
     }
 
-    @DeleteMapping("/{slug}")
+    @DeleteMapping("/dashboard/brewing-methods/{slug}")
     @PreAuthorize("hasAuthority('brewing_method:delete')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String slug) {
         brewingMethodService.delete(slug);

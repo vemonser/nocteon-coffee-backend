@@ -1,13 +1,12 @@
 package com.nocteon.nocteon_api.origin.controller;
 
-import java.util.List;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -18,6 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
+import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
+import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.origin.dto.request.OriginRequest;
 import com.nocteon.nocteon_api.origin.dto.response.OriginResponse;
 import com.nocteon.nocteon_api.origin.service.OriginService;
@@ -26,17 +27,30 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/origins")
+@RequestMapping("/api")
 @RequiredArgsConstructor
 public class OriginController {
 
     private final OriginService originService;
 
-    @GetMapping
-    public ResponseEntity<ApiResponse<List<OriginResponse>>> getAllOrigins() {
-        return ResponseEntity.ok(ApiResponse.success(originService.getAll(), "Origin retrieved"));
+    // Public
+    @GetMapping("/origins")
+    public ResponseEntity<ApiResponse<PageResponse<OriginResponse>>> getAll(
+            @ModelAttribute LookupFilterRequest filter) {
+        return ResponseEntity.ok(
+                ApiResponse.success(originService.getAll(filter), "Origins retrieved")
+        );
     }
 
+    // Dashboard
+    @GetMapping("/dashboard/origins")
+    @PreAuthorize("hasAuthority('origin:read')")
+    public ResponseEntity<ApiResponse<PageResponse<OriginResponse>>> getAllDashboard(
+            @ModelAttribute LookupFilterRequest filter) {
+        return ResponseEntity.ok(
+                ApiResponse.success(originService.getAllDashboard(filter), "Origins retrieved")
+        );
+    }
     @GetMapping("/{slug}")
     public ResponseEntity<ApiResponse<OriginResponse>> getOrigin(@PathVariable String slug) {
         return ResponseEntity.ok(ApiResponse.success(originService.getOrigin(slug), "Origin retrieved"));
