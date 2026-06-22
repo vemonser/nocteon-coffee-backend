@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import com.nocteon.nocteon_api.product.enums.ProductType;
+import com.nocteon.nocteon_api.review.dto.response.ReviewResponse;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -34,6 +35,7 @@ public class ProductResponse {
     
     private Double averageRating;
     private Long reviewCount;
+    private List<ReviewResponse> recentReviews; 
 
     // Relations
     private CoffeeDetailsResponse coffeeDetails;

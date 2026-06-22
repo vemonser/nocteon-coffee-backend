@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -66,6 +67,9 @@ import com.nocteon.nocteon_api.product.repository.ProductMediaRepository;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import com.nocteon.nocteon_api.product.repository.ProductTranslationRepository;
 import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
+import com.nocteon.nocteon_api.review.dto.response.ReviewResponse;
+import com.nocteon.nocteon_api.review.repository.ReviewRepository;
+import com.nocteon.nocteon_api.review.service.ReviewService;
 import com.nocteon.nocteon_api.roastProfile.entity.RoastProfile;
 import com.nocteon.nocteon_api.roastProfile.repository.RoastProfileRepository;
 import com.nocteon.nocteon_api.tastingNote.entity.TastingNote;
@@ -91,12 +95,14 @@ public class ProductService {
     private final FarmRepository farmRepository;
     private final RoastProfileRepository roastProfileRepository;
     private final ProcessingMethodRepository processingMethodRepository;
+    private final ReviewRepository reviewRepository;
     private final CoffeeVarietyRepository coffeeVarietyRepository;
     private final TastingNoteRepository tastingNoteRepository;
     private final PairingRepository pairingRepository;
     private final BrewingMethodRepository brewingMethodRepository;
     private final LookupServiceHelper helper;
     private final CloudinaryService cloudinaryService;
+    private final ReviewService reviewService;
 
     public PageResponse<ProductResponse> getAll(ProductFilterRequest filter) {
         String language = LocaleContextHolder.getLocale().getLanguage();
@@ -472,6 +478,19 @@ public class ProductService {
                     .orElse(null);
         }
 
+        Double averageRating = reviewRepository
+        .findAverageRatingByProductSlug(product.getSlug());
+
+        Long reviewCount = reviewRepository
+                .countByProductSlug(product.getSlug());
+
+        List<ReviewResponse> recentReviews = reviewRepository
+                .findByProductSlug(product.getSlug(), PageRequest.of(0, 3))
+                .getContent()
+                .stream()
+                .map(reviewService::buildResponse)  
+                .toList();
+
         return ProductResponse.builder()
                 .id(product.getId())
                 .slug(product.getSlug())
@@ -493,6 +512,9 @@ public class ProductService {
                 .tastingNotes(tastingNotes)
                 .pairings(pairings)
                 .brewingMethods(brewingMethods)
+                .averageRating(averageRating)
+                .reviewCount(reviewCount)
+                .recentReviews(recentReviews)
                 .build();
     }
 
