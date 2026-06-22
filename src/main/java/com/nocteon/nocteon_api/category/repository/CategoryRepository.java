@@ -53,6 +53,8 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
                         @Param("slug") String slug,
                         @Param("language") String language);
 
+        Optional<Category> findBySlug(String slug);
+
         boolean existsBySlug(String slug);
 
 }

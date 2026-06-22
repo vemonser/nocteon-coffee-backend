@@ -38,6 +38,8 @@ public interface RoastProfileRepository extends JpaRepository<RoastProfile, Long
 
     @Query("SELECT r FROM RoastProfile r LEFT JOIN FETCH r.translations t WHERE r.slug = :slug AND t.language = :language")
     Optional<RoastProfile> findBySlugAndLanguage(@Param("slug") String slug, @Param("language") String language);
+    
+    Optional<RoastProfile> findBySlug(@Param("slug") String slug);
 
     boolean existsBySlug(String slug);
 }

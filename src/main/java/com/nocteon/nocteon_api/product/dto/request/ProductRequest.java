@@ -38,8 +38,8 @@ public class ProductRequest {
 
     @NotEmpty(message = "{validation.variants.notEmpty}")
     private List<@Valid ProductVariantRequest> variants;
-
-    private List<String> tastingNoteslugs;
+                      
+    private List<String> tastingNoteSlugs;
     private List<String> pairingSlugs;
     private List<ProductBrewingMethodRequest> brewingMethods;
 }

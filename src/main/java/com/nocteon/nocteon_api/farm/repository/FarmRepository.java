@@ -43,5 +43,7 @@ public interface FarmRepository extends JpaRepository<Farm, Long> {
         @Query("SELECT f FROM Farm f LEFT JOIN FETCH f.translations t WHERE f.slug = :slug AND t.language = :language")
         Optional<Farm> findBySlugAndLanguage(@Param("slug") String slug, @Param("language") String language);
 
+        Optional<Farm> findBySlug(@Param("slug") String slug);
+
         boolean existsBySlug(String slug);
 }

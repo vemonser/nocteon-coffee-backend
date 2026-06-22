@@ -1,26 +1,24 @@
 package com.nocteon.nocteon_api.product.dto.request;
 
+import java.math.BigDecimal;
+
+import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
 import com.nocteon.nocteon_api.product.enums.ProductType;
 
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
 @Setter
-public class ProductFilterRequest {
+public class ProductFilterRequest extends BaseFilterRequest {
+    private String search;
     private String categorySlug;
     private String originSlug;
+    private String farmSlug;
+    private Double minRating;
     private ProductType productType;
     private Boolean featured;
-
-    @Min(0)
-    private int page = 0;
-
-    @Min(1) @Max(50)
-    private int size = 20;
-
-    private String sort = "createdAt";
-    private String direction = "desc";
+    private Boolean isActive;
+    private BigDecimal minPrice;
+    private BigDecimal maxPrice;
 }

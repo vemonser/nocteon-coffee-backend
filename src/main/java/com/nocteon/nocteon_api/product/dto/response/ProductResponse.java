@@ -1,5 +1,6 @@
 package com.nocteon.nocteon_api.product.dto.response;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import com.nocteon.nocteon_api.product.enums.ProductType;
@@ -26,6 +27,13 @@ public class ProductResponse {
     private String name;
     private String shortDescription;
     private String description;
+    
+    // للـ List Response بس
+    private String primaryImageUrl;
+    private BigDecimal lowestPrice;
+    
+    private Double averageRating;
+    private Long reviewCount;
 
     // Relations
     private CoffeeDetailsResponse coffeeDetails;

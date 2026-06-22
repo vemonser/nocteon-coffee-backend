@@ -40,6 +40,8 @@ public interface BrewingMethodRepository extends JpaRepository<BrewingMethod, Lo
         @Query("SELECT b FROM BrewingMethod b LEFT JOIN FETCH b.translations t WHERE b.slug = :slug AND t.language = :language")
         Optional<BrewingMethod> findBySlugAndLanguage(@Param("slug") String slug, @Param("language") String language);
 
+        Optional<BrewingMethod> findBySlug(@Param("slug") String slug);
+        
         List<BrewingMethod> findBySlugIn(List<String> slugs);
 
         boolean existsBySlug(String slug);

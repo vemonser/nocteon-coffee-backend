@@ -32,4 +32,5 @@ public class ProductVariantRequest {
     @DecimalMin(value = "0.00", message = "{validation.discount.min}")
     @DecimalMax(value = "100.00", message = "{validation.discount.max}")
     private BigDecimal discount;
+    private Boolean isActive;
 }
