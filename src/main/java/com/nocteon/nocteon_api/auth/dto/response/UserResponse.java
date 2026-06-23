@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.auth.dto.response;
 
- 
+import java.util.List;
+
 import com.nocteon.nocteon_api.auth.enums.Role;
 
 import lombok.Builder;
@@ -16,4 +17,5 @@ public class UserResponse {
     private String lastName;
     private String avatarUrl;
     private Role role;
+    private List<String> permissions;
 }

@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.auth.service;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
 
@@ -23,6 +24,7 @@ import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.auth.repository.UserProfileRepository;
 import com.nocteon.nocteon_api.auth.security.JwtService;
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
+import com.nocteon.nocteon_api.common.enums.Permission;
 import com.nocteon.nocteon_api.common.exception.account.AccountNotVerifiedException;
 import com.nocteon.nocteon_api.common.exception.email.EmailAlreadyExistsException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidCredentialsException;
@@ -170,6 +172,10 @@ public class AuthService {
                 .revoked(false)
                 .build();
         refreshTokenRepository.save(refreshToken);
+        
+        List<String> permissions = user.getRole().getPermissions().stream()
+                .map(Permission::getPermission)
+                .toList();
 
         return AuthResult.builder()
                 .authResponse(AuthResponse.builder()
@@ -183,6 +189,7 @@ public class AuthService {
                                 .firstName(profile != null ? profile.getFirstName() : null)
                                 .lastName(profile != null ? profile.getLastName() : null)
                                 .avatarUrl(profile != null ? profile.getAvatarUrl() : null)
+                                .permissions(permissions)
                                 .build())
                         .build())
                 .rawRefreshToken(rawRefreshToken)
