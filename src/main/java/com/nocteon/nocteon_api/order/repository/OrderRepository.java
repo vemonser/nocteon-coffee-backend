@@ -14,19 +14,16 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @Query("""
             SELECT DISTINCT o FROM Order o
-            LEFT JOIN FETCH o.items i
-            LEFT JOIN FETCH i.productVariant v
-            LEFT JOIN FETCH v.product
+            LEFT JOIN o.items i
             WHERE o.user.id = :userId
             ORDER BY o.createdAt DESC
             """)
-    Page<Order> findByUserId(@Param("userId") Long userId, Pageable pageable);
+    Page<Order> findByUserId(
+            @Param("userId") Long userId,
+            Pageable pageable);
 
     @Query("""
             SELECT DISTINCT o FROM Order o
-            LEFT JOIN FETCH o.items i
-            LEFT JOIN FETCH i.productVariant v
-            LEFT JOIN FETCH v.product
             WHERE (:status IS NULL OR o.status = :status)
             ORDER BY o.createdAt DESC
             """)

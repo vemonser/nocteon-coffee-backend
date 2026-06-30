@@ -14,8 +14,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     @Query("""
             SELECT r FROM Review r
-            LEFT JOIN FETCH r.user u
-            LEFT JOIN FETCH u.profile
+            LEFT JOIN r.user u
             WHERE r.product.slug = :slug
             AND r.deletedAt IS NULL
             ORDER BY r.createdAt DESC
@@ -27,14 +26,12 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     @Query("""
             SELECT AVG(r.rating) FROM Review r
             WHERE r.product.slug = :slug
-            AND r.deletedAt IS NULL
             """)
     Double findAverageRatingByProductSlug(@Param("slug") String slug);
 
     @Query("""
             SELECT COUNT(r) FROM Review r
             WHERE r.product.slug = :slug
-            AND r.deletedAt IS NULL
             """)
     Long countByProductSlug(@Param("slug") String slug);
 

@@ -71,10 +71,13 @@ CREATE TABLE product_tasting_notes (
 );
 
 CREATE TABLE product_brewing_methods (
+    id BIGSERIAL,
     product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     brewing_method_id BIGINT NOT NULL REFERENCES brewing_methods(id) ON DELETE CASCADE,
     score INT NOT NULL DEFAULT 0,
-    PRIMARY KEY (product_id, brewing_method_id)
+    PRIMARY KEY (product_id, brewing_method_id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE product_pairings (

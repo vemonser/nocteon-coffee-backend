@@ -3,6 +3,8 @@ package com.nocteon.nocteon_api.origin.entity;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.hibernate.annotations.BatchSize;
+
 import com.nocteon.nocteon_api.common.entity.SoftDeletableEntity;
 
 import jakarta.persistence.CascadeType;
@@ -38,5 +40,6 @@ public class Origin extends SoftDeletableEntity {
 
     @OneToMany(mappedBy = "origin", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
+    @BatchSize(size = 30)
     private List<OriginTranslation> translations = new ArrayList<>();
 }

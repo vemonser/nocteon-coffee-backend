@@ -2,19 +2,23 @@ package com.nocteon.nocteon_api.origin.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.nocteon.nocteon_api.category.dto.response.DashboardCategoryResponse;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.origin.dto.request.OriginRequest;
 import com.nocteon.nocteon_api.origin.dto.request.OriginTranslationRequest;
+import com.nocteon.nocteon_api.origin.dto.response.DashboardOriginResponse;
 import com.nocteon.nocteon_api.origin.dto.response.OriginResponse;
 import com.nocteon.nocteon_api.origin.entity.Origin;
 import com.nocteon.nocteon_api.origin.entity.OriginTranslation;
@@ -153,12 +157,18 @@ public class OriginService {
                 return PageResponse.of(page.map(o -> buildResponse(o, language)));
         }
 
-        public PageResponse<OriginResponse> getAllDashboard(LookupFilterRequest filter) {
+        public PageResponse<DashboardOriginResponse> getAllDashboard(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
-                Page<Origin> page = originRepository.findAllDashboard(
+                String search = Objects.requireNonNullElse(
                                 filter.getSearch(),
+                                "");
+
+                Page<Origin> page = originRepository.findAllDashboard(
+                                search,
+                                language,
                                 filter.toPageable());
-                return PageResponse.of(page.map(o -> buildResponse(o, language)));
+                return PageResponse.of(
+                                page.map(this::buildResponse));
         }
 
         private OriginResponse buildResponse(Origin origin, String language) {
@@ -179,4 +189,23 @@ public class OriginService {
                                 .imageUrl(origin.getImageUrl())
                                 .build();
         }
+
+        private DashboardOriginResponse buildResponse(Origin origin) {
+                return DashboardOriginResponse.builder()
+                                .id(origin.getId())
+                                .code(origin.getCode())
+                                .slug(origin.getSlug())
+                                .imageUrl(origin.getImageUrl())
+                                .translations(
+                                                origin.getTranslations()
+                                                                .stream()
+                                                                .map(t -> TranslationResponse.builder()
+                                                                                .language(t.getLanguage())
+                                                                                .name(t.getName())
+                                                                                .description(t.getDescription())
+                                                                                .build())
+                                                                .toList())
+                                .build();
+        }
+
 }

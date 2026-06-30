@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.pairing.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
@@ -10,12 +11,14 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.PairingNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.pairing.dto.request.PairingRequest;
 import com.nocteon.nocteon_api.pairing.dto.request.PairingTranslationRequest;
 import com.nocteon.nocteon_api.pairing.dto.response.PairingResponse;
+import com.nocteon.nocteon_api.pairing.dto.response.PairingResponseDashboard;
 import com.nocteon.nocteon_api.pairing.entity.Pairing;
 import com.nocteon.nocteon_api.pairing.entity.PairingTranslation;
 import com.nocteon.nocteon_api.pairing.repository.PairingRepository;
@@ -136,11 +139,16 @@ public class PairingService {
                 return PageResponse.of(page.map(p -> buildResponse(p, language)));
         }
 
-        public PageResponse<PairingResponse> getAllDashboard(LookupFilterRequest filter) {
-                String language = LocaleContextHolder.getLocale().getLanguage();
-                Page<Pairing> page = pairingRepository.findAllDashboard(
-                                filter.getSearch(), filter.toPageable());
-                return PageResponse.of(page.map(r -> buildResponse(r, language)));
+        public PageResponse<PairingResponseDashboard> getAllDashboard(LookupFilterRequest filter) {
+                String search = Objects.requireNonNullElse(
+                                filter.getSearch(),
+                                "");
+
+                                Page<Pairing> page = pairingRepository.findAllDashboard(
+                                search,
+                                filter.toPageable());
+                return PageResponse.of(
+                                page.map(this::buildResponse));
         }
 
         private PairingResponse buildResponse(Pairing pairing, String language) {
@@ -160,5 +168,20 @@ public class PairingService {
                                 .imageUrl(pairing.getImageUrl())
                                 .build();
         }
-
+                private PairingResponseDashboard buildResponse(Pairing pairing) {
+                return PairingResponseDashboard.builder()
+                                .id(pairing.getId())
+                                .slug(pairing.getSlug())
+                                .imageUrl(pairing.getImageUrl())
+                                .translations(
+                                                pairing.getTranslations()
+                                                                .stream()
+                                                                .map(t -> TranslationResponse.builder()
+                                                                                .language(t.getLanguage())
+                                                                                .name(t.getName())
+                                                                                .description(t.getDescription())
+                                                                                .build())
+                                                                .toList())
+                                .build();
+        }
 }

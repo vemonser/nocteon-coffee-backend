@@ -15,23 +15,27 @@ public interface RoastProfileRepository extends JpaRepository<RoastProfile, Long
 
     @Query("""
             SELECT DISTINCT r FROM RoastProfile r
-            LEFT JOIN FETCH r.translations t
-            WHERE t.language = :language
-            AND (:search IS NULL OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
+            LEFT JOIN r.translations t
+            WHERE (:search = ''
+                   OR (t.language = :language
+                       AND LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))))
             """)
     Page<RoastProfile> findAllPublic(
-            @Param("language") String language,
             @Param("search") String search,
+            @Param("language") String language,
             Pageable pageable);
 
     @Query("""
             SELECT DISTINCT r FROM RoastProfile r
-            LEFT JOIN FETCH r.translations t
-            WHERE (:search IS NULL OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
+            LEFT JOIN  r.translations t
+                        WHERE (:search = ''
+            OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
+            OR LOWER(r.slug) LIKE LOWER(CONCAT('%', :search, '%'))
+            )
             """)
     Page<RoastProfile> findAllDashboard(
-            @Param("search") String search,
-            Pageable pageable);
+                        @Param("search") String search,
+                        Pageable pageable);
 
     @Query("SELECT r FROM RoastProfile r LEFT JOIN FETCH r.translations WHERE r.slug = :slug")
     Optional<RoastProfile> findBySlugWithTranslations(@Param("slug") String slug);

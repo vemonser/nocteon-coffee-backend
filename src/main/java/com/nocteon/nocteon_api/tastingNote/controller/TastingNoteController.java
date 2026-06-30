@@ -21,6 +21,7 @@ import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.tastingNote.dto.request.TastingNoteRequest;
 import com.nocteon.nocteon_api.tastingNote.dto.response.TastingNoteResponse;
+import com.nocteon.nocteon_api.tastingNote.dto.response.TastingNoteResponseDashboard;
 import com.nocteon.nocteon_api.tastingNote.service.TastingNoteService;
 
 import jakarta.validation.Valid;
@@ -49,7 +50,7 @@ public class TastingNoteController {
 
     @GetMapping("/dashboard/tasting-notes")
     @PreAuthorize("hasAuthority('tasting_note:read')")
-    public ResponseEntity<ApiResponse<PageResponse<TastingNoteResponse>>> getAllDashboard(
+    public ResponseEntity<ApiResponse<PageResponse<TastingNoteResponseDashboard>>> getAllDashboard(
             @ModelAttribute LookupFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(tastingNoteService.getAllDashboard(filter), "Tasting notes retrieved"));

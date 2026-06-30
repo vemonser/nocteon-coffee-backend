@@ -15,11 +15,12 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
 
     @Query("""
             SELECT DISTINCT p FROM JournalPost p
-            LEFT JOIN FETCH p.translations t
+            LEFT JOIN p.translations t
             WHERE t.language = :language
             AND p.publishedAt IS NOT NULL
             AND p.publishedAt <= CURRENT_TIMESTAMP
-            AND (:search IS NULL OR LOWER(t.title) LIKE LOWER(CONCAT('%', :search, '%')))
+            AND (:search = ''
+                 OR LOWER(t.title) LIKE LOWER(CONCAT('%', :search, '%')))
             AND (:categorySlug IS NULL OR p.journalCategory.slug = :categorySlug)
             AND (:featured IS NULL OR p.featured = :featured)
             ORDER BY p.publishedAt DESC
@@ -33,8 +34,9 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
 
     @Query("""
             SELECT DISTINCT p FROM JournalPost p
-            LEFT JOIN FETCH p.translations t
-            WHERE (:search IS NULL OR LOWER(t.title) LIKE LOWER(CONCAT('%', :search, '%')))
+            LEFT JOIN p.translations t
+            WHERE (:search = ''
+                   OR  LOWER(t.title) LIKE LOWER(CONCAT('%', :search, '%')))
             AND (:categorySlug IS NULL OR p.journalCategory.slug = :categorySlug)
             """)
     Page<JournalPost> findAllDashboard(

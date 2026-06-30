@@ -42,6 +42,7 @@ CREATE TABLE wishlist_items (
     wishlist_id BIGINT NOT NULL REFERENCES wishlists(id) ON DELETE CASCADE,
     product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT uk_wishlist_product UNIQUE (wishlist_id, product_id)
 );
 

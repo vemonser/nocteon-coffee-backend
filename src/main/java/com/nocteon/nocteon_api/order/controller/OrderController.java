@@ -1,5 +1,7 @@
 package com.nocteon.nocteon_api.order.controller;
 
+import java.util.Map;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -46,15 +48,21 @@ public class OrderController {
                         "Order created"));
     }
 
-    // Moyasar Callback
-    @GetMapping("/orders/payment/callback")
-    public ResponseEntity<Void> paymentCallback(
-            @RequestParam String id,
-            @RequestParam Long orderId) {
-        orderService.handlePaymentCallback(id, orderId);
+//     // Moyasar Callback
+//     @GetMapping("/orders/payment/callback")
+//     public ResponseEntity<Void> paymentCallback(
+//             @RequestParam String id,
+//             @RequestParam Long orderId) {
+//         orderService.handlePaymentCallback(id, orderId);
+//         return ResponseEntity.ok().build();
+//     }
+// Paymob Webhook
+        @PostMapping("/orders/payment/webhook")
+        public ResponseEntity<Void> paymentWebhook(
+                @RequestParam Map<String, String> params) {
+        orderService.handlePaymentWebhook(params);
         return ResponseEntity.ok().build();
-    }
-
+        }
     @GetMapping("/orders/me")
     @PreAuthorize("hasAuthority('order:read')")
     public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getMyOrders(

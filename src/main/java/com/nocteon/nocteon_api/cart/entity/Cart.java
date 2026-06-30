@@ -1,6 +1,9 @@
 package com.nocteon.nocteon_api.cart.entity;
 
 import java.util.List;
+
+import org.hibernate.annotations.BatchSize;
+
 import java.util.ArrayList;
 
 import com.nocteon.nocteon_api.auth.entity.User;
@@ -35,5 +38,6 @@ public class Cart extends BaseEntity {
 
     @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
+    @BatchSize(size = 30)
     private List<CartItem> items = new ArrayList<>();
 }

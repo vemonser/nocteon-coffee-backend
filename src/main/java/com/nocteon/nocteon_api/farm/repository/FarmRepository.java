@@ -15,7 +15,7 @@ public interface FarmRepository extends JpaRepository<Farm, Long> {
 
         @Query("""
                         SELECT DISTINCT f FROM Farm f
-                        LEFT JOIN FETCH f.translations t
+                        LEFT JOIN f.translations t
                         WHERE t.language = :language
                         AND (:search IS NULL OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
                         AND (:originSlug IS NULL OR f.origin.slug = :originSlug)
@@ -28,7 +28,7 @@ public interface FarmRepository extends JpaRepository<Farm, Long> {
 
         @Query("""
                         SELECT DISTINCT f FROM Farm f
-                        LEFT JOIN FETCH f.translations t
+                        LEFT JOIN  f.translations t
                         WHERE (:search IS NULL OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
                         AND (:originSlug IS NULL OR f.origin.slug = :originSlug)
                         """)

@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.tastingNote.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
@@ -15,6 +16,8 @@ import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.tastingNote.dto.request.TastingNoteRequest;
 import com.nocteon.nocteon_api.tastingNote.dto.request.TastingNoteTranslationRequest;
 import com.nocteon.nocteon_api.tastingNote.dto.response.TastingNoteResponse;
+import com.nocteon.nocteon_api.tastingNote.dto.response.TastingNoteResponseDashboard;
+import com.nocteon.nocteon_api.tastingNote.dto.response.TranslationResponseDashboard;
 import com.nocteon.nocteon_api.tastingNote.entity.TastingNote;
 import com.nocteon.nocteon_api.tastingNote.entity.TastingNoteTranslation;
 import com.nocteon.nocteon_api.tastingNote.repository.TastingNoteRepository;
@@ -40,11 +43,15 @@ public class TastingNoteService {
                 return PageResponse.of(page.map(t -> buildResponse(t, language)));
         }
 
-        public PageResponse<TastingNoteResponse> getAllDashboard(LookupFilterRequest filter) {
-                String language = LocaleContextHolder.getLocale().getLanguage();
+        public PageResponse<TastingNoteResponseDashboard> getAllDashboard(LookupFilterRequest filter) {
+                String search = Objects.requireNonNullElse(
+                                filter.getSearch(),
+                                "");
+
                 Page<TastingNote> page = tastingNoteRepository.findAllDashboard(
-                                filter.getSearch(), filter.toPageable());
-                return PageResponse.of(page.map(t -> buildResponse(t, language)));
+                                search, filter.toPageable());
+                return PageResponse.of(
+                                page.map(this::buildResponse));
         }
 
         public TastingNoteResponse getBySlug(String slug) {
@@ -135,6 +142,21 @@ public class TastingNoteService {
                                 .id(tastingNote.getId())
                                 .slug(tastingNote.getSlug())
                                 .name(translation != null ? translation.getName() : null)
+                                .build();
+        }
+
+        private TastingNoteResponseDashboard buildResponse(TastingNote tastingNote) {
+                return TastingNoteResponseDashboard.builder()
+                                .id(tastingNote.getId())
+                                .slug(tastingNote.getSlug())
+                                .translations(
+                                                tastingNote.getTranslations()
+                                                                .stream()
+                                                                .map(t -> TranslationResponseDashboard.builder()
+                                                                                .language(t.getLanguage())
+                                                                                .name(t.getName())
+                                                                                .build())
+                                                                .toList())
                                 .build();
         }
 }

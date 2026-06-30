@@ -2,13 +2,16 @@ package com.nocteon.nocteon_api.farm.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.nocteon.nocteon_api.category.dto.response.DashboardCategoryResponse;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.FarmNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException;
@@ -16,7 +19,9 @@ import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.farm.dto.request.FarmFilterRequest;
 import com.nocteon.nocteon_api.farm.dto.request.FarmRequest;
 import com.nocteon.nocteon_api.farm.dto.request.FarmTranslationRequest;
+import com.nocteon.nocteon_api.farm.dto.response.DashboardFarmResponse;
 import com.nocteon.nocteon_api.farm.dto.response.FarmResponse;
+import com.nocteon.nocteon_api.farm.dto.response.FarmTranslationResponse;
 import com.nocteon.nocteon_api.farm.entity.Farm;
 import com.nocteon.nocteon_api.farm.entity.FarmTranslation;
 import com.nocteon.nocteon_api.farm.repository.FarmRepository;
@@ -49,13 +54,16 @@ public class FarmService {
         return PageResponse.of(page.map(f -> buildResponse(f, language)));
     }
 
-    public PageResponse<FarmResponse> getAllDashboard(FarmFilterRequest filter) {
-        String language = LocaleContextHolder.getLocale().getLanguage();
+    public PageResponse<DashboardFarmResponse> getAllDashboard(FarmFilterRequest filter) {
+
+        String search = Objects.requireNonNullElse(
+                                filter.getSearch(),
+                                "");
         Page<Farm> page = farmRepository.findAllDashboard(
-                filter.getSearch(),
+                search,
                 filter.getOriginSlug(),
                 filter.toPageable());
-        return PageResponse.of(page.map(f -> buildResponse(f, language)));
+        return PageResponse.of(page.map(this::buildResponse));
     }
 
     public FarmResponse getBySlug(String slug) {
@@ -191,4 +199,25 @@ public class FarmService {
                 .imageUrl(farm.getImageUrl())
                 .build();
     }
+
+
+
+            private DashboardFarmResponse buildResponse(Farm farm) {
+                return DashboardFarmResponse.builder()
+                                .id(farm.getId())
+                                .originSlug(farm.getOrigin().getSlug())
+                                .slug(farm.getSlug())
+                                .imageUrl(farm.getImageUrl())
+                                .translations(
+                                                farm.getTranslations()
+                                                                .stream()
+                                                                .map(t -> FarmTranslationResponse.builder()
+                                                                                .language(t.getLanguage())
+                                                                                .name(t.getName())
+                                                                                .description(t.getDescription())
+                                                                                .country(t.getCountry())
+                                                                                .build())
+                                                                .toList())
+                                .build();
+        }
 }

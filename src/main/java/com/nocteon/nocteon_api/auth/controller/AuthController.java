@@ -27,6 +27,7 @@ import com.nocteon.nocteon_api.auth.service.EmailVerificationService;
 import com.nocteon.nocteon_api.auth.service.PasswordResetService;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.exception.RateLimitExceededException;
+import com.nocteon.nocteon_api.common.exception.UnauthorizedException;
 import com.nocteon.nocteon_api.common.ratelimit.RateLimiterService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -78,7 +79,7 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public ResponseEntity<ApiResponse<AuthResponse>> refresh(
-            @CookieValue(name = "refreshToken") String rawRefreshToken) {
+            @CookieValue(name = "refreshToken", required = false) String rawRefreshToken) {
         AuthResult result = authService.refreshToken(rawRefreshToken);
         ResponseCookie cookie = buildRefreshTokenCookie(result.getRawRefreshToken());
 
@@ -90,12 +91,13 @@ public class AuthController {
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(
             @CookieValue(name = "refreshToken", required = false) String rawRefreshToken,
-            @RequestHeader("Authorization") String authHeader) {
-        String accessToken = authHeader.substring(7);
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        String accessToken = null;
 
-        if (rawRefreshToken != null) {
-            authService.logout(rawRefreshToken, accessToken);
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            accessToken = authHeader.substring(7);
         }
+        authService.logout(rawRefreshToken, accessToken);
 
         ResponseCookie expiredCookie = ResponseCookie.from("refreshToken", "")
                 .httpOnly(true)

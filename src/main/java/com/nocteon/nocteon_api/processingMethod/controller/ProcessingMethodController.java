@@ -19,6 +19,7 @@ import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.processingMethod.dto.request.ProcessingMethodRequest;
 import com.nocteon.nocteon_api.processingMethod.dto.response.ProcessingMethodResponse;
+import com.nocteon.nocteon_api.processingMethod.dto.response.ProcessingMethodResponseDashboard;
 import com.nocteon.nocteon_api.processingMethod.service.ProcessingMethodService;
 
 import jakarta.validation.Valid;
@@ -47,7 +48,7 @@ public class ProcessingMethodController {
 
     @GetMapping("/dashboard/processing-methods")
     @PreAuthorize("hasAuthority('processing_method:read')")
-    public ResponseEntity<ApiResponse<PageResponse<ProcessingMethodResponse>>> getAllDashboard(
+    public ResponseEntity<ApiResponse<PageResponse<ProcessingMethodResponseDashboard>>> getAllDashboard(
             @ModelAttribute LookupFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(processingMethodService.getAllDashboard(filter), "Processing methods retrieved"));

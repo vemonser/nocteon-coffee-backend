@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.brewingMethod.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
@@ -10,12 +11,14 @@ import org.springframework.stereotype.Service;
 import com.nocteon.nocteon_api.brewingMethod.dto.request.BrewingMethodRequest;
 import com.nocteon.nocteon_api.brewingMethod.dto.request.BrewingMethodTranslationRequest;
 import com.nocteon.nocteon_api.brewingMethod.dto.response.BrewingMethodResponse;
+import com.nocteon.nocteon_api.brewingMethod.dto.response.BrewingMethodResponseDashboard;
 import com.nocteon.nocteon_api.brewingMethod.entity.BrewingMethod;
 import com.nocteon.nocteon_api.brewingMethod.entity.BrewingMethodTranslation;
 import com.nocteon.nocteon_api.brewingMethod.repository.BrewingMethodRepository;
 import com.nocteon.nocteon_api.brewingMethod.repository.BrewingMethodTranslationRepository;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.BrewingMethodNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
@@ -116,14 +119,18 @@ public class BrewingMethodService {
                 return PageResponse.of(page.map(b -> buildResponse(b, language)));
         }
 
-        public PageResponse<BrewingMethodResponse> getAllDashboard(LookupFilterRequest filter) {
-                String language = LocaleContextHolder.getLocale().getLanguage();
+        public PageResponse<BrewingMethodResponseDashboard> getAllDashboard(LookupFilterRequest filter) {
+
+                String search = Objects.requireNonNullElse(
+                                filter.getSearch(),
+                                "");
 
                 Page<BrewingMethod> page = brewingMethodRepository.findAllDashboard(
-                                filter.getSearch(),
+                                search,
                                 filter.toPageable());
 
-                return PageResponse.of(page.map(c -> buildResponse(c, language)));
+                return PageResponse.of(
+                                page.map(this::buildResponse));
         }
 
         private BrewingMethodResponse buildResponse(BrewingMethod brewingMethod, String language) {
@@ -142,4 +149,21 @@ public class BrewingMethodService {
                                 .description(translation != null ? translation.getDescription() : null)
                                 .build();
         }
+
+                private BrewingMethodResponseDashboard buildResponse(BrewingMethod brewingMethod) {
+                return BrewingMethodResponseDashboard.builder()
+                                .id(brewingMethod.getId())
+                                .slug(brewingMethod.getSlug())
+                                .translations(
+                                                brewingMethod.getTranslations()
+                                                                .stream()
+                                                                .map(t -> TranslationResponse.builder()
+                                                                                .language(t.getLanguage())
+                                                                                .name(t.getName())
+                                                                                .description(t.getDescription())
+                                                                                .build())
+                                                                .toList())
+                                .build();
+        }
+
 }

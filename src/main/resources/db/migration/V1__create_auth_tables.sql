@@ -16,7 +16,7 @@ CREATE TABLE users (
     deleted_at TIMESTAMPTZ NULL
 );
 
-CREATE TABLE user_details (
+CREATE TABLE user_profiles (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     first_name VARCHAR(50) NULL,

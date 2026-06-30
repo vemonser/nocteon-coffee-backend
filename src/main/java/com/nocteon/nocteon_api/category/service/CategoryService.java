@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.category.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
@@ -11,12 +12,14 @@ import org.springframework.web.multipart.MultipartFile;
 import com.nocteon.nocteon_api.category.dto.request.CategoryRequest;
 import com.nocteon.nocteon_api.category.dto.request.CreateCategoryTranslationRequest;
 import com.nocteon.nocteon_api.category.dto.response.CategoryResponse;
+import com.nocteon.nocteon_api.category.dto.response.DashboardCategoryResponse;
 import com.nocteon.nocteon_api.category.entity.Category;
 import com.nocteon.nocteon_api.category.entity.CategoryTranslation;
 import com.nocteon.nocteon_api.category.repository.CategoryRepository;
 import com.nocteon.nocteon_api.category.repository.CategoryTranslationRepository;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.CategoryNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
@@ -148,15 +151,21 @@ public class CategoryService {
                 return PageResponse.of(page.map(c -> buildResponse(c, language)));
         }
 
-        public PageResponse<CategoryResponse> getAllDashboard(LookupFilterRequest filter) {
-                String language = LocaleContextHolder.getLocale().getLanguage();
+        public PageResponse<DashboardCategoryResponse> getAllDashboard(
+                        LookupFilterRequest filter) {
+
+                                
+                String search = Objects.requireNonNullElse(
+                                filter.getSearch(),
+                                "");
 
                 Page<Category> page = categoryRepository.findAllDashboard(
-                                filter.getSearch(),
+                                search,
                                 filter.getIsActive(),
                                 filter.toPageable());
 
-                return PageResponse.of(page.map(c -> buildResponse(c, language)));
+                return PageResponse.of(
+                                page.map(this::buildResponse));
         }
 
         public CategoryResponse getBySlug(String slug) {
@@ -184,4 +193,23 @@ public class CategoryService {
                                 .imageUrl(category.getImageUrl())
                                 .build();
         }
+
+        private DashboardCategoryResponse buildResponse(Category category) {
+                return DashboardCategoryResponse.builder()
+                                .id(category.getId())
+                                .slug(category.getSlug())
+                                .imageUrl(category.getImageUrl())
+                                .isActive(category.getIsActive())
+                                .translations(
+                                                category.getTranslations()
+                                                                .stream()
+                                                                .map(t -> TranslationResponse.builder()
+                                                                                .language(t.getLanguage())
+                                                                                .name(t.getName())
+                                                                                .description(t.getDescription())
+                                                                                .build())
+                                                                .toList())
+                                .build();
+        }
+
 }

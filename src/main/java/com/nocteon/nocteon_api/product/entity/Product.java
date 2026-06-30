@@ -1,11 +1,15 @@
 package com.nocteon.nocteon_api.product.entity;
 
 import java.util.List;
+
+import org.hibernate.annotations.BatchSize;
+
 import java.util.ArrayList;
 
 import com.nocteon.nocteon_api.category.entity.Category;
 import com.nocteon.nocteon_api.common.entity.SoftDeletableEntity;
 import com.nocteon.nocteon_api.farm.entity.Farm;
+import com.nocteon.nocteon_api.journal.entity.JournalPost;
 import com.nocteon.nocteon_api.origin.entity.Origin;
 import com.nocteon.nocteon_api.pairing.entity.Pairing;
 import com.nocteon.nocteon_api.product.enums.ProductType;
@@ -76,6 +80,7 @@ public class Product extends SoftDeletableEntity {
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
+    @BatchSize(size = 30)
     private List<ProductTranslation> translations = new ArrayList<>();
 
     @OneToOne(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
@@ -83,10 +88,12 @@ public class Product extends SoftDeletableEntity {
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
+    @BatchSize(size = 30)
     private List<ProductVariant> variants = new ArrayList<>();
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
+    @BatchSize(size = 30)
     private List<ProductMedia> media = new ArrayList<>();
 
     @ManyToMany(fetch = FetchType.LAZY)
@@ -110,5 +117,16 @@ public class Product extends SoftDeletableEntity {
     // BrewingMethod مختلفة عشان فيها score
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
+    @BatchSize(size = 30)
     private List<ProductBrewingMethod> brewingMethods = new ArrayList<>();
+
+
+        @ManyToMany(fetch = FetchType.LAZY)
+        @JoinTable(
+                name = "product_journal_posts",
+                joinColumns = @JoinColumn(name = "product_id"),
+                inverseJoinColumns = @JoinColumn(name = "journal_post_id")
+        )
+        @Builder.Default
+        private List<JournalPost> journalPosts = new ArrayList<>();
 }

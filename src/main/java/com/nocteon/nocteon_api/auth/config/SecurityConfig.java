@@ -12,6 +12,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 import com.nocteon.nocteon_api.auth.oauth2.CustomOAuth2UserService;
 import com.nocteon.nocteon_api.auth.oauth2.OAuth2FailureHandler;
@@ -30,10 +31,12 @@ public class SecurityConfig {
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final OAuth2FailureHandler oAuth2FailureHandler;
+    private final CorsConfigurationSource corsConfigurationSource;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+        .cors(cors -> cors.configurationSource(corsConfigurationSource))
         .csrf(AbstractHttpConfigurer::disable)
         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(auth -> auth
@@ -60,7 +63,8 @@ public class SecurityConfig {
                 "/api/pairings",
                 "/api/pairings/**",
                 "/api/products",
-                "/api/products/**"
+                "/api/products/**",
+                "/api/orders/payment/webhook"
         ).permitAll()
         .requestMatchers("/api/dashboard/**").authenticated()
         .anyRequest().authenticated()

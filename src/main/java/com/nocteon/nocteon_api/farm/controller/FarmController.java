@@ -21,6 +21,7 @@ import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.farm.dto.request.FarmFilterRequest;
 import com.nocteon.nocteon_api.farm.dto.request.FarmRequest;
+import com.nocteon.nocteon_api.farm.dto.response.DashboardFarmResponse;
 import com.nocteon.nocteon_api.farm.dto.response.FarmResponse;
 import com.nocteon.nocteon_api.farm.service.FarmService;
 
@@ -50,7 +51,7 @@ public class FarmController {
 
         @GetMapping("/dashboard/farms")
         @PreAuthorize("hasAuthority('farm:read')")
-        public ResponseEntity<ApiResponse<PageResponse<FarmResponse>>> getAllDashboard(
+        public ResponseEntity<ApiResponse<PageResponse<DashboardFarmResponse>>> getAllDashboard(
                         @ModelAttribute FarmFilterRequest filter) {
                 return ResponseEntity.ok(
                                 ApiResponse.success(farmService.getAllDashboard(filter), "Farms retrieved"));

@@ -3,6 +3,8 @@ package com.nocteon.nocteon_api.farm.entity;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.hibernate.annotations.BatchSize;
+
 import com.nocteon.nocteon_api.common.entity.SoftDeletableEntity;
 import com.nocteon.nocteon_api.origin.entity.Origin;
 
@@ -41,5 +43,6 @@ public class Farm extends SoftDeletableEntity {
 
     @OneToMany(mappedBy = "farm", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
+    @BatchSize(size = 30)
     private List<FarmTranslation> translations = new ArrayList<>();
 }

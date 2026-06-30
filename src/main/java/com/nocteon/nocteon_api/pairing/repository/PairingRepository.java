@@ -16,29 +16,45 @@ public interface PairingRepository extends JpaRepository<Pairing, Long> {
 
     @Query("""
             SELECT DISTINCT p FROM Pairing p
-            LEFT JOIN FETCH p.translations t
-            WHERE t.language = :language
-            AND (:search IS NULL OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
+            LEFT JOIN p.translations t
+            WHERE (:search = ''
+                   OR (t.language = :language
+                       AND LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))))
             """)
     Page<Pairing> findAllPublic(
-            @Param("language") String language,
             @Param("search") String search,
+            @Param("language") String language,
             Pageable pageable);
 
     @Query("""
             SELECT DISTINCT p FROM Pairing p
-            LEFT JOIN FETCH p.translations t
-            WHERE (:search IS NULL OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
+            LEFT JOIN p.translations t
+            WHERE (:search = ''
+                   OR  LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR  LOWER(p.slug) LIKE LOWER(CONCAT('%', :search, '%'))
+                )
             """)
     Page<Pairing> findAllDashboard(
             @Param("search") String search,
             Pageable pageable);
 
-    @Query("SELECT p FROM Pairing p LEFT JOIN FETCH p.translations WHERE p.slug = :slug")
+    @Query("""
+            SELECT p FROM Pairing p
+            LEFT JOIN FETCH p.translations
+            WHERE p.slug = :slug
+            """)
     Optional<Pairing> findBySlugWithTranslations(@Param("slug") String slug);
 
-    @Query("SELECT p FROM Pairing p LEFT JOIN FETCH p.translations t WHERE p.slug = :slug AND t.language = :language")
-    Optional<Pairing> findBySlugAndLanguage(@Param("slug") String slug, @Param("language") String language);
+    @Query("""
+            SELECT p FROM Pairing p
+            LEFT JOIN FETCH p.translations t
+            WHERE p.slug = :slug AND t.language = :language
+            """)
+    Optional<Pairing> findBySlugAndLanguage(
+            @Param("slug") String slug,
+            @Param("language") String language);
+
+    Optional<Pairing> findBySlug(String slug);
 
     List<Pairing> findBySlugIn(List<String> slugs);
 

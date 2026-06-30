@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.nocteon.nocteon_api.coffeeVariety.dto.request.CoffeeVarietyRequest;
 import com.nocteon.nocteon_api.coffeeVariety.dto.response.CoffeeVarietyResponse;
+import com.nocteon.nocteon_api.coffeeVariety.dto.response.CoffeeVarietyResponseDashboard;
 import com.nocteon.nocteon_api.coffeeVariety.service.CoffeeVarietyService;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
@@ -47,7 +48,7 @@ public class CoffeeVarietyController {
 
     @GetMapping("/dashboard/coffee-varieties")
     @PreAuthorize("hasAuthority('coffee_variety:read')")
-    public ResponseEntity<ApiResponse<PageResponse<CoffeeVarietyResponse>>> getAllDashboard(
+    public ResponseEntity<ApiResponse<PageResponse<CoffeeVarietyResponseDashboard>>> getAllDashboard(
             @ModelAttribute LookupFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(coffeeVarietyService.getAllDashboard(filter), "Brewing method retrieved"));

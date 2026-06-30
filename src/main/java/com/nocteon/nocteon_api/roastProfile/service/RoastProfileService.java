@@ -2,18 +2,22 @@ package com.nocteon.nocteon_api.roastProfile.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
+import com.nocteon.nocteon_api.category.dto.response.DashboardCategoryResponse;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.RoastProfileNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.roastProfile.dto.request.RoastProfileRequest;
 import com.nocteon.nocteon_api.roastProfile.dto.request.RoastProfileTranslationRequest;
+import com.nocteon.nocteon_api.roastProfile.dto.response.DashboardRoastProfileResponse;
 import com.nocteon.nocteon_api.roastProfile.dto.response.RoastProfileResponse;
 import com.nocteon.nocteon_api.roastProfile.entity.RoastProfile;
 import com.nocteon.nocteon_api.roastProfile.entity.RoastProfileTranslation;
@@ -116,11 +120,14 @@ public class RoastProfileService {
                 return PageResponse.of(page.map(r -> buildResponse(r, language)));
         }
 
-        public PageResponse<RoastProfileResponse> getAllDashboard(LookupFilterRequest filter) {
-                String language = LocaleContextHolder.getLocale().getLanguage();
+        public PageResponse<DashboardRoastProfileResponse> getAllDashboard(LookupFilterRequest filter) {
+                String search = Objects.requireNonNullElse(
+                                filter.getSearch(),
+                                "");
                 Page<RoastProfile> page = roastProfileRepository.findAllDashboard(
-                                filter.getSearch(), filter.toPageable());
-                return PageResponse.of(page.map(r -> buildResponse(r, language)));
+                                search,
+                               filter.toPageable());
+                return PageResponse.of(page.map(this::buildResponse));
         }
 
         private RoastProfileResponse buildResponse(RoastProfile roastProfile, String language) {
@@ -139,4 +146,21 @@ public class RoastProfileService {
                                 .description(translation != null ? translation.getDescription() : null)
                                 .build();
         }
+
+        private DashboardRoastProfileResponse buildResponse(RoastProfile roastProfile) {
+                return DashboardRoastProfileResponse.builder()
+                                .id(roastProfile.getId())
+                                .slug(roastProfile.getSlug())
+                                .translations(
+                                                roastProfile.getTranslations()
+                                                                .stream()
+                                                                .map(t -> TranslationResponse.builder()
+                                                                                .language(t.getLanguage())
+                                                                                .name(t.getName())
+                                                                                .description(t.getDescription())
+                                                                                .build())
+                                                                .toList())
+                                .build();
+        }
+
 }

@@ -2,6 +2,9 @@ package com.nocteon.nocteon_api.journal.entity;
 
 import java.time.Instant;
 import java.util.List;
+
+import org.hibernate.annotations.BatchSize;
+
 import java.util.ArrayList;
 
 import com.nocteon.nocteon_api.common.entity.SoftDeletableEntity;
@@ -51,6 +54,7 @@ public class JournalPost extends SoftDeletableEntity {
 
     @OneToMany(mappedBy = "journalPost", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
+    @BatchSize(size = 30)
     private List<JournalPostTranslation> translations = new ArrayList<>();
 
     @ManyToMany(mappedBy = "journalPosts", fetch = FetchType.LAZY)

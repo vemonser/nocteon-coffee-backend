@@ -2,6 +2,9 @@ package com.nocteon.nocteon_api.order.entity;
 
 import java.math.BigDecimal;
 import java.util.List;
+
+import org.hibernate.annotations.BatchSize;
+
 import java.util.ArrayList;
 
 import com.nocteon.nocteon_api.address.entity.Address;
@@ -51,8 +54,8 @@ public class Order extends SoftDeletableEntity {
     @Column(name = "total_amount", nullable = false, precision = 10, scale = 2)
     private BigDecimal totalAmount;
 
-    @Column(name = "payment_id")
-    private String paymentId;
+    // @Column(name = "payment_id")
+    // private String paymentId;
 
     @Column(name = "payment_status")
     private String paymentStatus;
@@ -62,5 +65,6 @@ public class Order extends SoftDeletableEntity {
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
+    @BatchSize(size = 30)
     private List<OrderItem> items = new ArrayList<>();
 }

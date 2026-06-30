@@ -16,10 +16,12 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.nocteon.nocteon_api.category.dto.response.DashboardCategoryResponse;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.origin.dto.request.OriginRequest;
+import com.nocteon.nocteon_api.origin.dto.response.DashboardOriginResponse;
 import com.nocteon.nocteon_api.origin.dto.response.OriginResponse;
 import com.nocteon.nocteon_api.origin.service.OriginService;
 
@@ -41,22 +43,22 @@ public class OriginController {
                 ApiResponse.success(originService.getAll(filter), "Origins retrieved")
         );
     }
-
+    @GetMapping("origins/{slug}")
+    public ResponseEntity<ApiResponse<OriginResponse>> getOrigin(@PathVariable String slug) {
+        return ResponseEntity.ok(ApiResponse.success(originService.getOrigin(slug), "Origin retrieved"));
+    }
+    
     // Dashboard
     @GetMapping("/dashboard/origins")
     @PreAuthorize("hasAuthority('origin:read')")
-    public ResponseEntity<ApiResponse<PageResponse<OriginResponse>>> getAllDashboard(
+    public ResponseEntity<ApiResponse<PageResponse<DashboardOriginResponse>>> getAllDashboard(
             @ModelAttribute LookupFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(originService.getAllDashboard(filter), "Origins retrieved")
         );
     }
-    @GetMapping("/{slug}")
-    public ResponseEntity<ApiResponse<OriginResponse>> getOrigin(@PathVariable String slug) {
-        return ResponseEntity.ok(ApiResponse.success(originService.getOrigin(slug), "Origin retrieved"));
-    }
 
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/dashboard/origins", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('origin:create')")
     public ResponseEntity<ApiResponse<OriginResponse>> createOrigin(
             @Valid @RequestPart("data") OriginRequest request,
@@ -67,7 +69,7 @@ public class OriginController {
                         "Origin created"));
     }
 
-    @PutMapping(value = "/{slug}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PutMapping(value = "dashboard/origins/{slug}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('origin:update')")
     public ResponseEntity<ApiResponse<OriginResponse>> updateOrigin(
             @PathVariable String slug,
@@ -79,7 +81,7 @@ public class OriginController {
                         "Origin updated"));
     }
 
-    @PostMapping("/{slug}/image")
+    @PostMapping("dashboard/origins/{slug}/image")
     @PreAuthorize("hasAuthority('origin:update')")
     public ResponseEntity<ApiResponse<OriginResponse>> uploadOriginImage(
             @PathVariable String slug,
@@ -90,7 +92,7 @@ public class OriginController {
                         "Image uploaded successfully"));
     }
 
-    @DeleteMapping("/{slug}")
+    @DeleteMapping("dashboard/origins/{slug}")
     @PreAuthorize("hasAuthority('origin:delete')")
     public ResponseEntity<ApiResponse<Void>> deleteOrigin(
             @PathVariable String slug) {

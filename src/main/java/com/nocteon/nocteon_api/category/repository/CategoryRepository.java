@@ -14,11 +14,13 @@ import io.lettuce.core.dynamic.annotation.Param;
 public interface CategoryRepository extends JpaRepository<Category, Long> {
 
         @Query("""
-                        SELECT DISTINCT c FROM Category c
-                        LEFT JOIN FETCH c.translations t
+                        SELECT DISTINCT c
+                        FROM Category c
+                        LEFT JOIN c.translations t
                         WHERE t.language = :language
                         AND c.isActive = true
-                        AND (:search IS NULL OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
+                        AND (:search IS NULL OR
+                             LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
                         """)
         Page<Category> findAllPublic(
                         @Param("language") String language,
@@ -27,9 +29,13 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 
         @Query("""
                         SELECT DISTINCT c FROM Category c
-                        LEFT JOIN FETCH c.translations t
-                        WHERE (:search IS NULL OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
-                        AND (:isActive IS NULL OR c.isActive = :isActive)
+                        LEFT JOIN c.translations t
+                        WHERE (:search = ''
+                               OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                               OR LOWER(c.slug) LIKE LOWER(CONCAT('%', :search, '%'))
+                              )
+                          AND (:isActive IS NULL
+                               OR c.isActive = :isActive)
                         """)
         Page<Category> findAllDashboard(
                         @Param("search") String search,

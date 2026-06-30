@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.nocteon.nocteon_api.brewingMethod.dto.request.BrewingMethodRequest;
 import com.nocteon.nocteon_api.brewingMethod.dto.response.BrewingMethodResponse;
+import com.nocteon.nocteon_api.brewingMethod.dto.response.BrewingMethodResponseDashboard;
 import com.nocteon.nocteon_api.brewingMethod.service.BrewingMethodService;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
@@ -49,7 +50,7 @@ public class BrewingMethodController {
 
     @GetMapping("/dashboard/brewing-methods")
     @PreAuthorize("hasAuthority('brewing_method:read')")
-    public ResponseEntity<ApiResponse<PageResponse<BrewingMethodResponse>>> getAllDashboard(
+    public ResponseEntity<ApiResponse<PageResponse<BrewingMethodResponseDashboard>>> getAllDashboard(
             @ModelAttribute LookupFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(brewingMethodService.getAllDashboard(filter), "Brewing method retrieved"));

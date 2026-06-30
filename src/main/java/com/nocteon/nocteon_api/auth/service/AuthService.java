@@ -25,6 +25,7 @@ import com.nocteon.nocteon_api.auth.repository.UserProfileRepository;
 import com.nocteon.nocteon_api.auth.security.JwtService;
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.common.enums.Permission;
+import com.nocteon.nocteon_api.common.exception.UnauthorizedException;
 import com.nocteon.nocteon_api.common.exception.account.AccountNotVerifiedException;
 import com.nocteon.nocteon_api.common.exception.email.EmailAlreadyExistsException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidCredentialsException;
@@ -120,6 +121,11 @@ public class AuthService {
 
     @Transactional
     public AuthResult refreshToken(String rawRefreshToken) {
+
+        if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
+            throw new UnauthorizedException();
+        }
+
         String tokenHash = jwtService.hashToken(rawRefreshToken);
 
         RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
@@ -136,6 +142,7 @@ public class AuthService {
         }
 
         User user = storedToken.getUser();
+
         storedToken.setRevoked(true);
         refreshTokenRepository.save(storedToken);
 
@@ -144,9 +151,15 @@ public class AuthService {
 
     @Transactional
     public void logout(String rawRefreshToken, String accessToken) {
-        String tokenHash = jwtService.hashToken(rawRefreshToken);
-        refreshTokenRepository.deleteByTokenHash(tokenHash);
-        tokenBlacklistService.blacklist(accessToken);
+
+        if (rawRefreshToken != null && !rawRefreshToken.isBlank()) {
+            String tokenHash = jwtService.hashToken(rawRefreshToken);
+            refreshTokenRepository.deleteByTokenHash(tokenHash);
+        }
+
+        if (accessToken != null && !accessToken.isBlank()) {
+            tokenBlacklistService.blacklist(accessToken);
+        }
     }
 
     @Transactional
@@ -172,8 +185,10 @@ public class AuthService {
                 .revoked(false)
                 .build();
         refreshTokenRepository.save(refreshToken);
-        
-        List<String> permissions = user.getRole().getPermissions().stream()
+
+        List<String> permissions = userWithProfile.getRole()
+                .getPermissions()
+                .stream()
                 .map(Permission::getPermission)
                 .toList();
 

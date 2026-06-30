@@ -114,7 +114,6 @@ public class ProductService {
                 filter.getOriginSlug(),
                 filter.getProductType(),
                 filter.getFeatured(),
-                filter.getMinRating(),
                 filter.toPageable());
 
         return PageResponse.of(page.map(p -> buildListResponse(p, language)));

@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.processingMethod.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
@@ -9,12 +10,14 @@ import org.springframework.stereotype.Service;
 
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.ProcessingMethodNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.processingMethod.dto.request.ProcessingMethodRequest;
 import com.nocteon.nocteon_api.processingMethod.dto.request.ProcessingMethodTranslationRequest;
 import com.nocteon.nocteon_api.processingMethod.dto.response.ProcessingMethodResponse;
+import com.nocteon.nocteon_api.processingMethod.dto.response.ProcessingMethodResponseDashboard;
 import com.nocteon.nocteon_api.processingMethod.entity.ProcessingMethod;
 import com.nocteon.nocteon_api.processingMethod.entity.ProcessingMethodTranslation;
 import com.nocteon.nocteon_api.processingMethod.repository.ProcessingMethodRepository;
@@ -40,11 +43,16 @@ public class ProcessingMethodService {
                 return PageResponse.of(page.map(p -> buildResponse(p, language)));
         }
 
-        public PageResponse<ProcessingMethodResponse> getAllDashboard(LookupFilterRequest filter) {
-                String language = LocaleContextHolder.getLocale().getLanguage();
+        public PageResponse<ProcessingMethodResponseDashboard> getAllDashboard(LookupFilterRequest filter) {
+                String search = Objects.requireNonNullElse(
+                                filter.getSearch(),
+                                "");
+
                 Page<ProcessingMethod> page = processingMethodRepository.findAllDashboard(
-                                filter.getSearch(), filter.toPageable());
-                return PageResponse.of(page.map(p -> buildResponse(p, language)));
+                                search, filter.toPageable());
+
+                return PageResponse.of(
+                                page.map(this::buildResponse));
         }
 
         public ProcessingMethodResponse getBySlug(String slug) {
@@ -144,6 +152,22 @@ public class ProcessingMethodService {
                                 .slug(processingMethod.getSlug())
                                 .name(translation != null ? translation.getName() : null)
                                 .description(translation != null ? translation.getDescription() : null)
+                                .build();
+        }
+
+        private ProcessingMethodResponseDashboard buildResponse(ProcessingMethod processingMethod) {
+                return ProcessingMethodResponseDashboard.builder()
+                                .id(processingMethod.getId())
+                                .slug(processingMethod.getSlug())
+                                .translations(
+                                                processingMethod.getTranslations()
+                                                                .stream()
+                                                                .map(t -> TranslationResponse.builder()
+                                                                                .language(t.getLanguage())
+                                                                                .name(t.getName())
+                                                                                .description(t.getDescription())
+                                                                                .build())
+                                                                .toList())
                                 .build();
         }
 }

@@ -1,7 +1,6 @@
 package com.nocteon.nocteon_api.cloudinary.service;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
@@ -27,9 +26,8 @@ public class CloudinaryService {
                     ObjectUtils.asMap(
                             "folder", "nocteon/" + folder,
                             "resource_type", "image",
-                            "transformation", List.of(
-                                    ObjectUtils.asMap("quality", "auto"),
-                                    ObjectUtils.asMap("fetch_format", "auto"))));
+                            "transformation", "q_auto,f_auto"));
+
             return (String) result.get("secure_url");
 
         } catch (IOException e) {

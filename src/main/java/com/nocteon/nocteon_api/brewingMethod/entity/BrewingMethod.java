@@ -3,6 +3,8 @@ package com.nocteon.nocteon_api.brewingMethod.entity;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.hibernate.annotations.BatchSize;
+
 import com.nocteon.nocteon_api.common.entity.SoftDeletableEntity;
 
 import jakarta.persistence.CascadeType;
@@ -32,5 +34,6 @@ public class BrewingMethod extends SoftDeletableEntity {
 
     @OneToMany(mappedBy = "brewingMethod", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
+    @BatchSize(size = 30)
     private List<BrewingMethodTranslation> translations = new ArrayList<>();
 }

@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.order.service;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
@@ -14,7 +15,6 @@ import com.nocteon.nocteon_api.cart.entity.Cart;
 import com.nocteon.nocteon_api.cart.entity.CartItem;
 import com.nocteon.nocteon_api.cart.repository.CartItemRepository;
 import com.nocteon.nocteon_api.cart.repository.CartRepository;
-import com.nocteon.nocteon_api.cart.service.CartService;
 import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.notFound.AddressNotFoundException;
@@ -31,7 +31,7 @@ import com.nocteon.nocteon_api.order.entity.OrderItem;
 import com.nocteon.nocteon_api.order.enums.OrderStatus;
 import com.nocteon.nocteon_api.order.repository.OrderItemRepository;
 import com.nocteon.nocteon_api.order.repository.OrderRepository;
-import com.nocteon.nocteon_api.payment.PaymentService;
+import com.nocteon.nocteon_api.payment.service.PaymentService;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
 import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
 
@@ -125,13 +125,13 @@ public class OrderService {
                 }
 
                 // 6. Create Payment — Moyasar
-                String paymentUrl = paymentService.createPayment(
-                                total,
-                                order.getId(),
-                                address.getFullName().split(" ")[0],
-                                address.getFullName().split(" ").length > 1
-                                                ? address.getFullName().split(" ")[1]
-                                                : ".",
+                String firstName = address.getFullName().split(" ")[0];
+                String lastName = address.getFullName().split(" ").length > 1
+                                ? address.getFullName().split(" ")[1]
+                                : ".";
+
+                String paymentUrl = paymentService.initiatePayment(
+                                order, firstName, lastName,
                                 principal.getUser().getEmail(),
                                 address.getPhone());
 
@@ -147,31 +147,31 @@ public class OrderService {
                                 .build();
         }
 
-        @Transactional
-        public void handlePaymentCallback(String paymentId, Long orderId) {
-                Order order = orderRepository.findById(orderId)
-                                .orElseThrow(OrderNotFoundException::new);
+        // @Transactional
+        // public void handlePaymentCallback(String paymentId, Long orderId) {
+        // Order order = orderRepository.findById(orderId)
+        // .orElseThrow(OrderNotFoundException::new);
 
-                boolean paid = paymentService.verifyCallback(orderId,paymentId);
+        // boolean paid = paymentService.verifyCallback(orderId,paymentId);
 
-                if (paid) {
-                        order.setStatus(OrderStatus.PAID);
-                        order.setPaymentId(paymentId);
-                        order.setPaymentStatus("paid");
-                } else {
-                        order.setStatus(OrderStatus.CANCELLED);
-                        order.setPaymentStatus("failed");
+        // if (paid) {
+        // order.setStatus(OrderStatus.PAID);
+        // order.setPaymentId(paymentId);
+        // order.setPaymentStatus("paid");
+        // } else {
+        // order.setStatus(OrderStatus.CANCELLED);
+        // order.setPaymentStatus("failed");
 
-                        // رجّع الـ stock
-                        order.getItems().forEach(item -> {
-                                ProductVariant variant = item.getProductVariant();
-                                variant.setStock(variant.getStock() + item.getQuantity());
-                                variantRepository.save(variant);
-                        });
-                }
+        // // رجّع الـ stock
+        // order.getItems().forEach(item -> {
+        // ProductVariant variant = item.getProductVariant();
+        // variant.setStock(variant.getStock() + item.getQuantity());
+        // variantRepository.save(variant);
+        // });
+        // }
 
-                orderRepository.save(order);
-        }
+        // orderRepository.save(order);
+        // }
 
         public PageResponse<OrderResponse> getUserOrders(UserPrincipal principal,
                         BaseFilterRequest filter) {
@@ -184,6 +184,10 @@ public class OrderService {
                 Page<Order> page = orderRepository.findAllWithFilters(
                                 filter.getStatus(), filter.toPageable());
                 return PageResponse.of(page.map(this::buildResponse));
+        }
+
+        public void handlePaymentWebhook(Map<String, String> params) {
+                paymentService.handleCallback(params);
         }
 
         @Transactional
@@ -211,7 +215,7 @@ public class OrderService {
                                 .id(order.getId())
                                 .status(order.getStatus())
                                 .totalAmount(order.getTotalAmount())
-                                .paymentStatus(order.getPaymentStatus())
+                                // .paymentStatus(order.getPaymentStatus())
                                 .notes(order.getNotes())
                                 .items(items)
                                 .createdAt(order.getCreatedAt())

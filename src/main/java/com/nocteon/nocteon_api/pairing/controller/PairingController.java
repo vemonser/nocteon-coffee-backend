@@ -22,6 +22,7 @@ import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.pairing.dto.request.PairingRequest;
 import com.nocteon.nocteon_api.pairing.dto.response.PairingResponse;
+import com.nocteon.nocteon_api.pairing.dto.response.PairingResponseDashboard;
 import com.nocteon.nocteon_api.pairing.service.PairingService;
 
 import jakarta.validation.Valid;
@@ -44,7 +45,7 @@ public class PairingController {
 
     @GetMapping("/dashboard/pairings")
     @PreAuthorize("hasAuthority('pairing:read')")
-    public ResponseEntity<ApiResponse<PageResponse<PairingResponse>>> getAllDashboard(
+    public ResponseEntity<ApiResponse<PageResponse<PairingResponseDashboard>>> getAllDashboard(
             @ModelAttribute LookupFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(pairingService.getAllDashboard(filter), "Pairings retrieved"));

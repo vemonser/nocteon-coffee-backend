@@ -24,6 +24,14 @@ public class ApiResponse<T> {
                 .build();
     }
 
+    public static <T> ApiResponse<T> error(String message) {
+        return ApiResponse.<T>builder()
+                .success(false)
+                .message(message)
+                .timestamp(Instant.now())
+                .build();
+    }
+
     public static <T> ApiResponse<T> error(String message, List<ApiFieldError> errors) {
         return ApiResponse.<T>builder()
                 .success(false)

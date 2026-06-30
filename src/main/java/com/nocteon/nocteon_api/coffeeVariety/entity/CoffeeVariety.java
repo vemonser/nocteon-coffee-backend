@@ -1,6 +1,9 @@
 package com.nocteon.nocteon_api.coffeeVariety.entity;
 
 import java.util.List;
+
+import org.hibernate.annotations.BatchSize;
+
 import java.util.ArrayList;
 
 import com.nocteon.nocteon_api.common.entity.SoftDeletableEntity;
@@ -32,5 +35,6 @@ public class CoffeeVariety extends SoftDeletableEntity {
 
     @OneToMany(mappedBy = "coffeeVariety", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
+    @BatchSize(size = 30)
     private List<CoffeeVarietyTranslation> translations = new ArrayList<>();
 }

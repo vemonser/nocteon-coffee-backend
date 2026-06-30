@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.coffeeVariety.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
@@ -10,12 +11,14 @@ import org.springframework.stereotype.Service;
 import com.nocteon.nocteon_api.coffeeVariety.dto.request.CoffeeVarietyRequest;
 import com.nocteon.nocteon_api.coffeeVariety.dto.request.CoffeeVarietyTranslationRequest;
 import com.nocteon.nocteon_api.coffeeVariety.dto.response.CoffeeVarietyResponse;
+import com.nocteon.nocteon_api.coffeeVariety.dto.response.CoffeeVarietyResponseDashboard;
 import com.nocteon.nocteon_api.coffeeVariety.entity.CoffeeVariety;
 import com.nocteon.nocteon_api.coffeeVariety.entity.CoffeeVarietyTranslation;
 import com.nocteon.nocteon_api.coffeeVariety.repository.CoffeeVarietyRepository;
 import com.nocteon.nocteon_api.coffeeVariety.repository.CoffeeVarietyTranslationRepository;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.CoffeeVarietyNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
@@ -116,14 +119,18 @@ public class CoffeeVarietyService {
                 return PageResponse.of(page.map(c -> buildResponse(c, language)));
         }
 
-        public PageResponse<CoffeeVarietyResponse> getAllDashboard(LookupFilterRequest filter) {
-                String language = LocaleContextHolder.getLocale().getLanguage();
-
-                Page<CoffeeVariety> page = coffeeVarietyRepository.findAllDashboard(
+        public PageResponse<CoffeeVarietyResponseDashboard> getAllDashboard(LookupFilterRequest filter) {
+                String search = Objects.requireNonNullElse(
                                 filter.getSearch(),
+                                "");
+
+                
+                Page<CoffeeVariety> page = coffeeVarietyRepository.findAllDashboard(
+                                search,
                                 filter.toPageable());
 
-                return PageResponse.of(page.map(c -> buildResponse(c, language)));
+                return PageResponse.of(
+                                page.map(this::buildResponse));
         }
 
         private CoffeeVarietyResponse buildResponse(CoffeeVariety coffeeVariety, String language) {
@@ -140,6 +147,23 @@ public class CoffeeVarietyService {
                                 .slug(coffeeVariety.getSlug())
                                 .name(translation != null ? translation.getName() : null)
                                 .description(translation != null ? translation.getDescription() : null)
+                                .build();
+        }
+
+        
+                private CoffeeVarietyResponseDashboard buildResponse(CoffeeVariety coffeeVariety) {
+                return CoffeeVarietyResponseDashboard.builder()
+                                .id(coffeeVariety.getId())
+                                .slug(coffeeVariety.getSlug())
+                                .translations(
+                                                coffeeVariety.getTranslations()
+                                                                .stream()
+                                                                .map(t -> TranslationResponse.builder()
+                                                                                .language(t.getLanguage())
+                                                                                .name(t.getName())
+                                                                                .description(t.getDescription())
+                                                                                .build())
+                                                                .toList())
                                 .build();
         }
 }

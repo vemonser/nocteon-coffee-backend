@@ -101,6 +101,8 @@ logging:
   pattern:
     console: "%clr(%d{HH:mm:ss}){faint} %clr(%5p){highlight} %clr([%15.15t]){faint} %clr(%-30logger{0}){cyan} %clr(:){faint} %m%n"
   level:
+    "[org.hibernate.SQL]": DEBUG
+    "[org.hibernate.orm.jdbc.bind]": TRACE
     "[com.nocteon.nocteon_api]": DEBUG
     "[org.springframework.security]": DEBUG
     "[org.flywaydb]": INFO

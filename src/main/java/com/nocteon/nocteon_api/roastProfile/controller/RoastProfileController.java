@@ -17,6 +17,7 @@ import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.roastProfile.dto.request.RoastProfileRequest;
+import com.nocteon.nocteon_api.roastProfile.dto.response.DashboardRoastProfileResponse;
 import com.nocteon.nocteon_api.roastProfile.dto.response.RoastProfileResponse;
 import com.nocteon.nocteon_api.roastProfile.service.RoastProfileService;
 
@@ -40,7 +41,7 @@ public class RoastProfileController {
 
     @GetMapping("/dashboard/roast-profiles")
     @PreAuthorize("hasAuthority('roast_profile:read')")
-    public ResponseEntity<ApiResponse<PageResponse<RoastProfileResponse>>> getAllDashboard(
+    public ResponseEntity<ApiResponse<PageResponse<DashboardRoastProfileResponse>>> getAllDashboard(
             @ModelAttribute LookupFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(roastProfileService.getAllDashboard(filter), "Roast profiles retrieved"));
