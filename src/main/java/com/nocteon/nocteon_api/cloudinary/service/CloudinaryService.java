@@ -19,29 +19,34 @@ import lombok.extern.slf4j.Slf4j;
 public class CloudinaryService {
     private final Cloudinary cloudinary;
 
-    public String uploadImage(MultipartFile file, String folder) {
+    public String upload(
+            MultipartFile file,
+            String folder,
+            String resourceType) {
         try {
             Map<?, ?> result = cloudinary.uploader().upload(
                     file.getBytes(),
                     ObjectUtils.asMap(
                             "folder", "nocteon/" + folder,
-                            "resource_type", "image",
+                            "resource_type", resourceType,
                             "transformation", "q_auto,f_auto"));
 
             return (String) result.get("secure_url");
 
         } catch (IOException e) {
-            log.error("Failed to upload image to Cloudinary", e);
+            log.error("Failed to upload media to Cloudinary", e);
             throw new ImageUploadException();
         }
     }
 
-    public void deleteImage(String imageUrl) {
+    public void delete(String mediaUrl) {
         try {
-            String publicId = extractPublicId(imageUrl);
-            cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
+            String publicId = extractPublicId(mediaUrl);
+            cloudinary.uploader().destroy(
+                    publicId,
+                    ObjectUtils.emptyMap());
         } catch (IOException e) {
-            log.error("Failed to delete image from Cloudinary", e);
+            log.error("Failed to delete media", e);
             throw new ImageUploadException();
         }
     }

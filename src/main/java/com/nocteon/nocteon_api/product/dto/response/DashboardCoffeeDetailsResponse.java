@@ -7,11 +7,12 @@ import lombok.Setter;
 @Getter
 @Setter
 @Builder
-public class CoffeeDetailsResponse {
-    private String processingMethod;
-    private String coffeeVariety;
+public class DashboardCoffeeDetailsResponse {
+    private String processingMethodSlug;
+    private String coffeeVarietySlug;
     private String altitude;
     private String harvestYear;
     private String story;
+
     private RoastLevelSummary roastLevel;
 }

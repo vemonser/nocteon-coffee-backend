@@ -24,6 +24,7 @@ import com.nocteon.nocteon_api.origin.entity.Origin;
 import com.nocteon.nocteon_api.origin.entity.OriginTranslation;
 import com.nocteon.nocteon_api.origin.repository.OriginRepository;
 import com.nocteon.nocteon_api.origin.repository.OriginTranslationRepository;
+import com.nocteon.nocteon_api.product.enums.MediaType;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -49,7 +50,7 @@ public class OriginService {
                                 .orElseThrow(InvalidTranslationException::new);
 
                 String slug = helper.generateUniqueSlug(englishName, originRepository::existsBySlug);
-                String imageUrl = helper.uploadImage(image, "origins");
+                String imageUrl = helper.uploadMedia(image, "origins",MediaType.IMAGE);
 
                 Origin origin = Origin.builder()
                                 .slug(slug)
@@ -84,8 +85,8 @@ public class OriginService {
                         origin.setCode(request.getCode());
 
                 if (image != null && !image.isEmpty()) {
-                        helper.deleteImageIfExists(origin.getImageUrl());
-                        origin.setImageUrl(helper.uploadImage(image, "origins"));
+                        helper.deleteMediaIfExists(origin.getImageUrl());
+                        origin.setImageUrl(helper.uploadMedia(image, "origins",MediaType.IMAGE));
                 }
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
@@ -116,8 +117,8 @@ public class OriginService {
                 Origin origin = originRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(OriginNotFoundException::new);
 
-                helper.deleteImageIfExists(origin.getImageUrl());
-                origin.setImageUrl(helper.uploadImage(file, "origins"));
+                helper.deleteMediaIfExists(origin.getImageUrl());
+                origin.setImageUrl(helper.uploadMedia(file, "origins",MediaType.IMAGE));
                 originRepository.save(origin);
 
                 return buildResponse(origin, LocaleContextHolder.getLocale().getLanguage());
@@ -128,7 +129,7 @@ public class OriginService {
                 Origin origin = originRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(OriginNotFoundException::new);
 
-                helper.deleteImageIfExists(origin.getImageUrl());
+                helper.deleteMediaIfExists(origin.getImageUrl());
                 origin.softDelete();
                 originRepository.save(origin);
                 log.info("Origin soft deleted: {}", slug);

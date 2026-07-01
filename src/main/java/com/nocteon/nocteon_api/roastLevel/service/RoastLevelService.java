@@ -1,4 +1,4 @@
-package com.nocteon.nocteon_api.roastProfile.service;
+package com.nocteon.nocteon_api.roastLevel.service;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,21 +8,20 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
-import com.nocteon.nocteon_api.category.dto.response.DashboardCategoryResponse;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
-import com.nocteon.nocteon_api.common.exception.notFound.RoastProfileNotFoundException;
+import com.nocteon.nocteon_api.common.exception.notFound.RoastLevelNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
-import com.nocteon.nocteon_api.roastProfile.dto.request.RoastProfileRequest;
-import com.nocteon.nocteon_api.roastProfile.dto.request.RoastProfileTranslationRequest;
-import com.nocteon.nocteon_api.roastProfile.dto.response.DashboardRoastProfileResponse;
-import com.nocteon.nocteon_api.roastProfile.dto.response.RoastProfileResponse;
-import com.nocteon.nocteon_api.roastProfile.entity.RoastProfile;
-import com.nocteon.nocteon_api.roastProfile.entity.RoastProfileTranslation;
-import com.nocteon.nocteon_api.roastProfile.repository.RoastProfileRepository;
-import com.nocteon.nocteon_api.roastProfile.repository.RoastProfileTranslationRepository;
+import com.nocteon.nocteon_api.roastLevel.dto.request.RoastLevelRequest;
+import com.nocteon.nocteon_api.roastLevel.dto.request.RoastLevelTranslationRequest;
+import com.nocteon.nocteon_api.roastLevel.dto.response.DashboardRoastLevelResponse;
+import com.nocteon.nocteon_api.roastLevel.dto.response.RoastLevelResponse;
+import com.nocteon.nocteon_api.roastLevel.entity.RoastLevel;
+import com.nocteon.nocteon_api.roastLevel.entity.RoastLevelTranslation;
+import com.nocteon.nocteon_api.roastLevel.repository.RoastLevelRepository;
+import com.nocteon.nocteon_api.roastLevel.repository.RoastLevelTranslationRepository;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -31,35 +30,36 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class RoastProfileService {
+public class RoastLevelService {
 
-        private final RoastProfileRepository roastProfileRepository;
-        private final RoastProfileTranslationRepository translationRepository;
+        private final RoastLevelRepository roastLevelRepository;
+        private final RoastLevelTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
 
         @Transactional
-        public RoastProfileResponse create(RoastProfileRequest request) {
+        public RoastLevelResponse create(RoastLevelRequest request) {
                 helper.validateTranslations(request.getTranslations());
 
                 String englishName = request.getTranslations().stream()
                                 .filter(t -> t.getLanguage().equals("en"))
                                 .findFirst()
-                                .map(RoastProfileTranslationRequest::getName)
+                                .map(RoastLevelTranslationRequest::getName)
                                 .orElseThrow(InvalidTranslationException::new);
 
-                String slug = helper.generateUniqueSlug(englishName, roastProfileRepository::existsBySlug);
+                String slug = helper.generateUniqueSlug(englishName, roastLevelRepository::existsBySlug);
 
-                RoastProfile roastProfile = RoastProfile.builder()
+                RoastLevel roastLevel = RoastLevel.builder()
                                 .slug(slug)
+                                .color(request.getColor())
                                 .build();
 
-                roastProfile = roastProfileRepository.save(roastProfile);
+                roastLevel = roastLevelRepository.save(roastLevel);
 
-                final RoastProfile saved = roastProfile;
-                List<RoastProfileTranslation> translations = new ArrayList<>();
-                for (RoastProfileTranslationRequest t : request.getTranslations()) {
-                        translations.add(RoastProfileTranslation.builder()
-                                        .roastProfile(saved)
+                final RoastLevel saved = roastLevel;
+                List<RoastLevelTranslation> translations = new ArrayList<>();
+                for (RoastLevelTranslationRequest t : request.getTranslations()) {
+                        translations.add(RoastLevelTranslation.builder()
+                                        .roastLevel(saved)
                                         .language(t.getLanguage())
                                         .name(t.getName())
                                         .description(t.getDescription())
@@ -67,18 +67,20 @@ public class RoastProfileService {
                 }
                 translationRepository.saveAll(translations);
 
-                return buildResponse(roastProfile, LocaleContextHolder.getLocale().getLanguage());
+                return buildResponse(roastLevel, LocaleContextHolder.getLocale().getLanguage());
         }
 
         @Transactional
-        public RoastProfileResponse update(String slug, RoastProfileRequest request) {
-                RoastProfile roastProfile = roastProfileRepository.findBySlugWithTranslations(slug)
-                                .orElseThrow(RoastProfileNotFoundException::new);
+        public RoastLevelResponse update(String slug, RoastLevelRequest request) {
+                RoastLevel roastLevel = roastLevelRepository.findBySlugWithTranslations(slug)
+                                .orElseThrow(RoastLevelNotFoundException::new);
+                
+                roastLevel.setColor(request.getColor());
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
                         helper.validateTranslations(request.getTranslations());
                         request.getTranslations().forEach(t -> translationRepository
-                                        .findByRoastProfileIdAndLanguage(roastProfile.getId(), t.getLanguage())
+                                        .findByRoastLevelIdAndLanguage(roastLevel.getId(), t.getLanguage())
                                         .ifPresentOrElse(
                                                         existing -> {
                                                                 existing.setName(t.getName());
@@ -86,73 +88,73 @@ public class RoastProfileService {
                                                                 translationRepository.save(existing);
                                                         },
                                                         () -> translationRepository.save(
-                                                                        RoastProfileTranslation.builder()
-                                                                                        .roastProfile(roastProfile)
+                                                                        RoastLevelTranslation.builder()
+                                                                                        .roastLevel(roastLevel)
                                                                                         .language(t.getLanguage())
                                                                                         .name(t.getName())
                                                                                         .description(t.getDescription())
                                                                                         .build())));
                 }
 
-                roastProfileRepository.save(roastProfile);
-                return buildResponse(roastProfile, LocaleContextHolder.getLocale().getLanguage());
+                roastLevelRepository.save(roastLevel);
+                return buildResponse(roastLevel, LocaleContextHolder.getLocale().getLanguage());
         }
 
         @Transactional
         public void delete(String slug) {
-                RoastProfile roastProfile = roastProfileRepository.findBySlugWithTranslations(slug)
-                                .orElseThrow(RoastProfileNotFoundException::new);
-                roastProfile.softDelete();
-                roastProfileRepository.save(roastProfile);
+                RoastLevel roastLevel = roastLevelRepository.findBySlugWithTranslations(slug)
+                                .orElseThrow(RoastLevelNotFoundException::new);
+                roastLevel.softDelete();
+                roastLevelRepository.save(roastLevel);
         }
 
-        public RoastProfileResponse getBySlug(String slug) {
+        public RoastLevelResponse getBySlug(String slug) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
-                RoastProfile roastProfile = roastProfileRepository.findBySlugAndLanguage(slug, language)
-                                .orElseThrow(RoastProfileNotFoundException::new);
-                return buildResponse(roastProfile, language);
+                RoastLevel roastLevel = roastLevelRepository.findBySlugAndLanguage(slug, language)
+                                .orElseThrow(RoastLevelNotFoundException::new);
+                return buildResponse(roastLevel, language);
         }
 
-        public PageResponse<RoastProfileResponse> getAll(LookupFilterRequest filter) {
+        public PageResponse<RoastLevelResponse> getAll(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
-                Page<RoastProfile> page = roastProfileRepository.findAllPublic(
+                Page<RoastLevel> page = roastLevelRepository.findAllPublic(
                                 language, filter.getSearch(), filter.toPageable());
                 return PageResponse.of(page.map(r -> buildResponse(r, language)));
         }
 
-        public PageResponse<DashboardRoastProfileResponse> getAllDashboard(LookupFilterRequest filter) {
+        public PageResponse<DashboardRoastLevelResponse> getAllDashboard(LookupFilterRequest filter) {
                 String search = Objects.requireNonNullElse(
                                 filter.getSearch(),
                                 "");
-                Page<RoastProfile> page = roastProfileRepository.findAllDashboard(
+                Page<RoastLevel> page = roastLevelRepository.findAllDashboard(
                                 search,
                                filter.toPageable());
                 return PageResponse.of(page.map(this::buildResponse));
         }
 
-        private RoastProfileResponse buildResponse(RoastProfile roastProfile, String language) {
-                List<RoastProfileTranslation> translations = translationRepository
-                                .findByRoastProfileId(roastProfile.getId());
+        private RoastLevelResponse buildResponse(RoastLevel roastLevel, String language) {
+                List<RoastLevelTranslation> translations = translationRepository
+                                .findByRoastLevelId(roastLevel.getId());
 
-                RoastProfileTranslation translation = translations.stream()
+                RoastLevelTranslation translation = translations.stream()
                                 .filter(t -> t.getLanguage().equals(language))
                                 .findFirst()
                                 .orElse(translations.isEmpty() ? null : translations.get(0));
 
-                return RoastProfileResponse.builder()
-                                .id(roastProfile.getId())
-                                .slug(roastProfile.getSlug())
+                return RoastLevelResponse.builder()
+                                .id(roastLevel.getId())
+                                .slug(roastLevel.getSlug())
                                 .name(translation != null ? translation.getName() : null)
                                 .description(translation != null ? translation.getDescription() : null)
                                 .build();
         }
 
-        private DashboardRoastProfileResponse buildResponse(RoastProfile roastProfile) {
-                return DashboardRoastProfileResponse.builder()
-                                .id(roastProfile.getId())
-                                .slug(roastProfile.getSlug())
+        private DashboardRoastLevelResponse buildResponse(RoastLevel roastLevel) {
+                return DashboardRoastLevelResponse.builder()
+                                .id(roastLevel.getId())
+                                .slug(roastLevel.getSlug())
                                 .translations(
-                                                roastProfile.getTranslations()
+                                                roastLevel.getTranslations()
                                                                 .stream()
                                                                 .map(t -> TranslationResponse.builder()
                                                                                 .language(t.getLanguage())

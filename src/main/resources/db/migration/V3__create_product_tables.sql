@@ -4,7 +4,6 @@ CREATE TABLE products (
     category_id BIGINT NOT NULL REFERENCES categories(id),
     origin_id BIGINT NULL REFERENCES origins(id),
     farm_id BIGINT NULL REFERENCES farms(id),
-    roast_profile_id BIGINT NULL REFERENCES roast_profiles(id),
     product_type VARCHAR(20) NOT NULL,
     featured BOOLEAN NOT NULL DEFAULT FALSE,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -28,10 +27,11 @@ CREATE TABLE product_translations (
 CREATE TABLE coffee_details (
     id BIGSERIAL PRIMARY KEY,
     product_id BIGINT NOT NULL UNIQUE REFERENCES products(id) ON DELETE CASCADE,
+    roast_level_id BIGINT NULL REFERENCES roast_levels(id),
     processing_method_id BIGINT NULL REFERENCES processing_methods(id),
     coffee_variety_id BIGINT NULL REFERENCES coffee_varieties(id),
-    altitude VARCHAR(50) NULL,
-    harvest_year VARCHAR(10) NULL,
+    altitude INTEGER NULL,
+    harvest_year SMALLINT NULL,
     story TEXT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -85,3 +85,55 @@ CREATE TABLE product_pairings (
     pairing_id BIGINT NOT NULL REFERENCES pairings(id) ON DELETE CASCADE,
     PRIMARY KEY (product_id, pairing_id)
 );
+
+-- =========================================================
+-- Indexes
+-- =========================================================
+
+CREATE INDEX idx_products_category
+ON products(category_id);
+
+CREATE INDEX idx_products_origin
+ON products(origin_id);
+
+CREATE INDEX idx_products_farm
+ON products(farm_id);
+
+CREATE INDEX idx_products_product_type
+ON products(product_type);
+
+CREATE INDEX idx_products_active
+ON products(is_active)
+WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_product_translation_name
+ON product_translations(name);
+
+CREATE INDEX idx_product_variants_product
+ON product_variants(product_id)
+WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_product_media_product
+ON product_media(product_id);
+
+CREATE UNIQUE INDEX uk_product_primary_media
+ON product_media(product_id)
+WHERE is_primary = TRUE;
+
+CREATE INDEX idx_coffee_details_roast_level
+ON coffee_details(roast_level_id);
+
+CREATE INDEX idx_coffee_details_processing_method
+ON coffee_details(processing_method_id);
+
+CREATE INDEX idx_coffee_details_coffee_variety
+ON coffee_details(coffee_variety_id);
+
+CREATE INDEX idx_product_brewing_methods_product
+ON product_brewing_methods(product_id);
+
+CREATE INDEX idx_product_tasting_notes_product
+ON product_tasting_notes(product_id);
+
+CREATE INDEX idx_product_pairings_product
+ON product_pairings(product_id);

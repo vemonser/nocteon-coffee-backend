@@ -44,6 +44,15 @@ public interface PairingRepository extends JpaRepository<Pairing, Long> {
             WHERE p.slug = :slug
             """)
     Optional<Pairing> findBySlugWithTranslations(@Param("slug") String slug);
+    @Query("""
+        select p
+        from Product product
+        join product.pairings p
+        left join fetch p.translations t
+        where product.id = :productId
+        and t.language = :language
+    """)
+    List<Pairing> findByProductId(Long productId, String language);
 
     @Query("""
             SELECT p FROM Pairing p

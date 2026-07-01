@@ -24,6 +24,7 @@ import com.nocteon.nocteon_api.journal.repository.JournalCategoryRepository;
 import com.nocteon.nocteon_api.journal.repository.JournalPostRepository;
 import com.nocteon.nocteon_api.journal.repository.JournalPostTranslationRepository;
 import com.nocteon.nocteon_api.product.entity.Product;
+import com.nocteon.nocteon_api.product.enums.MediaType;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -81,7 +82,7 @@ public class JournalService {
                 .orElseThrow(InvalidTranslationException::new);
 
         String slug = helper.generateUniqueSlug(title, postRepository::existsBySlug);
-        String imageUrl = helper.uploadImage(image, "journal");
+        String imageUrl = helper.uploadMedia(image, "journal",MediaType.IMAGE);
 
         JournalPost post = JournalPost.builder()
                 .journalCategory(category)
@@ -122,8 +123,8 @@ public class JournalService {
                 slug, LocaleContextHolder.getLocale().getLanguage())
                 .orElseThrow(JournalPostNotFoundException::new);
 
-        helper.deleteImageIfExists(post.getCoverImageUrl());
-        post.setCoverImageUrl(helper.uploadImage(file, "journal"));
+        helper.deleteMediaIfExists(post.getCoverImageUrl());
+        post.setCoverImageUrl(helper.uploadMedia(file, "journal",MediaType.IMAGE));
         postRepository.save(post);
 
         return getBySlug(slug);
@@ -135,7 +136,7 @@ public class JournalService {
                 slug, LocaleContextHolder.getLocale().getLanguage())
                 .orElseThrow(JournalPostNotFoundException::new);
 
-        helper.deleteImageIfExists(post.getCoverImageUrl());
+        helper.deleteMediaIfExists(post.getCoverImageUrl());
         post.softDelete();
         postRepository.save(post);
     }

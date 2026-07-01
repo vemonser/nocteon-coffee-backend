@@ -2,6 +2,8 @@ package com.nocteon.nocteon_api.product.dto.response;
 
 import java.math.BigDecimal;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -17,5 +19,6 @@ public class ProductVariantResponse {
     private String grindType;
     private int stock;
     private BigDecimal discount;
+    @JsonProperty("isActive")
     private boolean isActive;
 }

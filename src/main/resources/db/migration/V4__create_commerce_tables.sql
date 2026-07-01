@@ -51,6 +51,7 @@ CREATE TABLE orders (
     user_id BIGINT NOT NULL REFERENCES users(id),
     address_id BIGINT NOT NULL REFERENCES addresses(id),
     status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+    payment_status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
     total_amount DECIMAL(10,2) NOT NULL,
     notes TEXT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -69,6 +70,22 @@ CREATE TABLE order_items (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE payments (
+    id BIGSERIAL PRIMARY KEY,
+    order_id BIGINT NOT NULL REFERENCES orders(id),
+    provider VARCHAR(50) NOT NULL DEFAULT 'PAYMOB',
+    provider_payment_id VARCHAR(255),
+    provider_order_id VARCHAR(255),
+    amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(10) NOT NULL DEFAULT 'EGP',
+    status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+    payment_method VARCHAR(50),
+    failure_reason TEXT,
+    paid_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE reviews (
     id BIGSERIAL PRIMARY KEY,
     product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
@@ -76,8 +93,13 @@ CREATE TABLE reviews (
     rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
     comment TEXT NULL,
     is_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    is_approved BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ NULL,
     CONSTRAINT uk_user_product_review UNIQUE (user_id, product_id)
 );
+
+CREATE INDEX idx_reviews_is_approved
+    ON reviews (is_approved)
+    WHERE deleted_at IS NULL;

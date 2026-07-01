@@ -85,10 +85,9 @@ public class UserService {
         }
 
         if (profile.getAvatarUrl() != null) {
-            cloudinaryService.deleteImage(profile.getAvatarUrl());
+            cloudinaryService.delete(profile.getAvatarUrl());
         }
-
-        String avatarUrl = cloudinaryService.uploadImage(file, "avatars");
+        String avatarUrl = cloudinaryService.upload(file, "avatars","image");
         profile.setAvatarUrl(avatarUrl);
         userProfileRepository.save(profile);
 

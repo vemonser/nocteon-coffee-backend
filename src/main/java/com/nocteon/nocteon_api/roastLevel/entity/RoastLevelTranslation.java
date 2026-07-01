@@ -1,4 +1,4 @@
-package com.nocteon.nocteon_api.roastProfile.entity;
+package com.nocteon.nocteon_api.roastLevel.entity;
 
 import com.nocteon.nocteon_api.common.entity.BaseEntity;
 
@@ -16,15 +16,15 @@ import lombok.experimental.SuperBuilder;
 
 @Entity
 @SuperBuilder
-@Table(name = "roast_profile_translations")
+@Table(name = "roast_level_translations")
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
-public class RoastProfileTranslation extends BaseEntity {
+public class RoastLevelTranslation extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "roast_profile_id", nullable = false)
-    private RoastProfile roastProfile;
+    @JoinColumn(name = "roast_level_id", nullable = false)
+    private RoastLevel roastLevel;
 
     @Column(nullable = false, length = 10)
     private String language;

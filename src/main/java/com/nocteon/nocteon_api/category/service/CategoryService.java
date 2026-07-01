@@ -23,6 +23,7 @@ import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.CategoryNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.product.enums.MediaType;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -46,8 +47,8 @@ public class CategoryService {
                         category.setIsActive(request.getIsActive());
 
                 if (image != null && !image.isEmpty()) {
-                        helper.deleteImageIfExists(category.getImageUrl());
-                        category.setImageUrl(helper.uploadImage(image, "categories"));
+                        helper.deleteMediaIfExists(category.getImageUrl());
+                        category.setImageUrl(helper.uploadMedia(image, "categories",MediaType.IMAGE));
                 }
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
@@ -78,8 +79,8 @@ public class CategoryService {
                 Category category = categoryRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(CategoryNotFoundException::new);
 
-                helper.deleteImageIfExists(category.getImageUrl());
-                category.setImageUrl(helper.uploadImage(file, "categories"));
+                helper.deleteMediaIfExists(category.getImageUrl());
+                category.setImageUrl(helper.uploadMedia(file, "categories",MediaType.IMAGE));
                 categoryRepository.save(category);
 
                 return buildResponse(category, LocaleContextHolder.getLocale().getLanguage());
@@ -90,7 +91,7 @@ public class CategoryService {
                 Category category = categoryRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(CategoryNotFoundException::new);
 
-                helper.deleteImageIfExists(category.getImageUrl());
+                helper.deleteMediaIfExists(category.getImageUrl());
                 category.softDelete();
                 categoryRepository.save(category);
                 log.info("Category soft deleted: {}", slug);
@@ -114,7 +115,7 @@ public class CategoryService {
                                 .orElseThrow(InvalidTranslationException::new);
 
                 String slug = helper.generateUniqueSlug(englishName, categoryRepository::existsBySlug);
-                String imageUrl = helper.uploadImage(image, "categories");
+                String imageUrl = helper.uploadMedia(image, "categories",MediaType.IMAGE);
 
                 Category category = Category.builder()
                                 .slug(slug)

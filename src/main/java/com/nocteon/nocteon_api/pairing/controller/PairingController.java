@@ -57,7 +57,7 @@ public class PairingController {
         return ResponseEntity.ok(ApiResponse.success(pairingService.getBySlug(slug), "Pairing retrieved"));
     }
 
-    @PostMapping(value = "/pairings",consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/dashboard/pairings",consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('pairing:create')")
     public ResponseEntity<ApiResponse<PairingResponse>> create(
             @Valid @RequestPart("data") PairingRequest request,
@@ -66,7 +66,7 @@ public class PairingController {
                 .body(ApiResponse.success(pairingService.create(request, image), "Pairing created"));
     }
 
-    @PutMapping(value = "/pairings/{slug}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PutMapping(value = "/dashboard/pairings/{slug}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('pairing:update')")
     public ResponseEntity<ApiResponse<PairingResponse>> update(
             @PathVariable String slug,
@@ -75,7 +75,7 @@ public class PairingController {
         return ResponseEntity.ok(ApiResponse.success(pairingService.update(slug, request, image), "Pairing updated"));
     }
 
-    @PostMapping("/pairings/{slug}/image")
+    @PostMapping("/dashboard/pairings/{slug}/image")
     @PreAuthorize("hasAuthority('pairing:update')")
     public ResponseEntity<ApiResponse<PairingResponse>> uploadImage(
             @PathVariable String slug,
@@ -83,7 +83,7 @@ public class PairingController {
         return ResponseEntity.ok(ApiResponse.success(pairingService.uploadImage(slug, file), "Image uploaded"));
     }
 
-    @DeleteMapping("/pairings/{slug}")
+    @DeleteMapping("/dashboard/pairings/{slug}")
     @PreAuthorize("hasAuthority('pairing:delete')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String slug) {
         pairingService.delete(slug);

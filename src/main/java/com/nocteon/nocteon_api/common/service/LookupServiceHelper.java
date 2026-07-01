@@ -10,6 +10,7 @@ import com.nocteon.nocteon_api.cloudinary.service.CloudinaryService;
 import com.nocteon.nocteon_api.common.dto.TranslationRequest;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.util.SlugUtils;
+import com.nocteon.nocteon_api.product.enums.MediaType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -31,15 +32,19 @@ public class LookupServiceHelper {
         return candidate;
     }
 
-    public String uploadImage(MultipartFile image, String folder) {
-        if (image == null || image.isEmpty())
+    public String uploadMedia( MultipartFile file, String folder,
+            MediaType mediaType) {
+        if (file == null || file.isEmpty()) {
             return null;
-        return cloudinaryService.uploadImage(image, folder);
+        }
+        String resourceType = mediaType == MediaType.IMAGE
+                ? "image"
+                : "video";
+        return cloudinaryService.upload(file, folder, resourceType);
     }
-
-    public void deleteImageIfExists(String imageUrl) {
+    public void deleteMediaIfExists(String imageUrl) {
         if (imageUrl != null) {
-            cloudinaryService.deleteImage(imageUrl);
+            cloudinaryService.delete(imageUrl);
         }
     }
 

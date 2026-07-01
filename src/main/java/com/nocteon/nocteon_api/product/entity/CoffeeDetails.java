@@ -3,6 +3,7 @@ package com.nocteon.nocteon_api.product.entity;
 import com.nocteon.nocteon_api.coffeeVariety.entity.CoffeeVariety;
 import com.nocteon.nocteon_api.common.entity.BaseEntity;
 import com.nocteon.nocteon_api.processingMethod.entity.ProcessingMethod;
+import com.nocteon.nocteon_api.roastLevel.entity.RoastLevel;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -38,6 +39,10 @@ public class CoffeeDetails extends BaseEntity {
     @JoinColumn(name = "coffee_variety_id")
     private CoffeeVariety coffeeVariety;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "roast_level_id")
+    private RoastLevel roastLevel;
+    
     private String altitude;
 
     @Column(name = "harvest_year")

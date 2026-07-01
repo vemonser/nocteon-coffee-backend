@@ -16,8 +16,7 @@ CREATE TABLE category_translations (
     description TEXT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uk_category_language UNIQUE (category_id, language),
-    CONSTRAINT uk_category_name_language UNIQUE (language, name)
+    CONSTRAINT uk_category_language UNIQUE (category_id, language)
 );
 
 CREATE TABLE origins (
@@ -38,8 +37,7 @@ CREATE TABLE origin_translations (
     description TEXT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uk_origin_language UNIQUE (origin_id, language),
-    CONSTRAINT uk_origin_name_language UNIQUE (language, name)
+    CONSTRAINT uk_origin_language UNIQUE (origin_id, language)
 );
 
 CREATE TABLE farms (
@@ -61,27 +59,27 @@ CREATE TABLE farm_translations (
     description TEXT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uk_farm_language UNIQUE (farm_id, language),
-    CONSTRAINT uk_farm_name_language UNIQUE (language, name)
+    CONSTRAINT uk_farm_language UNIQUE (farm_id, language)
 );
 
-CREATE TABLE roast_profiles (
+CREATE TABLE roast_levels (
     id BIGSERIAL PRIMARY KEY,
     slug VARCHAR(50) UNIQUE NOT NULL,
+    color VARCHAR(10) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ NULL
 );
 
-CREATE TABLE roast_profile_translations (
+CREATE TABLE roast_level_translations (
     id BIGSERIAL PRIMARY KEY,
-    roast_profile_id BIGINT NOT NULL REFERENCES roast_profiles(id) ON DELETE CASCADE,
+    roast_level_id BIGINT NOT NULL REFERENCES roast_levels(id) ON DELETE CASCADE,
     language VARCHAR(10) NOT NULL,
     name VARCHAR(100) NOT NULL,
     description TEXT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uk_roast_profile_language UNIQUE (roast_profile_id, language)
+    CONSTRAINT uk_roast_level_language UNIQUE (roast_level_id, language)
 );
 
 CREATE TABLE processing_methods (

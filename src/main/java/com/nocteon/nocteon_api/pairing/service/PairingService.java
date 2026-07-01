@@ -23,6 +23,7 @@ import com.nocteon.nocteon_api.pairing.entity.Pairing;
 import com.nocteon.nocteon_api.pairing.entity.PairingTranslation;
 import com.nocteon.nocteon_api.pairing.repository.PairingRepository;
 import com.nocteon.nocteon_api.pairing.repository.PairingTranslationRepository;
+import com.nocteon.nocteon_api.product.enums.MediaType;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -47,7 +48,7 @@ public class PairingService {
                                 .orElseThrow(InvalidTranslationException::new);
 
                 String slug = helper.generateUniqueSlug(englishName, pairingRepository::existsBySlug);
-                String imageUrl = helper.uploadImage(image, "pairings");
+                String imageUrl = helper.uploadMedia(image, "pairings",MediaType.IMAGE);
 
                 Pairing pairing = Pairing.builder()
                                 .slug(slug)
@@ -77,8 +78,8 @@ public class PairingService {
                                 .orElseThrow(PairingNotFoundException::new);
 
                 if (image != null && !image.isEmpty()) {
-                        helper.deleteImageIfExists(pairing.getImageUrl());
-                        pairing.setImageUrl(helper.uploadImage(image, "pairings"));
+                        helper.deleteMediaIfExists(pairing.getImageUrl());
+                        pairing.setImageUrl(helper.uploadMedia(image, "pairings",MediaType.IMAGE));
                 }
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
@@ -109,8 +110,8 @@ public class PairingService {
                 Pairing pairing = pairingRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(PairingNotFoundException::new);
 
-                helper.deleteImageIfExists(pairing.getImageUrl());
-                pairing.setImageUrl(helper.uploadImage(file, "pairings"));
+                helper.deleteMediaIfExists(pairing.getImageUrl());
+                pairing.setImageUrl(helper.uploadMedia(file, "pairings",MediaType.IMAGE));
                 pairingRepository.save(pairing);
 
                 return buildResponse(pairing, LocaleContextHolder.getLocale().getLanguage());
@@ -120,7 +121,7 @@ public class PairingService {
         public void delete(String slug) {
                 Pairing pairing = pairingRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(PairingNotFoundException::new);
-                helper.deleteImageIfExists(pairing.getImageUrl());
+                helper.deleteMediaIfExists(pairing.getImageUrl());
                 pairing.softDelete();
                 pairingRepository.save(pairing);
         }

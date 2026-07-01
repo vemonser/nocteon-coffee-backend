@@ -1,4 +1,4 @@
-package com.nocteon.nocteon_api.roastProfile.repository;
+package com.nocteon.nocteon_api.roastLevel.repository;
 
 import java.util.Optional;
 
@@ -7,43 +7,43 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
-import com.nocteon.nocteon_api.roastProfile.entity.RoastProfile;
+import com.nocteon.nocteon_api.roastLevel.entity.RoastLevel;
 
 import io.lettuce.core.dynamic.annotation.Param;
 
-public interface RoastProfileRepository extends JpaRepository<RoastProfile, Long> {
+public interface RoastLevelRepository extends JpaRepository<RoastLevel, Long> {
 
     @Query("""
-            SELECT DISTINCT r FROM RoastProfile r
+            SELECT DISTINCT r FROM RoastLevel r
             LEFT JOIN r.translations t
             WHERE (:search = ''
                    OR (t.language = :language
                        AND LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))))
             """)
-    Page<RoastProfile> findAllPublic(
+    Page<RoastLevel> findAllPublic(
             @Param("search") String search,
             @Param("language") String language,
             Pageable pageable);
 
     @Query("""
-            SELECT DISTINCT r FROM RoastProfile r
+            SELECT DISTINCT r FROM RoastLevel r
             LEFT JOIN  r.translations t
                         WHERE (:search = ''
             OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
             OR LOWER(r.slug) LIKE LOWER(CONCAT('%', :search, '%'))
             )
             """)
-    Page<RoastProfile> findAllDashboard(
+    Page<RoastLevel> findAllDashboard(
                         @Param("search") String search,
                         Pageable pageable);
 
-    @Query("SELECT r FROM RoastProfile r LEFT JOIN FETCH r.translations WHERE r.slug = :slug")
-    Optional<RoastProfile> findBySlugWithTranslations(@Param("slug") String slug);
+    @Query("SELECT r FROM RoastLevel r LEFT JOIN FETCH r.translations WHERE r.slug = :slug")
+    Optional<RoastLevel> findBySlugWithTranslations(@Param("slug") String slug);
 
-    @Query("SELECT r FROM RoastProfile r LEFT JOIN FETCH r.translations t WHERE r.slug = :slug AND t.language = :language")
-    Optional<RoastProfile> findBySlugAndLanguage(@Param("slug") String slug, @Param("language") String language);
+    @Query("SELECT r FROM RoastLevel r LEFT JOIN FETCH r.translations t WHERE r.slug = :slug AND t.language = :language")
+    Optional<RoastLevel> findBySlugAndLanguage(@Param("slug") String slug, @Param("language") String language);
     
-    Optional<RoastProfile> findBySlug(@Param("slug") String slug);
+    Optional<RoastLevel> findBySlug(@Param("slug") String slug);
 
     boolean existsBySlug(String slug);
 }

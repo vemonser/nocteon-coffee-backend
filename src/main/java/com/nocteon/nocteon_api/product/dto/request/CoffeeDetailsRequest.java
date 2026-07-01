@@ -10,6 +10,7 @@ public class CoffeeDetailsRequest {
     private String processingMethodSlug;
     private String coffeeVarietySlug;
     private String altitude;
+    private String roastLevelSlug;
     private String harvestYear;
     private String story;
 }

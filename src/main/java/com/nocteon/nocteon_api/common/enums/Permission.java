@@ -26,11 +26,11 @@ public enum Permission {
     FARM_UPDATE("farm:update"),
     FARM_DELETE("farm:delete"),
 
-    // Roast Profile
-    ROAST_PROFILE_CREATE("roast_profile:create"),
-    ROAST_PROFILE_READ("roast_profile:read"),
-    ROAST_PROFILE_UPDATE("roast_profile:update"),
-    ROAST_PROFILE_DELETE("roast_profile:delete"),
+    // Roast Level
+    ROAST_LEVEL_CREATE("roast_level:create"),
+    ROAST_LEVEL_READ("roast_level:read"),
+    ROAST_LEVEL_UPDATE("roast_level:update"),
+    ROAST_LEVEL_DELETE("roast_level:delete"),
 
     // Processing Method
     PROCESSING_METHOD_CREATE("processing_method:create"),

@@ -13,7 +13,7 @@ import com.nocteon.nocteon_api.journal.entity.JournalPost;
 import com.nocteon.nocteon_api.origin.entity.Origin;
 import com.nocteon.nocteon_api.pairing.entity.Pairing;
 import com.nocteon.nocteon_api.product.enums.ProductType;
-import com.nocteon.nocteon_api.roastProfile.entity.RoastProfile;
+import com.nocteon.nocteon_api.roastLevel.entity.RoastLevel;
 import com.nocteon.nocteon_api.tastingNote.entity.TastingNote;
 
 import jakarta.persistence.CascadeType;
@@ -59,10 +59,6 @@ public class Product extends SoftDeletableEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "farm_id")
     private Farm farm;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "roast_profile_id")
-    private RoastProfile roastProfile;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "product_type", nullable = false)

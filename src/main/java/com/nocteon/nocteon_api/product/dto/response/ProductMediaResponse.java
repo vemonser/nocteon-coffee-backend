@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.product.dto.response;
 
 import com.nocteon.nocteon_api.product.enums.MediaType;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -15,5 +16,6 @@ public class ProductMediaResponse {
     private String altText;
     private MediaType type;
     private int sortOrder;
+    @JsonProperty("isPrimary")
     private boolean isPrimary;
 }

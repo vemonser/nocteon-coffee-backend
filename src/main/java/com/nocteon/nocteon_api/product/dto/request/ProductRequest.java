@@ -21,7 +21,6 @@ public class ProductRequest {
 
     private String originSlug;
     private String farmSlug;
-    private String roastProfileSlug;
 
     @NotNull(message = "{validation.productType.notNull}")
     private ProductType productType;
@@ -38,7 +37,9 @@ public class ProductRequest {
 
     @NotEmpty(message = "{validation.variants.notEmpty}")
     private List<@Valid ProductVariantRequest> variants;
-                      
+    
+    private List<ProductMediaRequest> media;
+    
     private List<String> tastingNoteSlugs;
     private List<String> pairingSlugs;
     private List<ProductBrewingMethodRequest> brewingMethods;

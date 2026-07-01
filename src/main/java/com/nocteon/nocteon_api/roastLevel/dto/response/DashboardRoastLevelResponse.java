@@ -1,4 +1,4 @@
-package com.nocteon.nocteon_api.roastProfile.dto.response;
+package com.nocteon.nocteon_api.roastLevel.dto.response;
 
 import java.util.List;
 
@@ -11,9 +11,10 @@ import lombok.Setter;
 @Builder
 @Getter
 @Setter
-public class DashboardRoastProfileResponse {
+public class DashboardRoastLevelResponse {
     private Long id;
     private String slug;
+    private String color;
     private List<TranslationResponse> translations;
 
 }

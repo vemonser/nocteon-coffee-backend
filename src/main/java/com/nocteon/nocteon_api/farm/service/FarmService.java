@@ -29,6 +29,7 @@ import com.nocteon.nocteon_api.farm.repository.FarmTranslationRepository;
 
 import com.nocteon.nocteon_api.origin.entity.Origin;
 import com.nocteon.nocteon_api.origin.repository.OriginRepository;
+import com.nocteon.nocteon_api.product.enums.MediaType;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -87,7 +88,7 @@ public class FarmService {
                 .orElseThrow(InvalidTranslationException::new);
 
         String slug = helper.generateUniqueSlug(englishName, farmRepository::existsBySlug);
-        String imageUrl = helper.uploadImage(image, "farms");
+        String imageUrl = helper.uploadMedia(image, "farms",MediaType.IMAGE);
 
         Farm farm = Farm.builder()
                 .origin(origin)
@@ -126,8 +127,8 @@ public class FarmService {
         }
 
         if (image != null && !image.isEmpty()) {
-            helper.deleteImageIfExists(farm.getImageUrl());
-            farm.setImageUrl(helper.uploadImage(image, "farms"));
+            helper.deleteMediaIfExists(farm.getImageUrl());
+            farm.setImageUrl(helper.uploadMedia(image, "farms",MediaType.IMAGE));
         }
 
         if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
@@ -163,8 +164,8 @@ public class FarmService {
         Farm farm = farmRepository.findBySlugWithTranslations(slug)
                 .orElseThrow(FarmNotFoundException::new);
 
-        helper.deleteImageIfExists(farm.getImageUrl());
-        farm.setImageUrl(helper.uploadImage(file, "farms"));
+        helper.deleteMediaIfExists(farm.getImageUrl());
+        farm.setImageUrl(helper.uploadMedia(file, "farms",MediaType.IMAGE));
         farmRepository.save(farm);
 
         return buildResponse(farm, LocaleContextHolder.getLocale().getLanguage());
@@ -174,7 +175,7 @@ public class FarmService {
     public void delete(String slug) {
         Farm farm = farmRepository.findBySlugWithTranslations(slug)
                 .orElseThrow(FarmNotFoundException::new);
-        helper.deleteImageIfExists(farm.getImageUrl());
+        helper.deleteMediaIfExists(farm.getImageUrl());
         farm.softDelete();
         farmRepository.save(farm);
         log.info("Farm soft deleted: {}", slug);

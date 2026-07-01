@@ -1,4 +1,4 @@
-package com.nocteon.nocteon_api.roastProfile.entity;
+package com.nocteon.nocteon_api.roastLevel.entity;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,17 +21,20 @@ import lombok.experimental.SuperBuilder;
 
 @Entity
 @SuperBuilder
-@Table(name = "roast_profiles")
+@Table(name = "roast_levels")
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
-public class RoastProfile extends SoftDeletableEntity {
+public class RoastLevel extends SoftDeletableEntity {
 
     @Column(nullable = false, unique = true)
     private String slug;
 
-    @OneToMany(mappedBy = "roastProfile", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @Column(nullable = false)
+    private String color;
+
+    @OneToMany(mappedBy = "roastLevel", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
-    private List<RoastProfileTranslation> translations = new ArrayList<>();
+    private List<RoastLevelTranslation> translations = new ArrayList<>();
 }

@@ -8,4 +8,5 @@ import com.nocteon.nocteon_api.product.entity.CoffeeDetails;
 
 public interface CoffeeDetailsRepository extends JpaRepository<CoffeeDetails, Long> {
     Optional<CoffeeDetails> findByProductId(Long productId);
+    void deleteByProductId(Long productId);
 }

@@ -1,4 +1,4 @@
-package com.nocteon.nocteon_api.roastProfile.dto.request;
+package com.nocteon.nocteon_api.roastLevel.dto.request;
 
 import com.nocteon.nocteon_api.common.dto.TranslationRequest;
 
@@ -9,7 +9,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class RoastProfileTranslationRequest implements TranslationRequest {
+public class RoastLevelTranslationRequest implements TranslationRequest {
     @NotBlank(message = "{validation.name.notBlank}")
     @Size(min = 2, max = 100, message = "{validation.name.size}")
     private String name;
