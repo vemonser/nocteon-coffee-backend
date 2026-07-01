@@ -1,5 +1,7 @@
 package com.nocteon.nocteon_api.product.dto.request;
 
+import java.math.BigDecimal;
+
 import lombok.Getter;
 import lombok.Setter;
 
@@ -9,8 +11,8 @@ public class CoffeeDetailsRequest {
 
     private String processingMethodSlug;
     private String coffeeVarietySlug;
-    private String altitude;
+    private BigDecimal altitude;
     private String roastLevelSlug;
-    private String harvestYear;
+    private Short harvestYear;
     private String story;
 }

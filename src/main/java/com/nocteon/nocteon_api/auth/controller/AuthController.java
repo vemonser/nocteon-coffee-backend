@@ -27,7 +27,6 @@ import com.nocteon.nocteon_api.auth.service.EmailVerificationService;
 import com.nocteon.nocteon_api.auth.service.PasswordResetService;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.exception.RateLimitExceededException;
-import com.nocteon.nocteon_api.common.exception.UnauthorizedException;
 import com.nocteon.nocteon_api.common.ratelimit.RateLimiterService;
 
 import jakarta.servlet.http.HttpServletRequest;

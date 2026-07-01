@@ -1,5 +1,7 @@
 package com.nocteon.nocteon_api.product.entity;
 
+import java.math.BigDecimal;
+
 import com.nocteon.nocteon_api.coffeeVariety.entity.CoffeeVariety;
 import com.nocteon.nocteon_api.common.entity.BaseEntity;
 import com.nocteon.nocteon_api.processingMethod.entity.ProcessingMethod;
@@ -43,10 +45,10 @@ public class CoffeeDetails extends BaseEntity {
     @JoinColumn(name = "roast_level_id")
     private RoastLevel roastLevel;
     
-    private String altitude;
+    private BigDecimal altitude;
 
     @Column(name = "harvest_year")
-    private String harvestYear;
+    private Short harvestYear;
 
     @Column(columnDefinition = "TEXT")
     private String story;

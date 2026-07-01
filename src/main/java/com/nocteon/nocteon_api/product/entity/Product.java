@@ -13,7 +13,6 @@ import com.nocteon.nocteon_api.journal.entity.JournalPost;
 import com.nocteon.nocteon_api.origin.entity.Origin;
 import com.nocteon.nocteon_api.pairing.entity.Pairing;
 import com.nocteon.nocteon_api.product.enums.ProductType;
-import com.nocteon.nocteon_api.roastLevel.entity.RoastLevel;
 import com.nocteon.nocteon_api.tastingNote.entity.TastingNote;
 
 import jakarta.persistence.CascadeType;

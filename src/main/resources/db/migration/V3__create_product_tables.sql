@@ -30,7 +30,7 @@ CREATE TABLE coffee_details (
     roast_level_id BIGINT NULL REFERENCES roast_levels(id),
     processing_method_id BIGINT NULL REFERENCES processing_methods(id),
     coffee_variety_id BIGINT NULL REFERENCES coffee_varieties(id),
-    altitude INTEGER NULL,
+    altitude DECIMAL(6,2) NULL,
     harvest_year SMALLINT NULL,
     story TEXT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
