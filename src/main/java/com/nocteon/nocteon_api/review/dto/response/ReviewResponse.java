@@ -16,5 +16,8 @@ public class ReviewResponse {
     private Integer rating;
     private String comment;
     private boolean verified;
+    private boolean isApproved; 
+    private String productSlug; 
+
     private Instant createdAt;
 }

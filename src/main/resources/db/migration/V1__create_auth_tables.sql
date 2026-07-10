@@ -11,6 +11,8 @@ CREATE TABLE users (
     failed_login_attempts INT NOT NULL DEFAULT 0,
     locked_until TIMESTAMPTZ NULL,
     last_failed_login TIMESTAMPTZ NULL,
+    is_subscribed BOOLEAN NOT NULL DEFAULT TRUE,
+    last_active_at TIMESTAMP,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ NULL
@@ -58,3 +60,14 @@ CREATE TABLE verification_codes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE login_activities (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id),
+    device_type VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_login_activities_created_at ON login_activities(created_at);
+CREATE INDEX idx_login_activities_user_id ON login_activities(user_id);

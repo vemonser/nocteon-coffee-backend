@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.nocteon.nocteon_api.product.dto.response.summary.LockupResponse;
 import com.nocteon.nocteon_api.product.enums.ProductType;
 import com.nocteon.nocteon_api.review.dto.response.ReviewResponse;
 
@@ -17,9 +18,9 @@ import lombok.Setter;
 public class ProductResponse {
     private Long id;
     private String slug;
-    private String categorySlug;
-    private String originSlug;
-    private String farmSlug;
+    private LockupResponse category; 
+    private LockupResponse origin; 
+    private LockupResponse farm; 
     private ProductType productType;
     private boolean featured;
     @JsonProperty("isActive")
@@ -29,14 +30,14 @@ public class ProductResponse {
     private String name;
     private String shortDescription;
     private String description;
-    
+
     // للـ List Response بس
     private String primaryImageUrl;
     private BigDecimal lowestPrice;
-    
+
     private Double averageRating;
     private Long reviewCount;
-    private List<ReviewResponse> recentReviews; 
+    private List<ReviewResponse> recentReviews;
 
     // Relations
     private CoffeeDetailsResponse coffeeDetails;

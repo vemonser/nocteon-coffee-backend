@@ -2,8 +2,9 @@ package com.nocteon.nocteon_api.order.service;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
@@ -19,8 +20,11 @@ import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.notFound.AddressNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.OrderNotFoundException;
+import com.nocteon.nocteon_api.common.exception.payment.OrderNotPayableException;
 import com.nocteon.nocteon_api.common.exception.product.CartEmptyException;
 import com.nocteon.nocteon_api.common.exception.product.InsufficientStockException;
+import com.nocteon.nocteon_api.mail.event.OrderPlacedEvent;
+import com.nocteon.nocteon_api.notifications.event.OrderCreatedEvent;
 import com.nocteon.nocteon_api.order.dto.request.CreateOrderRequest;
 import com.nocteon.nocteon_api.order.dto.request.OrderFilterRequest;
 import com.nocteon.nocteon_api.order.dto.response.OrderItemResponse;
@@ -31,9 +35,17 @@ import com.nocteon.nocteon_api.order.entity.OrderItem;
 import com.nocteon.nocteon_api.order.enums.OrderStatus;
 import com.nocteon.nocteon_api.order.repository.OrderItemRepository;
 import com.nocteon.nocteon_api.order.repository.OrderRepository;
+import com.nocteon.nocteon_api.payment.dto.request.PaymobCallbackRequest;
+import com.nocteon.nocteon_api.payment.enums.PaymentMethod;
+import com.nocteon.nocteon_api.payment.enums.PaymentStatus;
 import com.nocteon.nocteon_api.payment.service.PaymentService;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
 import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
+import com.nocteon.nocteon_api.promoCode.dto.request.PromoCodeCalculationResult;
+import com.nocteon.nocteon_api.promoCode.entity.PromoCode;
+import com.nocteon.nocteon_api.promoCode.service.PromoCodeService;
+import com.nocteon.nocteon_api.shippingZone.service.ShippingZoneService;
+import com.nocteon.nocteon_api.storeSettings.service.StoreSettingsService;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -51,12 +63,17 @@ public class OrderService {
         private final AddressRepository addressRepository;
         private final ProductVariantRepository variantRepository;
         private final PaymentService paymentService;
+        private final PromoCodeService promoCodeService;
+        private final ApplicationEventPublisher eventPublisher;
+        private final StoreSettingsService storeSettingsService;
+        private final ShippingZoneService shippingZoneService;
+
+        @Value("${application.paymob.hmac-secret}")
+        private String hmacSecret;
 
         @Transactional
-        public OrderPaymentResponse createOrder(CreateOrderRequest request,
-                        UserPrincipal principal) {
+        public OrderPaymentResponse createOrder(CreateOrderRequest request, UserPrincipal principal) {
 
-                // 1. جيب الـ Cart
                 Cart cart = cartRepository.findByUserId(principal.getUserId())
                                 .orElseThrow(CartEmptyException::new);
 
@@ -64,114 +81,160 @@ public class OrderService {
                         throw new CartEmptyException();
                 }
 
-                // 2. جيب الـ Address
                 Address address = addressRepository
                                 .findByIdAndUserId(request.getAddressId(), principal.getUserId())
                                 .orElseThrow(AddressNotFoundException::new);
 
-                // 3. احسب الـ total وتحقق من الـ stock
                 BigDecimal total = BigDecimal.ZERO;
                 for (CartItem cartItem : cart.getItems()) {
                         ProductVariant variant = cartItem.getProductVariant();
 
-                        if (variant.getStock() < cartItem.getQuantity()) {
-                                throw new InsufficientStockException(variant.getStock());
+                        if (!variant.isActive()) {
+                                throw new IllegalStateException("Product variant is inactive.");
+                        }
+                        if (variant.getStockQuantity() < cartItem.getQuantity()) {
+                                throw new InsufficientStockException(variant.getStockQuantity());
                         }
 
-                        BigDecimal price = variant.getDiscount() != null
-                                        ? variant.getPrice().multiply(
-                                                        BigDecimal.ONE.subtract(
-                                                                        variant.getDiscount().divide(
-                                                                                        BigDecimal.valueOf(100))))
-                                        : variant.getPrice();
-
-                        total = total.add(price.multiply(BigDecimal.valueOf(cartItem.getQuantity())));
+                        total = total.add(variant.getPrice().multiply(BigDecimal.valueOf(cartItem.getQuantity())));
                 }
 
-                // 4. Create Order
+                PromoCode appliedPromoCode = null;
+                BigDecimal discountAmount = BigDecimal.ZERO;
+                boolean freeShippingFromPromo = false;
+
+                if (request.getPromoCode() != null && !request.getPromoCode().isBlank()) {
+                        PromoCodeCalculationResult discountResult = promoCodeService.calculateDiscountForCart(
+                                        request.getPromoCode(), cart.getItems(), total, principal.getUserId());
+
+                        appliedPromoCode = promoCodeService.getEntityById(discountResult.getPromoCodeId());
+                        discountAmount = discountResult.getDiscountAmount();
+                        freeShippingFromPromo = discountResult.isFreeShipping();
+                }
+
+                // ─── حساب الشحن ───
+                BigDecimal shippingCost = shippingZoneService.calculateShippingCost(address.getCity());
+
+                BigDecimal amountAfterDiscount = total.subtract(discountAmount);
+                boolean qualifiesForFreeShipping = freeShippingFromPromo
+                                || amountAfterDiscount
+                                                .compareTo(storeSettingsService.get().getFreeShippingThreshold()) >= 0;
+
+                if (qualifiesForFreeShipping) {
+                        shippingCost = BigDecimal.ZERO;
+                }
+
+                OrderStatus initialStatus = request.getPaymentMethod() == PaymentMethod.CASH_ON_DELIVERY
+                                ? OrderStatus.CONFIRMED
+                                : OrderStatus.PENDING;
+
                 Order order = Order.builder()
                                 .user(User.builder().id(principal.getUserId()).build())
                                 .address(address)
-                                .status(OrderStatus.PAYMENT_PENDING)
-                                .totalAmount(total)
+                                .totalAmount(amountAfterDiscount.add(shippingCost))
+                                .shippingCost(shippingCost)
+                                .paymentMethod(request.getPaymentMethod())
+                                .status(initialStatus)
+                                .promoCode(appliedPromoCode)
+                                .discountAmount(discountAmount)
                                 .notes(request.getNotes())
                                 .build();
 
                 order = orderRepository.save(order);
 
-                // 5. Save Order Items + خصم الـ stock
-                final Order savedOrder = order;
                 for (CartItem cartItem : cart.getItems()) {
                         ProductVariant variant = cartItem.getProductVariant();
+                        BigDecimal unitPrice = variant.getPrice();
 
-                        BigDecimal price = variant.getDiscount() != null
-                                        ? variant.getPrice().multiply(
-                                                        BigDecimal.ONE.subtract(
-                                                                        variant.getDiscount().divide(
-                                                                                        BigDecimal.valueOf(100))))
-                                        : variant.getPrice();
+                        orderItemRepository.save(
+                                        OrderItem.builder()
+                                                        .order(order)
+                                                        .productVariant(variant)
+                                                        .quantity(cartItem.getQuantity())
+                                                        .unitPrice(unitPrice)
+                                                        .totalPrice(unitPrice.multiply(
+                                                                        BigDecimal.valueOf(cartItem.getQuantity())))
+                                                        .build());
 
-                        orderItemRepository.save(OrderItem.builder()
-                                        .order(savedOrder)
-                                        .productVariant(variant)
-                                        .quantity(cartItem.getQuantity())
-                                        .unitPrice(price)
-                                        .totalPrice(price.multiply(BigDecimal.valueOf(cartItem.getQuantity())))
-                                        .build());
-
-                        // خصم من الـ stock
-                        variant.setStock(variant.getStock() - cartItem.getQuantity());
+                        variant.setStockQuantity(variant.getStockQuantity() - cartItem.getQuantity());
                         variantRepository.save(variant);
                 }
 
-                // 6. Create Payment — Moyasar
-                String firstName = address.getFullName().split(" ")[0];
-                String lastName = address.getFullName().split(" ").length > 1
-                                ? address.getFullName().split(" ")[1]
-                                : ".";
+                cartItemRepository.deleteByCartId(cart.getId());
+                eventPublisher.publishEvent(new OrderCreatedEvent(order.getId(), total));
+                eventPublisher.publishEvent(new OrderPlacedEvent(order.getId()));
+
+                if (request.getPaymentMethod() == PaymentMethod.CASH_ON_DELIVERY) {
+                        if (appliedPromoCode != null) {
+                                promoCodeService.recordRedemption(appliedPromoCode, order, principal.getUserId(),
+                                                discountAmount);
+                        }
+
+                        log.info("COD Order {} created and confirmed for user {}", order.getId(),
+                                        principal.getUserId());
+
+                        return OrderPaymentResponse.builder()
+                                        .orderId(order.getId())
+                                        .total(order.getTotalAmount())
+                                        .paymentUrl(null)
+                                        .build();
+                }
+
+                String[] names = address.getFullName().trim().split("\\s+", 2);
+                String firstName = names[0];
+                String lastName = names.length > 1 ? names[1] : ".";
 
                 String paymentUrl = paymentService.initiatePayment(
-                                order, firstName, lastName,
-                                principal.getUser().getEmail(),
-                                address.getPhone());
-
-                // 7. Clear Cart
-                cartItemRepository.deleteByCartId(cart.getId());
+                                order, firstName, lastName, principal.getUser().getEmail(), address.getPhone());
 
                 log.info("Order {} created for user {}", order.getId(), principal.getUserId());
 
                 return OrderPaymentResponse.builder()
                                 .orderId(order.getId())
-                                .total(total)
+                                .total(order.getTotalAmount())
                                 .paymentUrl(paymentUrl)
                                 .build();
         }
 
-        // @Transactional
-        // public void handlePaymentCallback(String paymentId, Long orderId) {
-        // Order order = orderRepository.findById(orderId)
-        // .orElseThrow(OrderNotFoundException::new);
+        public void handlePaymentWebhook(String hmac, PaymobCallbackRequest payload) {
+                paymentService.handleCallback(hmac, payload);
+        }
 
-        // boolean paid = paymentService.verifyCallback(orderId,paymentId);
+        @Transactional
+        public OrderPaymentResponse retryPayment(Long orderId, UserPrincipal principal) {
 
-        // if (paid) {
-        // order.setStatus(OrderStatus.PAID);
-        // order.setPaymentId(paymentId);
-        // order.setPaymentStatus("paid");
-        // } else {
-        // order.setStatus(OrderStatus.CANCELLED);
-        // order.setPaymentStatus("failed");
+                Order order = orderRepository.findByIdAndUserId(orderId, principal.getUserId())
+                                .orElseThrow(OrderNotFoundException::new);
 
-        // // رجّع الـ stock
-        // order.getItems().forEach(item -> {
-        // ProductVariant variant = item.getProductVariant();
-        // variant.setStock(variant.getStock() + item.getQuantity());
-        // variantRepository.save(variant);
-        // });
-        // }
+                if (order.getPaymentStatus() == PaymentStatus.PAID) {
+                        throw new OrderNotPayableException("Order is already paid.");
+                }
 
-        // orderRepository.save(order);
-        // }
+                if (order.getStatus() == OrderStatus.CANCELLED) {
+                        throw new OrderNotPayableException("Order is cancelled.");
+                }
+
+                Address address = order.getAddress();
+
+                String[] names = address.getFullName().trim().split("\\s+", 2);
+                String firstName = names[0];
+                String lastName = names.length > 1 ? names[1] : ".";
+
+                String paymentUrl = paymentService.initiatePayment(
+                                order,
+                                firstName,
+                                lastName,
+                                principal.getUser().getEmail(),
+                                address.getPhone());
+
+                log.info("Payment retry initiated for order {} by user {}", order.getId(), principal.getUserId());
+
+                return OrderPaymentResponse.builder()
+                                .orderId(order.getId())
+                                .total(order.getTotalAmount())
+                                .paymentUrl(paymentUrl)
+                                .build();
+        }
 
         public PageResponse<OrderResponse> getUserOrders(UserPrincipal principal,
                         BaseFilterRequest filter) {
@@ -184,10 +247,6 @@ public class OrderService {
                 Page<Order> page = orderRepository.findAllWithFilters(
                                 filter.getStatus(), filter.toPageable());
                 return PageResponse.of(page.map(this::buildResponse));
-        }
-
-        public void handlePaymentWebhook(Map<String, String> params) {
-                paymentService.handleCallback(params);
         }
 
         @Transactional
@@ -215,10 +274,12 @@ public class OrderService {
                                 .id(order.getId())
                                 .status(order.getStatus())
                                 .totalAmount(order.getTotalAmount())
-                                // .paymentStatus(order.getPaymentStatus())
+                                .paymentStatus(order.getPaymentStatus())
                                 .notes(order.getNotes())
                                 .items(items)
                                 .createdAt(order.getCreatedAt())
                                 .build();
+
         }
+
 }

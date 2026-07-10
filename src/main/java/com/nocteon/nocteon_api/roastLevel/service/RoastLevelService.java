@@ -144,6 +144,7 @@ public class RoastLevelService {
                 return RoastLevelResponse.builder()
                                 .id(roastLevel.getId())
                                 .slug(roastLevel.getSlug())
+                                .color(roastLevel.getColor())
                                 .name(translation != null ? translation.getName() : null)
                                 .description(translation != null ? translation.getDescription() : null)
                                 .build();
@@ -153,6 +154,7 @@ public class RoastLevelService {
                 return DashboardRoastLevelResponse.builder()
                                 .id(roastLevel.getId())
                                 .slug(roastLevel.getSlug())
+                                .color(roastLevel.getColor())
                                 .translations(
                                                 roastLevel.getTranslations()
                                                                 .stream()

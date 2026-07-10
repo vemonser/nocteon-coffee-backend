@@ -77,13 +77,32 @@ public enum Permission {
     // Review
     REVIEW_CREATE("review:create"),
     REVIEW_READ("review:read"),
+    REVIEW_MODERATE("review:moderate"),
     REVIEW_UPDATE("review:update"),
     REVIEW_DELETE("review:delete"),
 
-    // User
+    // user
     USER_READ("user:read"),
     USER_UPDATE("user:update"),
     USER_DELETE("user:delete"),
+    
+    // dashboard
+    SETTINGS_READ("settings:read"),
+    SETTINGS_UPDATE("settings:update"),
+    // dashboard
+    PROMO_READ("promo:read"),
+    PROMO_UPDATE("promo:update"),
+    PROMO_DELETE("promo:delete"),
+    PROMO_CREATE("promo:create"),
+    
+    // dashboard
+    DASHBOARD_READ("dashboard:read"),
+    DASHBOARD_UPDATE("dashboard:update"),
+    
+    // NOTIFICATION
+    NOTIFICATION_READ("notification:read"),
+    NOTIFICATION_UPDATE("notification:update"),
+    NOTIFICATION_DELETE("notification:delete"),
 
     // Cart & Wishlist
     CART_MANAGE("cart:manage"),

@@ -1,5 +1,6 @@
 package com.nocteon.nocteon_api.auth.entity;
 
+import jakarta.persistence.Transient;
 import com.nocteon.nocteon_api.common.entity.BaseEntity;
 
 import jakarta.persistence.Column;
@@ -37,4 +38,11 @@ public class UserProfile extends BaseEntity {
     @Column(name = "avatar_url")
     private String avatarUrl;
 
+    @Transient
+    public String getFullName() {
+        String first = firstName == null ? "" : firstName.trim();
+        String last = lastName == null ? "" : lastName.trim();
+
+        return (first + " " + last).trim();
+    }
 }

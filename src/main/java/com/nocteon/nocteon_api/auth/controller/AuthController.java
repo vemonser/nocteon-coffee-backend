@@ -61,14 +61,14 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(
             @Valid @RequestBody LoginRequest request,
-            HttpServletRequest httpRequest) {
+            @RequestHeader(value = "User-Agent", required = false) String userAgent, HttpServletRequest httpRequest) {
         String ip = httpRequest.getRemoteAddr();
 
         if (!rateLimiterService.tryConsumeLogin(ip, request.getIdentifier())) {
             throw new RateLimitExceededException();
         }
 
-        AuthResult result = authService.login(request);
+        AuthResult result = authService.login(request, userAgent);
         ResponseCookie cookie = buildRefreshTokenCookie(result.getRawRefreshToken());
 
         return ResponseEntity.ok()

@@ -15,6 +15,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -57,7 +58,8 @@ public class JournalPost extends SoftDeletableEntity {
     @BatchSize(size = 30)
     private List<JournalPostTranslation> translations = new ArrayList<>();
 
-    @ManyToMany(mappedBy = "journalPosts", fetch = FetchType.LAZY)
+    @ManyToMany
+    @JoinTable(name = "product_journal_posts", joinColumns = @JoinColumn(name = "journal_post_id"), inverseJoinColumns = @JoinColumn(name = "product_id"))
     @Builder.Default
     private List<Product> products = new ArrayList<>();
 }

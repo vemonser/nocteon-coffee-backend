@@ -2,7 +2,8 @@ package com.nocteon.nocteon_api.product.dto.request;
 
 import java.math.BigDecimal;
 
-import jakarta.validation.constraints.DecimalMax;
+import com.nocteon.nocteon_api.product.enums.GrindType;
+
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -21,16 +22,15 @@ public class ProductVariantRequest {
     @DecimalMin(value = "0.01", message = "{validation.price.min}")
     private BigDecimal price;
 
-    @DecimalMin(value = "0.01", message = "{validation.weight.min}")
-    private BigDecimal weight;
+    private BigDecimal compareAtPrice;
 
-    private String grindType;
+    @DecimalMin(value = "0.01", message = "{validation.weight.min}")
+    private BigDecimal weightGrams;
+
+    private GrindType  grindType;
 
     @Min(value = 0, message = "{validation.stock.min}")
-    private int stock = 0;
+    private Integer stockQuantity;
 
-    @DecimalMin(value = "0.00", message = "{validation.discount.min}")
-    @DecimalMax(value = "100.00", message = "{validation.discount.max}")
-    private BigDecimal discount;
     private Boolean isActive;
 }

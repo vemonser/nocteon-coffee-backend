@@ -33,6 +33,7 @@ import com.nocteon.nocteon_api.common.exception.invalid.InvalidRefreshTokenExcep
 import com.nocteon.nocteon_api.common.exception.user.UsernameAlreadyExistsException;
 import com.nocteon.nocteon_api.common.redis.TokenBlacklistService;
 import com.nocteon.nocteon_api.common.util.PasswordValidator;
+import com.nocteon.nocteon_api.userActivity.service.LoginActivityService;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +53,7 @@ public class AuthService {
     private final TokenBlacklistService tokenBlacklistService;
     private final PasswordEncoder passwordEncoder;
     private final PasswordValidator passwordValidator;
+    private final LoginActivityService loginActivityService;
 
     @Value("${application.security.jwt.access-token-expiration}")
     private long accessTokenExpiration;
@@ -98,7 +100,7 @@ public class AuthService {
     }
 
     @Transactional
-    public AuthResult login(LoginRequest request) {
+    public AuthResult login(LoginRequest request, String userAgent) {
         User user = userRepository.findByEmailOrUsername(request.getIdentifier())
                 .orElseThrow(InvalidCredentialsException::new);
 
@@ -114,8 +116,10 @@ public class AuthService {
         }
 
         user.resetFailedLogin();
+        user.setLastActiveAt(Instant.now());
         userRepository.save(user);
-
+        
+        loginActivityService.recordLogin(user, userAgent);
         return buildAuthResponse(user);
     }
 

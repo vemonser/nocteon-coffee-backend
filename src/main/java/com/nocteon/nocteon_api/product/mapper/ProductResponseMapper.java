@@ -1,6 +1,7 @@
-package com.nocteon.nocteon_api.product.service;
+package com.nocteon.nocteon_api.product.mapper;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
 import java.util.List;
 
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -8,20 +9,25 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 import com.nocteon.nocteon_api.brewingMethod.entity.BrewingMethodTranslation;
+import com.nocteon.nocteon_api.category.entity.CategoryTranslation;
 import com.nocteon.nocteon_api.coffeeVariety.entity.CoffeeVarietyTranslation;
+import com.nocteon.nocteon_api.common.util.DiscountCalculator;
+import com.nocteon.nocteon_api.farm.entity.FarmTranslation;
 import com.nocteon.nocteon_api.origin.entity.Origin;
+import com.nocteon.nocteon_api.origin.entity.OriginTranslation;
 import com.nocteon.nocteon_api.pairing.entity.Pairing;
 import com.nocteon.nocteon_api.pairing.entity.PairingTranslation;
-import com.nocteon.nocteon_api.processingMethod.entity.ProcessingMethodTranslation;
 import com.nocteon.nocteon_api.product.dto.response.CoffeeDetailsResponse;
 import com.nocteon.nocteon_api.product.dto.response.DashboardCoffeeDetailsResponse;
 import com.nocteon.nocteon_api.product.dto.response.DashboardProductResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductBrewingMethodResponse;
+import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductMediaResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductTranslationResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductVariantResponse;
-import com.nocteon.nocteon_api.product.dto.response.RoastLevelSummary;
+import com.nocteon.nocteon_api.product.dto.response.summary.LockupResponse;
+import com.nocteon.nocteon_api.product.dto.response.summary.RoastLevelSummary;
 import com.nocteon.nocteon_api.product.entity.CoffeeDetails;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.entity.ProductMedia;
@@ -40,7 +46,6 @@ import com.nocteon.nocteon_api.roastLevel.entity.RoastLevel;
 import com.nocteon.nocteon_api.roastLevel.entity.RoastLevelTranslation;
 import com.nocteon.nocteon_api.tastingNote.entity.TastingNote;
 import com.nocteon.nocteon_api.tastingNote.entity.TastingNoteTranslation;
-
 import lombok.RequiredArgsConstructor;
 
 @Component
@@ -54,8 +59,9 @@ public class ProductResponseMapper {
         private final CoffeeDetailsRepository coffeeDetailsRepository;
         private final ReviewRepository reviewRepository;
         private final ReviewService reviewService;
+        private final LookupResponseMapper lookupResponseMapper;
 
-        public ProductResponse buildListResponse(Product product, String language) {
+        public ProductCardResponse buildListResponse(Product product, String language) {
                 List<ProductTranslation> translations = productTranslationRepository
                                 .findByProductId(product.getId());
 
@@ -69,13 +75,28 @@ public class ProductResponseMapper {
                                 .findFirst()
                                 .orElse(product.getMedia().isEmpty() ? null : product.getMedia().get(0));
 
-                BigDecimal lowestPrice = product.getVariants().stream()
+                ProductVariant lowestPriceVariant = product.getVariants().stream()
                                 .filter(ProductVariant::isActive)
-                                .map(ProductVariant::getPrice)
-                                .min(BigDecimal::compareTo)
+                                .min(Comparator.comparing(ProductVariant::getPrice))
                                 .orElse(null);
 
-                return ProductResponse.builder()
+                BigDecimal minPrice = lowestPriceVariant != null
+                                ? lowestPriceVariant.getPrice()
+                                : null;
+
+                BigDecimal maxPrice = product.getVariants().stream()
+                                .filter(ProductVariant::isActive)
+                                .map(ProductVariant::getPrice)
+                                .max(BigDecimal::compareTo)
+                                .orElse(null);
+
+                Integer discountPercentage = lowestPriceVariant != null
+                                ? DiscountCalculator.calculate(
+                                                lowestPriceVariant.getPrice(),
+                                                lowestPriceVariant.getCompareAtPrice())
+                                : null;
+
+                return ProductCardResponse.builder()
                                 .id(product.getId())
                                 .slug(product.getSlug())
                                 .categorySlug(product.getCategory().getSlug())
@@ -85,7 +106,9 @@ public class ProductResponseMapper {
                                 .name(translation != null ? translation.getName() : null)
                                 .shortDescription(translation != null ? translation.getShortDescription() : null)
                                 .primaryImageUrl(primaryMedia != null ? primaryMedia.getUrl() : null)
-                                .lowestPrice(lowestPrice)
+                                .minPrice(minPrice)
+                                .maxPrice(maxPrice)
+                                .discountPercentage(discountPercentage)
                                 .build();
         }
 
@@ -137,35 +160,37 @@ public class ProductResponseMapper {
 
                 List<ProductBrewingMethodResponse> brewingMethods = productBrewingMethodRepository
                                 .findByProductId(product.getId()).stream()
-                                .map(bm -> ProductBrewingMethodResponse.builder()
-                                                .brewingMethodSlug(bm.getBrewingMethod().getSlug())
-                                                .brewingMethodName(null)
-                                                .score(bm.getScore())
-                                                .build())
-                                .toList();
-                DashboardCoffeeDetailsResponse coffeeDetailsResponse = coffeeDetailsRepository
-                                .findByProductId(product.getId())
-                                .map(cd -> {
+                                .map(bm -> {
+                                        String name = bm.getBrewingMethod().getTranslations().stream()
+                                                        .filter(t -> t.getLanguage().equals(language))
+                                                        .findFirst()
+                                                        .map(BrewingMethodTranslation::getName)
+                                                        .orElse(bm.getBrewingMethod().getSlug());
 
-                                        RoastLevelSummary roastLevel = buildRoastLevel(cd, language);
-
-                                        return DashboardCoffeeDetailsResponse.builder()
-                                                        .processingMethodSlug(
-                                                                        cd.getProcessingMethod() != null
-                                                                                        ? cd.getProcessingMethod()
-                                                                                                        .getSlug()
-                                                                                        : null)
-                                                        .coffeeVarietySlug(
-                                                                        cd.getCoffeeVariety() != null
-                                                                                        ? cd.getCoffeeVariety()
-                                                                                                        .getSlug()
-                                                                                        : null)
-                                                        .altitude(cd.getAltitude())
-                                                        .harvestYear(cd.getHarvestYear())
-                                                        .story(cd.getStory())
-                                                        .roastLevel(roastLevel)
+                                        return ProductBrewingMethodResponse.builder()
+                                                        .brewingMethodSlug(bm.getBrewingMethod().getSlug())
+                                                        .brewingMethodName(name)
+                                                        .score(bm.getScore())
                                                         .build();
                                 })
+                                .toList();
+
+                DashboardCoffeeDetailsResponse coffeeDetailsResponse = coffeeDetailsRepository
+                                .findByProductId(product.getId())
+                                .map(cd -> DashboardCoffeeDetailsResponse.builder()
+                                                .processingMethodSlug(cd.getProcessingMethod() != null
+                                                                ? cd.getProcessingMethod().getSlug()
+                                                                : null)
+                                                .coffeeVarietySlug(cd.getCoffeeVariety() != null
+                                                                ? cd.getCoffeeVariety().getSlug()
+                                                                : null)
+                                                .altitude(cd.getAltitude())
+                                                .harvestYear(cd.getHarvestYear())
+                                                .story(cd.getStory())
+                                                .roastLevelSlug(cd.getRoastLevel() != null
+                                                                ? cd.getRoastLevel().getSlug()
+                                                                : null)
+                                                .build())
                                 .orElse(null);
 
                 return DashboardProductResponse.builder()
@@ -184,7 +209,6 @@ public class ProductResponseMapper {
                                 .primaryImageUrl(primaryMedia != null ? primaryMedia.getUrl() : null)
                                 .minPrice(minPrice)
                                 .maxPrice(maxPrice)
-                                .lowestPrice(minPrice)
                                 .translations(translations)
                                 .coffeeDetails(coffeeDetailsResponse)
                                 .variants(variants)
@@ -223,7 +247,6 @@ public class ProductResponseMapper {
                 List<ProductBrewingMethodResponse> brewingMethods = productBrewingMethodRepository
                                 .findByProductId(product.getId()).stream()
                                 .map(bm -> {
-
                                         String name = bm.getBrewingMethod().getTranslations().stream()
                                                         .filter(t -> t.getLanguage().equals(language))
                                                         .findFirst()
@@ -241,42 +264,41 @@ public class ProductResponseMapper {
                 CoffeeDetailsResponse coffeeDetailsResponse = null;
 
                 if (product.getProductType() == ProductType.COFFEE) {
-
                         coffeeDetailsResponse = coffeeDetailsRepository
                                         .findByProductId(product.getId())
-                                        .map(cd -> {
-
-                                                String processingMethod = cd.getProcessingMethod() != null
-                                                                ? cd.getProcessingMethod().getTranslations().stream()
-                                                                                .filter(t -> t.getLanguage()
-                                                                                                .equals(language))
-                                                                                .findFirst()
-                                                                                .map(ProcessingMethodTranslation::getName)
-                                                                                .orElse(null)
-                                                                : null;
-
-                                                String coffeeVariety = cd.getCoffeeVariety() != null
-                                                                ? cd.getCoffeeVariety().getTranslations().stream()
-                                                                                .filter(t -> t.getLanguage()
-                                                                                                .equals(language))
-                                                                                .findFirst()
-                                                                                .map(CoffeeVarietyTranslation::getName)
-                                                                                .orElse(null)
-                                                                : null;
-
-                                                RoastLevelSummary roastLevel = buildRoastLevel(cd, language);
-
-                                                return CoffeeDetailsResponse.builder()
-                                                                .processingMethod(processingMethod)
-                                                                .coffeeVariety(coffeeVariety)
-                                                                .altitude(cd.getAltitude())
-                                                                .harvestYear(cd.getHarvestYear())
-                                                                .story(cd.getStory())
-                                                                .roastLevel(roastLevel)
-                                                                .build();
-                                        })
+                                        .map(cd -> mapCoffeeDetails(cd, language))
                                         .orElse(null);
                 }
+
+                LockupResponse category = product.getCategory() != null
+                                ? lookupResponseMapper.buildLookup(
+                                                product.getCategory().getSlug(),
+                                                product.getCategory().getTranslations(),
+                                                language,
+                                                CategoryTranslation::getLanguage,
+                                                CategoryTranslation::getName,
+                                                CategoryTranslation::getDescription)
+                                : null;
+
+                LockupResponse origin = product.getOrigin() != null
+                                ? lookupResponseMapper.buildLookup(
+                                                product.getOrigin().getSlug(),
+                                                product.getOrigin().getTranslations(),
+                                                language,
+                                                OriginTranslation::getLanguage,
+                                                OriginTranslation::getName,
+                                                OriginTranslation::getDescription)
+                                : null;
+
+                LockupResponse farm = product.getFarm() != null
+                                ? lookupResponseMapper.buildLookup(
+                                                product.getFarm().getSlug(),
+                                                product.getFarm().getTranslations(),
+                                                language,
+                                                FarmTranslation::getLanguage,
+                                                FarmTranslation::getName,
+                                                FarmTranslation::getDescription)
+                                : null;
 
                 Double averageRating = reviewRepository
                                 .findAverageRatingByProductSlug(product.getSlug());
@@ -294,21 +316,15 @@ public class ProductResponseMapper {
                 return ProductResponse.builder()
                                 .id(product.getId())
                                 .slug(product.getSlug())
-                                .categorySlug(product.getCategory().getSlug())
-                                .originSlug(slug(product.getOrigin()))
-                                .farmSlug(product.getFarm() != null
-                                                ? product.getFarm().getSlug()
-                                                : null)
+                                .category(category)
+                                .origin(origin)
+                                .farm(farm)
                                 .productType(product.getProductType())
                                 .featured(product.isFeatured())
                                 .isActive(product.isActive())
                                 .name(translation != null ? translation.getName() : null)
-                                .shortDescription(translation != null
-                                                ? translation.getShortDescription()
-                                                : null)
-                                .description(translation != null
-                                                ? translation.getDescription()
-                                                : null)
+                                .shortDescription(translation != null ? translation.getShortDescription() : null)
+                                .description(translation != null ? translation.getDescription() : null)
                                 .coffeeDetails(coffeeDetailsResponse)
                                 .variants(variants)
                                 .media(media)
@@ -321,6 +337,33 @@ public class ProductResponseMapper {
                                 .build();
         }
 
+        private CoffeeDetailsResponse mapCoffeeDetails(CoffeeDetails cd, String language) {
+                String processingMethod = cd.getProcessingMethod() != null
+                                ? cd.getProcessingMethod().getSlug()
+                                : null;
+
+                LockupResponse coffeeVariety = cd.getCoffeeVariety() != null
+                                ? lookupResponseMapper.buildLookup(
+                                                cd.getCoffeeVariety().getSlug(),
+                                                cd.getCoffeeVariety().getTranslations(),
+                                                language,
+                                                CoffeeVarietyTranslation::getLanguage,
+                                                CoffeeVarietyTranslation::getName,
+                                                CoffeeVarietyTranslation::getDescription)
+                                : null;
+
+                RoastLevelSummary roastLevel = buildRoastLevel(cd, language);
+
+                return CoffeeDetailsResponse.builder()
+                                .processingMethod(processingMethod)
+                                .coffeeVariety(coffeeVariety)
+                                .altitude(cd.getAltitude())
+                                .harvestYear(cd.getHarvestYear())
+                                .story(cd.getStory())
+                                .roastLevel(roastLevel)
+                                .build();
+        }
+
         private List<ProductVariantResponse> buildVariants(Product product) {
                 return productVariantRepository
                                 .findByProductId(product.getId()).stream()
@@ -328,10 +371,10 @@ public class ProductResponseMapper {
                                                 .id(v.getId())
                                                 .sku(v.getSku())
                                                 .price(v.getPrice())
-                                                .weight(v.getWeight())
+                                                .compareAtPrice(v.getCompareAtPrice())
+                                                .weightGrams(v.getWeightGrams())
                                                 .grindType(v.getGrindType())
-                                                .stock(v.getStock())
-                                                .discount(v.getDiscount())
+                                                .stockQuantity(v.getStockQuantity())
                                                 .isActive(v.isActive())
                                                 .build())
                                 .toList();

@@ -25,6 +25,7 @@ import com.nocteon.nocteon_api.product.dto.request.ProductFilterRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductMediaRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductRequest;
 import com.nocteon.nocteon_api.product.dto.response.DashboardProductResponse;
+import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
 import com.nocteon.nocteon_api.product.service.ProductService;
 
@@ -35,107 +36,144 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api")
 @RequiredArgsConstructor
 public class ProductController {
-    private final ProductService productService;
 
-    // ===== Public =====
+        private final ProductService productService;
 
-    @GetMapping("/products")
-    public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> getAll(
-            @ModelAttribute ProductFilterRequest filter) {
-        return ResponseEntity.ok(
-                ApiResponse.success(productService.getAll(filter), "Products retrieved"));
-    }
+        // =========================
+        // Public
+        // =========================
 
-    @GetMapping("/products/{slug}")
-    public ResponseEntity<ApiResponse<ProductResponse>> getBySlug(
-            @PathVariable String slug) {
-        return ResponseEntity.ok(
-                ApiResponse.success(productService.getBySlug(slug), "Product retrieved"));
-    }
-    // ===== Dashboard =====
+        @GetMapping("/products")
+        public ResponseEntity<ApiResponse<PageResponse<ProductCardResponse>>> getAll(
+                        @ModelAttribute ProductFilterRequest filter) {
 
-    @GetMapping("/dashboard/products")
-    @PreAuthorize("hasAuthority('product:read')")
-    public ResponseEntity<ApiResponse<PageResponse<DashboardProductResponse>>> getAllDashboard(
-            @ModelAttribute ProductFilterRequest filter) {
-        return ResponseEntity.ok(
-                ApiResponse.success(productService.getAllDashboardFull(filter), "Products retrieved"));
-    }
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                productService.getAll(filter),
+                                                "Products retrieved"));
+        }
 
-    @GetMapping("/dashboard/products/{slug}")
-    @PreAuthorize("hasAuthority('product:read')")
-    public ResponseEntity<ApiResponse<DashboardProductResponse>> getDashboardBySlug(
-            @PathVariable String slug) {
-        return ResponseEntity.ok(
-                ApiResponse.success(productService.getDashboardBySlug(slug), "Product retrieved"));
-    }
+        @GetMapping("/products/{slug}")
+        public ResponseEntity<ApiResponse<ProductResponse>> getBySlug(
+                        @PathVariable String slug) {
 
-    @PostMapping(value = "/dashboard/products", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAuthority('product:create')")
-    public ResponseEntity<ApiResponse<ProductResponse>> create(
-            @Valid @RequestPart("request") ProductRequest request,
-            @RequestPart(value = "files", required = false) List<MultipartFile> files) {
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                productService.getBySlug(slug),
+                                                "Product retrieved"));
+        }
 
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(productService.create(request,files), "Product created"));
-    }
+        // =========================
+        // Dashboard
+        // =========================
 
-    @PutMapping(value = "/dashboard/products/{slug}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAuthority('product:update')")
-    public ResponseEntity<ApiResponse<DashboardProductResponse>> update(
-            @PathVariable String slug,
-            @Valid @RequestPart("request") ProductRequest request,
-            @RequestPart(value = "files", required = false) List<MultipartFile> files) {
+        @GetMapping("/dashboard/products")
+        @PreAuthorize("hasAuthority('product:read')")
+        public ResponseEntity<ApiResponse<PageResponse<ProductCardResponse>>> getAllDashboard(
+                        @ModelAttribute ProductFilterRequest filter) {
 
-        return ResponseEntity.ok(
-                ApiResponse.success(productService.update(slug, request, files), "Product updated"));
-    }
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                productService.getAllDashboard(filter),
+                                                "Products retrieved"));
+        }
 
-    @PatchMapping("/dashboard/products/{slug}/active")
-    @PreAuthorize("hasAuthority('product:update')")
-    public ResponseEntity<ApiResponse<DashboardProductResponse>> toggleActive(
-            @PathVariable String slug,
-            @RequestParam boolean value) {
+        @GetMapping("/dashboard/products/{slug}")
+        @PreAuthorize("hasAuthority('product:read')")
+        public ResponseEntity<ApiResponse<DashboardProductResponse>> getDashboardBySlug(
+                        @PathVariable String slug) {
 
-        return ResponseEntity.ok(
-                ApiResponse.success(productService.toggleActive(slug, value), "Product status updated"));
-    }
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                productService.getDashboardBySlug(slug),
+                                                "Product retrieved"));
+        }
 
-    @PatchMapping("/dashboard/products/{slug}/featured")
-    @PreAuthorize("hasAuthority('product:update')")
-    public ResponseEntity<ApiResponse<DashboardProductResponse>> toggleFeatured(
-            @PathVariable String slug,
-            @RequestParam boolean value) {
+        @PostMapping(value = "/dashboard/products", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+        @PreAuthorize("hasAuthority('product:create')")
+        public ResponseEntity<ApiResponse<ProductResponse>> create(
+                        @Valid @RequestPart("request") ProductRequest request,
+                        @RequestPart(value = "files", required = false) List<MultipartFile> files) {
 
-        return ResponseEntity.ok(
-                ApiResponse.success(productService.toggleFeatured(slug, value), "Product featured updated"));
-    }
+                return ResponseEntity.status(HttpStatus.CREATED)
+                                .body(ApiResponse.success(
+                                                productService.create(request, files),
+                                                "Product created"));
+        }
 
-    @PostMapping(value = "/dashboard/products/{slug}/media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAuthority('product:update')")
-    public ResponseEntity<ApiResponse<ProductResponse>> uploadMedia(
-            @PathVariable String slug,
-            @RequestPart("media") List<ProductMediaRequest> media,
-            @RequestPart(value = "files", required = false) List<MultipartFile> files) {
+        @PutMapping(value = "/dashboard/products/{slug}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+        @PreAuthorize("hasAuthority('product:update')")
+        public ResponseEntity<ApiResponse<DashboardProductResponse>> update(
+                        @PathVariable String slug,
+                        @Valid @RequestPart("request") ProductRequest request,
+                        @RequestPart(value = "files", required = false) List<MultipartFile> files) {
 
-        return ResponseEntity.ok(
-                ApiResponse.success(
-                        productService.uploadMedia(slug, media, files),
-                        "Media uploaded"));
-    }
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                productService.update(slug, request, files),
+                                                "Product updated"));
+        }
 
-    @DeleteMapping("/dashboard/products/media/{mediaId}")
-    @PreAuthorize("hasAuthority('product:update')")
-    public ResponseEntity<ApiResponse<Void>> deleteMedia(@PathVariable Long mediaId) {
-        productService.deleteMedia(mediaId);
-        return ResponseEntity.ok(ApiResponse.success(null, "Media deleted"));
-    }
+        @PatchMapping("/dashboard/products/{slug}/active")
+        @PreAuthorize("hasAuthority('product:update')")
+        public ResponseEntity<ApiResponse<DashboardProductResponse>> toggleActive(
+                        @PathVariable String slug,
+                        @RequestParam boolean value) {
 
-    @DeleteMapping("/dashboard/products/{slug}")
-    @PreAuthorize("hasAuthority('product:delete')")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String slug) {
-        productService.delete(slug);
-        return ResponseEntity.ok(ApiResponse.success(null, "Product deleted"));
-    }
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                productService.toggleActive(slug, value),
+                                                "Product status updated"));
+        }
 
+        @PatchMapping("/dashboard/products/{slug}/featured")
+        @PreAuthorize("hasAuthority('product:update')")
+        public ResponseEntity<ApiResponse<DashboardProductResponse>> toggleFeatured(
+                        @PathVariable String slug,
+                        @RequestParam boolean value) {
+
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                productService.toggleFeatured(slug, value),
+                                                "Product featured updated"));
+        }
+
+        @PostMapping(value = "/dashboard/products/{slug}/media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+        @PreAuthorize("hasAuthority('product:update')")
+        public ResponseEntity<ApiResponse<ProductResponse>> uploadMedia(
+                        @PathVariable String slug,
+                        @RequestPart("media") List<ProductMediaRequest> media,
+                        @RequestPart(value = "files", required = false) List<MultipartFile> files) {
+
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                productService.uploadMedia(slug, media, files),
+                                                "Media uploaded"));
+        }
+
+        @DeleteMapping("/dashboard/products/media/{mediaId}")
+        @PreAuthorize("hasAuthority('product:update')")
+        public ResponseEntity<ApiResponse<Void>> deleteMedia(
+                        @PathVariable Long mediaId) {
+
+                productService.deleteMedia(mediaId);
+
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                null,
+                                                "Media deleted"));
+        }
+
+        @DeleteMapping("/dashboard/products/{slug}")
+        @PreAuthorize("hasAuthority('product:delete')")
+        public ResponseEntity<ApiResponse<Void>> delete(
+                        @PathVariable String slug) {
+
+                productService.delete(slug);
+
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                null,
+                                                "Product deleted"));
+        }
 }

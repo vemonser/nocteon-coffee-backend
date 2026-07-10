@@ -2,12 +2,9 @@ package com.nocteon.nocteon_api.order.enums;
 
 public enum OrderStatus {
     PENDING,
-    PAYMENT_PENDING,
-    PAID,
+    CONFIRMED,
     PROCESSING,
     SHIPPED,
     DELIVERED,
-    CANCELLED,
-    FAILED,
-    REFUNDED
+    CANCELLED
 }

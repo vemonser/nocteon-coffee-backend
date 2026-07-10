@@ -56,6 +56,10 @@ public class Payment extends BaseEntity {
     @Column(nullable = false)
     @Builder.Default
     private PaymentStatus status = PaymentStatus.PENDING;
+    
+    @Column(name = "attempt_number")
+    @Builder.Default
+    private Integer attemptNumber  = 1;
 
     @Column(name = "payment_method")
     private String paymentMethod;

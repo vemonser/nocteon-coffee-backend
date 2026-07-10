@@ -39,18 +39,30 @@ CREATE TABLE coffee_details (
 
 CREATE TABLE product_variants (
     id BIGSERIAL PRIMARY KEY,
-    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    sku VARCHAR(100) UNIQUE NOT NULL,
+    product_id BIGINT NOT NULL
+        REFERENCES products(id) ON DELETE CASCADE,
+    sku VARCHAR(100) NOT NULL UNIQUE,
     price DECIMAL(10,2) NOT NULL,
-    weight DECIMAL(8,2) NULL,
-    grind_type VARCHAR(50) NULL,
-    stock INT NOT NULL DEFAULT 0,
-    discount DECIMAL(5,2) NULL,
+    compare_at_price DECIMAL(10,2),
+    weight_grams DECIMAL(8,2),
+    grind_type VARCHAR(50),
+    stock_quantity INT NOT NULL DEFAULT 0,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ NULL
 );
+
+CREATE INDEX idx_product_variants_product_id
+    ON product_variants(product_id);
+
+CREATE INDEX idx_product_variants_active
+    ON product_variants(is_active)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_product_variants_sku
+    ON product_variants(sku)
+    WHERE deleted_at IS NULL;
 
 CREATE TABLE product_media (
     id BIGSERIAL PRIMARY KEY,
@@ -86,6 +98,14 @@ CREATE TABLE product_pairings (
     PRIMARY KEY (product_id, pairing_id)
 );
 
+CREATE TABLE store_settings (
+    id BIGSERIAL PRIMARY KEY,
+    free_shipping_threshold NUMERIC(10,2),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO store_settings (id, free_shipping_threshold) VALUES (1, 500.00);
 -- =========================================================
 -- Indexes
 -- =========================================================

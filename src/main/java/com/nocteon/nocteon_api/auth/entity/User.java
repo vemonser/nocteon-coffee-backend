@@ -70,6 +70,13 @@ public class User extends BaseEntity {
     @Builder.Default
     private List<UserLinkedAccount> linkedAccounts = new ArrayList<>();
 
+    @Column(name = "last_active_at")
+    private Instant lastActiveAt;
+
+    @Column(name = "is_subscribed", nullable = false)
+    @Builder.Default
+    private boolean subscribed = true;
+
     public boolean isLocked() {
         if (lockedUntil == null)
             return false;

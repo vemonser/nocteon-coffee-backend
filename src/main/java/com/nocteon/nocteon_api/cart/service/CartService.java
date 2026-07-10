@@ -18,6 +18,7 @@ import com.nocteon.nocteon_api.cart.repository.CartRepository;
 import com.nocteon.nocteon_api.common.exception.notFound.CartItemNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductVariantNotFoundException;
 import com.nocteon.nocteon_api.common.exception.product.InsufficientStockException;
+import com.nocteon.nocteon_api.common.util.DiscountCalculator;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.entity.ProductMedia;
 import com.nocteon.nocteon_api.product.entity.ProductTranslation;
@@ -52,19 +53,20 @@ public class CartService {
         ProductVariant variant = variantRepository.findById(request.getVariantId())
                 .orElseThrow(() -> new ProductVariantNotFoundException());
 
-        // تحقق من الـ stock
-        if (variant.getStock() < request.getQuantity()) {
-            throw new InsufficientStockException(variant.getStock());
+        if (!variant.isActive()) {
+            throw new ProductVariantNotFoundException();
+        }
+        if (variant.getStockQuantity() < request.getQuantity()) {
+            throw new InsufficientStockException(variant.getStockQuantity());
         }
 
-        // لو الـ item موجود — زود الكمية
         cartItemRepository
                 .findByCartIdAndProductVariantId(cart.getId(), variant.getId())
                 .ifPresentOrElse(
                         existing -> {
                             int newQty = existing.getQuantity() + request.getQuantity();
-                            if (newQty > variant.getStock()) {
-                                throw new InsufficientStockException(variant.getStock());
+                            if (newQty > variant.getStockQuantity()) {
+                                throw new InsufficientStockException(variant.getStockQuantity());
                             }
                             existing.setQuantity(newQty);
                             cartItemRepository.save(existing);
@@ -92,8 +94,8 @@ public class CartService {
         if (quantity <= 0) {
             cartItemRepository.delete(item);
         } else {
-            if (quantity > item.getProductVariant().getStock()) {
-                throw new InsufficientStockException(item.getProductVariant().getStock());
+            if (quantity > item.getProductVariant().getStockQuantity()) {
+                throw new InsufficientStockException(item.getProductVariant().getStockQuantity());
             }
             item.setQuantity(quantity);
             cartItemRepository.save(item);
@@ -149,11 +151,8 @@ public class CartService {
                             .map(ProductMedia::getUrl)
                             .orElse(null);
 
-                    BigDecimal price = variant.getDiscount() != null
-                            ? variant.getPrice().multiply(
-                                    BigDecimal.ONE.subtract(
-                                            variant.getDiscount().divide(BigDecimal.valueOf(100))))
-                            : variant.getPrice();
+                    BigDecimal price = variant.getPrice();
+                    BigDecimal compareAtPrice = variant.getCompareAtPrice();
 
                     BigDecimal subtotal = price.multiply(BigDecimal.valueOf(item.getQuantity()));
 
@@ -162,10 +161,13 @@ public class CartService {
                             .variantId(variant.getId())
                             .sku(variant.getSku())
                             .productSlug(product.getSlug())
+                            .weightGrams(variant.getWeightGrams())
+                            .grindType(variant.getGrindType())
                             .productName(productName)
                             .primaryImageUrl(imageUrl)
                             .price(price)
-                            .discount(variant.getDiscount())
+                            .compareAtPrice(compareAtPrice)
+                            .discountPercentage(DiscountCalculator.calculate(price, compareAtPrice))
                             .quantity(item.getQuantity())
                             .subtotal(subtotal)
                             .build();
@@ -183,5 +185,4 @@ public class CartService {
                 .itemCount(items.size())
                 .build();
     }
-
 }

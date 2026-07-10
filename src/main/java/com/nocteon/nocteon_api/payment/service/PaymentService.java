@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.payment.service;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.HexFormat;
@@ -11,12 +12,16 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import com.nocteon.nocteon_api.notifications.event.PaymentSucceededEvent;
 import com.nocteon.nocteon_api.order.entity.Order;
 import com.nocteon.nocteon_api.order.enums.OrderStatus;
 import com.nocteon.nocteon_api.order.repository.OrderRepository;
+import com.nocteon.nocteon_api.payment.dto.request.PaymobCallbackRequest;
+import com.nocteon.nocteon_api.payment.dto.request.PaymobTransactionObj;
 import com.nocteon.nocteon_api.payment.entity.Payment;
 import com.nocteon.nocteon_api.payment.enums.PaymentStatus;
 import com.nocteon.nocteon_api.payment.repository.PaymentRepository;
@@ -46,31 +51,35 @@ public class PaymentService {
     private final RestTemplate restTemplate;
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public String initiatePayment(Order order, String firstName,
             String lastName, String email, String phone) {
+        int attemptNumber = paymentRepository.countByOrderId(order.getId()) + 1;
 
-        // 1. Auth Token
-        String authToken = getAuthToken();
-
-        // 2. Create Order في Paymob
-        String providerOrderId = createPaymobOrder(authToken, order);
-
-        // 3. Payment Key
-        String paymentKey = getPaymentKey(
-                authToken, providerOrderId, order.getTotalAmount(),
-                firstName, lastName, email, phone);
-
-        // 4. Save Payment record
         Payment payment = Payment.builder()
                 .order(order)
-                .providerOrderId(providerOrderId)
+                .attemptNumber(attemptNumber)
                 .amount(order.getTotalAmount())
                 .currency("EGP")
                 .status(PaymentStatus.PENDING)
                 .build();
+        payment = paymentRepository.save(payment);
 
+        // 2. Auth Token
+        String authToken = getAuthToken();
+
+        // 3. Create Order في Paymob - باستخدام payment.getId()
+        String providerOrderId = createPaymobOrder(authToken, order, payment.getId(), attemptNumber);
+
+        // 4. Payment Key
+        String paymentKey = getPaymentKey(
+                authToken, providerOrderId, order.getTotalAmount(),
+                firstName, lastName, email, phone);
+
+        // 5. حدّث الـ Payment بالـ providerOrderId
+        payment.setProviderOrderId(providerOrderId);
         paymentRepository.save(payment);
 
         return "https://accept.paymob.com/api/acceptance/iframes/"
@@ -78,46 +87,66 @@ public class PaymentService {
     }
 
     @Transactional
-    public void handleCallback(Map<String, String> params) {
-        String success = params.get("success");
-        String providerPaymentId = params.get("id");
-        String providerOrderId = params.get("order");
-        String paymentMethod = params.get("source_data_sub_type");
+    public void handleCallback(String hmac, PaymobCallbackRequest payload) {
 
-        // Verify HMAC
-        if (!verifyHmac(params)) {
-            log.warn("Invalid HMAC for payment callback");
+        PaymobTransactionObj txn = payload.getObj();
+
+        if (txn == null) {
+            log.warn("Webhook payload missing 'obj'");
+            return;
+        }
+
+        if (!verifyHmac(txn, hmac)) {
+            log.warn("Invalid HMAC for payment callback, transaction id: {}", txn.getId());
+            return;
+        }
+
+        String providerOrderId = txn.getOrder() != null
+                ? txn.getOrder().getId().toString()
+                : null;
+
+        if (providerOrderId == null) {
+            log.warn("Webhook missing order id");
             return;
         }
 
         Payment payment = paymentRepository
-                .findByProviderOrderId(providerOrderId)
+                .findByProviderOrderIdForUpdate(providerOrderId)
                 .orElse(null);
 
         if (payment == null) {
-            log.warn("Payment not found for order: {}", providerOrderId);
+            log.warn("Payment not found for provider order: {}", providerOrderId);
+            return;
+        }
+
+        if (payment.getStatus() == PaymentStatus.PAID || payment.getStatus() == PaymentStatus.FAILED) {
+            log.info("Payment {} already processed with status {}, ignoring duplicate webhook",
+                    payment.getId(), payment.getStatus());
             return;
         }
 
         Order order = payment.getOrder();
 
-        if ("true".equals(success)) {
+        if (txn.isSuccess()) {
             payment.setStatus(PaymentStatus.PAID);
-            payment.setProviderPaymentId(providerPaymentId);
-            payment.setPaymentMethod(paymentMethod);
+            payment.setProviderPaymentId(txn.getId().toString());
+            payment.setPaymentMethod(
+                    txn.getSourceData() != null ? txn.getSourceData().getSubType() : null);
             payment.setPaidAt(Instant.now());
-            order.setStatus(OrderStatus.PAID);
-            order.setPaymentStatus("PAID");
+            order.setStatus(OrderStatus.CONFIRMED);
+            order.setPaymentStatus(PaymentStatus.PAID);
+            eventPublisher.publishEvent(new PaymentSucceededEvent(order.getId(), payment.getAmount()));
+
         } else {
             payment.setStatus(PaymentStatus.FAILED);
-            payment.setFailureReason(params.get("data_message"));
+            payment.setFailureReason(
+                    txn.getData() != null ? txn.getData().getMessage() : "Payment failed");
             order.setStatus(OrderStatus.CANCELLED);
-            order.setPaymentStatus("FAILED");
+            order.setPaymentStatus(PaymentStatus.FAILED);
 
-            // رجّع الـ stock
             order.getItems().forEach(item -> {
                 ProductVariant variant = item.getProductVariant();
-                variant.setStock(variant.getStock() + item.getQuantity());
+                variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity());
             });
         }
 
@@ -125,32 +154,40 @@ public class PaymentService {
         orderRepository.save(order);
 
         log.info("Payment {} for order {} - status: {}",
-                providerPaymentId, order.getId(), payment.getStatus());
+                txn.getId(), order.getId(), payment.getStatus());
     }
 
-    private boolean verifyHmac(Map<String, String> params) {
+    private boolean verifyHmac(PaymobTransactionObj txn, String receivedHmac) {
         try {
-            String[] keys = {
-                "amount_cents", "created_at", "currency",
-                "error_occured", "has_parent_transaction", "id",
-                "integration_id", "is_3d_secure", "is_auth",
-                "is_capture", "is_refunded", "is_standalone_payment",
-                "is_voided", "order", "owner", "pending",
-                "source_data_pan", "source_data_sub_type",
-                "source_data_type", "success"
-            };
-
             StringBuilder sb = new StringBuilder();
-            for (String key : keys) {
-                sb.append(params.getOrDefault(key, ""));
-            }
+            sb.append(txn.getAmountCents());
+            sb.append(txn.getCreatedAt());
+            sb.append(txn.getCurrency());
+            sb.append(txn.isErrorOccured());
+            sb.append(txn.isHasParentTransaction());
+            sb.append(txn.getId());
+            sb.append(txn.getIntegrationId());
+            sb.append(txn.is3dSecure());
+            sb.append(txn.isAuth());
+            sb.append(txn.isCapture());
+            sb.append(txn.isRefunded());
+            sb.append(txn.isStandalonePayment());
+            sb.append(txn.isVoided());
+            sb.append(txn.getOrder() != null ? txn.getOrder().getId() : "");
+            sb.append(txn.getOwner());
+            sb.append(txn.isPending());
+            sb.append(txn.getSourceData() != null ? txn.getSourceData().getPan() : "");
+            sb.append(txn.getSourceData() != null ? txn.getSourceData().getSubType() : "");
+            sb.append(txn.getSourceData() != null ? txn.getSourceData().getType() : "");
+            sb.append(txn.isSuccess());
 
             Mac mac = Mac.getInstance("HmacSHA512");
-            mac.init(new SecretKeySpec(hmacSecret.getBytes(), "HmacSHA512"));
-            byte[] hash = mac.doFinal(sb.toString().getBytes());
+            mac.init(new SecretKeySpec(hmacSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA512"));
+            byte[] hash = mac.doFinal(sb.toString().getBytes(StandardCharsets.UTF_8));
 
             String computed = HexFormat.of().formatHex(hash);
-            return computed.equals(params.get("hmac"));
+
+            return computed.equals(receivedHmac);
         } catch (Exception e) {
             log.error("HMAC verification failed", e);
             return false;
@@ -162,16 +199,15 @@ public class PaymentService {
         Map<String, Object> body = new HashMap<>();
         body.put("api_key", apiKey);
 
-        Map<String, Object> response = (Map<String, Object>)
-                restTemplate.postForObject(
-                        "https://accept.paymob.com/api/auth/tokens",
-                        body, Map.class);
+        Map<String, Object> response = (Map<String, Object>) restTemplate.postForObject(
+                "https://accept.paymob.com/api/auth/tokens",
+                body, Map.class);
 
         return (String) response.get("token");
     }
 
     @SuppressWarnings("unchecked")
-    private String createPaymobOrder(String authToken, Order order) {
+    private String createPaymobOrder(String authToken, Order order, Long paymentId, int attemptNumber) {
         Map<String, Object> body = new HashMap<>();
         body.put("auth_token", authToken);
         body.put("delivery_needed", false);
@@ -179,13 +215,12 @@ public class PaymentService {
                 order.getTotalAmount()
                         .multiply(BigDecimal.valueOf(100)).intValue());
         body.put("currency", "EGP");
-        body.put("merchant_order_id", order.getId().toString());
+        body.put("merchant_order_id", "order-" + order.getId() + "-attempt-" + attemptNumber);
         body.put("items", List.of());
 
-        Map<String, Object> response = (Map<String, Object>)
-                restTemplate.postForObject(
-                        "https://accept.paymob.com/api/ecommerce/orders",
-                        body, Map.class);
+        Map<String, Object> response = (Map<String, Object>) restTemplate.postForObject(
+                "https://accept.paymob.com/api/ecommerce/orders",
+                body, Map.class);
 
         return response.get("id").toString();
     }
@@ -220,10 +255,9 @@ public class PaymentService {
         body.put("currency", "EGP");
         body.put("integration_id", Integer.parseInt(integrationId));
 
-        Map<String, Object> response = (Map<String, Object>)
-                restTemplate.postForObject(
-                        "https://accept.paymob.com/api/acceptance/payment_keys",
-                        body, Map.class);
+        Map<String, Object> response = (Map<String, Object>) restTemplate.postForObject(
+                "https://accept.paymob.com/api/acceptance/payment_keys",
+                body, Map.class);
 
         return (String) response.get("token");
     }

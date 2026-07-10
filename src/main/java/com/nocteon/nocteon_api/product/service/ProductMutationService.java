@@ -48,6 +48,7 @@ import com.nocteon.nocteon_api.product.entity.ProductMedia;
 import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
 import com.nocteon.nocteon_api.product.enums.ProductType;
+import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
 import com.nocteon.nocteon_api.product.repository.CoffeeDetailsRepository;
 import com.nocteon.nocteon_api.product.repository.ProductBrewingMethodRepository;
 import com.nocteon.nocteon_api.product.repository.ProductMediaRepository;
@@ -240,7 +241,6 @@ public class ProductMutationService {
                 .orElseThrow(FarmNotFoundException::new);
     }
 
- 
     private void saveTranslations(Product product, List<ProductTranslationRequest> requests) {
         List<ProductTranslation> translations = new ArrayList<>();
         for (ProductTranslationRequest t : requests) {
@@ -300,10 +300,10 @@ public class ProductMutationService {
                 .product(product)
                 .sku(v.getSku())
                 .price(v.getPrice())
-                .weight(v.getWeight())
+                .weightGrams(v.getWeightGrams())
                 .grindType(v.getGrindType())
-                .stock(v.getStock())
-                .discount(v.getDiscount())
+                .stockQuantity(v.getStockQuantity())
+                .compareAtPrice(v.getCompareAtPrice())
                 .isActive(v.getIsActive() != null ? v.getIsActive() : true)
                 .build();
     }
@@ -394,6 +394,7 @@ public class ProductMutationService {
 
     private void replaceBrewingMethods(Product product, List<ProductBrewingMethodRequest> requests) {
         productBrewingMethodRepository.deleteByProductId(product.getId());
+        productBrewingMethodRepository.flush();
         saveBrewingMethods(product, requests);
     }
 

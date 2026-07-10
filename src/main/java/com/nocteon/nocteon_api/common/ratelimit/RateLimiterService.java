@@ -64,4 +64,32 @@ public class RateLimiterService {
                         .build())
                 .build();
     }
+
+    public boolean tryConsumeWebhook(String ip) {
+        Bucket bucket = proxyManager.builder().build("rate:webhook:ip:" + ip, this::webhookBucketConfig);
+        return bucket.tryConsume(1);
+    }
+
+    private BucketConfiguration webhookBucketConfig() {
+        return BucketConfiguration.builder()
+                .addLimit(Bandwidth.builder()
+                        .capacity(60)
+                        .refillIntervally(60, Duration.ofMinutes(1))
+                        .build())
+                .build();
+    }
+
+    public boolean tryConsumeGeneral(String identifier) {
+        Bucket bucket = proxyManager.builder().build("rate:general:" + identifier, this::generalBucketConfig);
+        return bucket.tryConsume(1);
+    }
+
+    private BucketConfiguration generalBucketConfig() {
+        return BucketConfiguration.builder()
+                .addLimit(Bandwidth.builder()
+                        .capacity(200)
+                        .refillIntervally(200, Duration.ofMinutes(1))
+                        .build())
+                .build();
+    }
 }

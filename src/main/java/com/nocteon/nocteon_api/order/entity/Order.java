@@ -11,6 +11,9 @@ import com.nocteon.nocteon_api.address.entity.Address;
 import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.common.entity.SoftDeletableEntity;
 import com.nocteon.nocteon_api.order.enums.OrderStatus;
+import com.nocteon.nocteon_api.payment.enums.PaymentMethod;
+import com.nocteon.nocteon_api.payment.enums.PaymentStatus;
+import com.nocteon.nocteon_api.promoCode.entity.PromoCode;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -57,8 +60,26 @@ public class Order extends SoftDeletableEntity {
     // @Column(name = "payment_id")
     // private String paymentId;
 
-    @Column(name = "payment_status")
-    private String paymentStatus;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", nullable = false)
+    @Builder.Default
+    private PaymentStatus paymentStatus = PaymentStatus.PENDING;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "promo_code_id")
+    private PromoCode promoCode;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", nullable = false)
+    @Builder.Default
+    private PaymentMethod paymentMethod = PaymentMethod.ONLINE;
+
+    @Column(name = "discount_amount", precision = 10, scale = 2)
+    private BigDecimal discountAmount;
+
+    @Column(name = "shipping_cost", nullable = false, precision = 10, scale = 2)
+    @Builder.Default
+    private BigDecimal shippingCost = BigDecimal.ZERO;
 
     @Column(columnDefinition = "TEXT")
     private String notes;

@@ -14,8 +14,10 @@ import com.nocteon.nocteon_api.product.dto.request.ProductFilterRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductMediaRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductRequest;
 import com.nocteon.nocteon_api.product.dto.response.DashboardProductResponse;
+import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
 import com.nocteon.nocteon_api.product.entity.Product;
+import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -28,7 +30,7 @@ public class ProductService {
     private final ProductResponseMapper productResponseMapper;
     private final ProductMutationService productMutationService;
 
-    public PageResponse<ProductResponse> getAll(ProductFilterRequest filter) {
+    public PageResponse<ProductCardResponse> getAll(ProductFilterRequest filter) {
         String language = LocaleContextHolder.getLocale().getLanguage();
 
         Page<Product> page = productRepository.findAllPublic(
@@ -43,18 +45,13 @@ public class ProductService {
         return PageResponse.of(page.map(p -> productResponseMapper.buildListResponse(p, language)));
     }
 
-    public PageResponse<ProductResponse> getAllDashboard(ProductFilterRequest filter) {
+    public PageResponse<ProductCardResponse> getAllDashboard(ProductFilterRequest filter) {
         String language = LocaleContextHolder.getLocale().getLanguage();
 
         Page<Product> page = findDashboardPage(filter);
 
-        return PageResponse.of(page.map(p -> productResponseMapper.buildListResponse(p, language)));
-    }
-
-    public PageResponse<DashboardProductResponse> getAllDashboardFull(ProductFilterRequest filter) {
-        Page<Product> page = findDashboardPage(filter);
-
-        return PageResponse.of(page.map(productResponseMapper::buildDashboardResponse));
+        return PageResponse.of(
+                page.map(p -> productResponseMapper.buildListResponse(p, language)));
     }
 
     public DashboardProductResponse getDashboardBySlug(String slug) {

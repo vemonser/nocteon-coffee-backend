@@ -19,10 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 public class CloudinaryService {
     private final Cloudinary cloudinary;
 
-    public String upload(
-            MultipartFile file,
-            String folder,
-            String resourceType) {
+    public String upload(MultipartFile file, String folder, String resourceType) {
         try {
             Map<?, ?> result = cloudinary.uploader().upload(
                     file.getBytes(),
@@ -40,11 +37,15 @@ public class CloudinaryService {
     }
 
     public void delete(String mediaUrl) {
+        String publicId = extractPublicId(mediaUrl);
+
+        if (publicId == null) {
+            log.warn("Skipping Cloudinary delete for non-Cloudinary URL: {}", mediaUrl);
+            return;
+        }
+
         try {
-            String publicId = extractPublicId(mediaUrl);
-            cloudinary.uploader().destroy(
-                    publicId,
-                    ObjectUtils.emptyMap());
+            cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
         } catch (IOException e) {
             log.error("Failed to delete media", e);
             throw new ImageUploadException();
@@ -52,7 +53,18 @@ public class CloudinaryService {
     }
 
     private String extractPublicId(String imageUrl) {
-        String withoutExtension = imageUrl.substring(0, imageUrl.lastIndexOf('.'));
-        return withoutExtension.substring(withoutExtension.indexOf("nocteon/"));
+        if (imageUrl == null || !imageUrl.contains("nocteon/")) {
+            return null;
+        }
+
+        int dotIndex = imageUrl.lastIndexOf('.');
+        if (dotIndex == -1) {
+            return null;
+        }
+
+        String withoutExtension = imageUrl.substring(0, dotIndex);
+        int nocteonIndex = withoutExtension.indexOf("nocteon/");
+
+        return nocteonIndex == -1 ? null : withoutExtension.substring(nocteonIndex);
     }
 }

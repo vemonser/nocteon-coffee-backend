@@ -1,5 +1,10 @@
 package com.nocteon.nocteon_api.auth.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Duration;
+import java.time.Instant;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -9,6 +14,7 @@ import com.nocteon.nocteon_api.auth.dto.request.UpdateProfileRequest;
 import com.nocteon.nocteon_api.auth.dto.response.UserResponse;
 import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.auth.entity.UserProfile;
+import com.nocteon.nocteon_api.auth.enums.Role;
 import com.nocteon.nocteon_api.auth.repository.UserProfileRepository;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
@@ -17,6 +23,7 @@ import com.nocteon.nocteon_api.common.exception.invalid.InvalidCredentialsExcept
 import com.nocteon.nocteon_api.common.exception.notFound.UserNotFoundException;
 import com.nocteon.nocteon_api.common.exception.user.PasswordMismatchException;
 import com.nocteon.nocteon_api.common.util.PasswordValidator;
+import com.nocteon.nocteon_api.dashboard.dto.UserGrowthDto;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -87,7 +94,7 @@ public class UserService {
         if (profile.getAvatarUrl() != null) {
             cloudinaryService.delete(profile.getAvatarUrl());
         }
-        String avatarUrl = cloudinaryService.upload(file, "avatars","image");
+        String avatarUrl = cloudinaryService.upload(file, "avatars", "image");
         profile.setAvatarUrl(avatarUrl);
         userProfileRepository.save(profile);
 
@@ -116,5 +123,36 @@ public class UserService {
         userRepository.save(user);
 
         log.info("Password changed for user: {}", user.getEmail());
+    }
+
+    public UserGrowthDto calculateUserGrowth(Duration period) {
+        Instant now = Instant.now();
+
+        Instant currentPeriodStart = now.minus(period);
+        long currentPeriodCount = userRepository.countByRoleAndCreatedAtBetween(
+                Role.CUSTOMER, currentPeriodStart, now);
+
+        Instant previousPeriodStart = now.minus(period.multipliedBy(2));
+        Instant previousPeriodEnd = currentPeriodStart;
+        long previousPeriodCount = userRepository.countByRoleAndCreatedAtBetween(
+                Role.CUSTOMER, previousPeriodStart, previousPeriodEnd);
+
+        BigDecimal growthPercentage = calculateGrowthPercentage(currentPeriodCount, previousPeriodCount);
+
+        return UserGrowthDto.builder()
+                .currentPeriodCount(currentPeriodCount)
+                .previousPeriodCount(previousPeriodCount)
+                .growthPercentage(growthPercentage)
+                .build();
+    }
+
+    private BigDecimal calculateGrowthPercentage(long current, long previous) {
+        if (previous == 0) {
+            return current == 0 ? BigDecimal.ZERO : BigDecimal.valueOf(100);
+        }
+        return BigDecimal.valueOf(current - previous)
+                .divide(BigDecimal.valueOf(previous), 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100))
+                .setScale(2, RoundingMode.HALF_UP);
     }
 }

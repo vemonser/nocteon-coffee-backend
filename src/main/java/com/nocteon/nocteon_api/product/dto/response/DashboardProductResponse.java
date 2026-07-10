@@ -19,7 +19,6 @@ public class DashboardProductResponse {
     private String categorySlug;
     private String originSlug;
     private String farmSlug;
-    private String roastLevelSlug;
     private ProductType productType;
     private boolean featured;
     @JsonProperty("isActive")
@@ -32,7 +31,6 @@ public class DashboardProductResponse {
     private String primaryImageUrl;
     private BigDecimal minPrice;
     private BigDecimal maxPrice;
-    private BigDecimal lowestPrice;
 
     private List<ProductTranslationResponse> translations;
     private DashboardCoffeeDetailsResponse coffeeDetails;

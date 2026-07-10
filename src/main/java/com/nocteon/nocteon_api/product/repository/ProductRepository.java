@@ -1,5 +1,6 @@
 package com.nocteon.nocteon_api.product.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -13,6 +14,14 @@ import com.nocteon.nocteon_api.product.enums.ProductType;
 import org.springframework.data.repository.query.Param;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
+
+        @Query("""
+                            SELECT DISTINCT p FROM Product p
+                            JOIN p.translations t
+                            WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :query, '%'))
+                            OR LOWER(p.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        """)
+        List<Product> searchProducts(@Param("query") String query, Pageable pageable);
 
         @Query("""
                         SELECT DISTINCT p FROM Product p
@@ -68,7 +77,18 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                         @Param("slug") String slug,
                         @Param("language") String language);
 
+        @Query("""
+                            SELECT DISTINCT p FROM Product p
+                            LEFT JOIN FETCH p.translations
+                            LEFT JOIN FETCH p.media
+                            LEFT JOIN FETCH p.variants
+                            WHERE p.id IN :ids
+                        """)
+        List<Product> findAllByIdInWithDetails(@Param("ids") List<Long> ids);
+
         Optional<Product> findBySlug(String slug);
+
+        List<Product> findBySlugIn(List<String> slugs);
 
         boolean existsBySlug(String slug);
 }

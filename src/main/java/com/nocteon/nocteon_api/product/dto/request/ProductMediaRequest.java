@@ -16,6 +16,7 @@ import lombok.Setter;
 @AllArgsConstructor
 @Builder
 public class ProductMediaRequest {
+    private Long id; // null = new upload (needs a matching file), non-null = existing media to keep/update
 
     private MediaType type;
 

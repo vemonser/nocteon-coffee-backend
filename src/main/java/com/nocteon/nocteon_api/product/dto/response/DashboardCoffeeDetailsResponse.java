@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.product.dto.response;
 
 import java.math.BigDecimal;
 
+
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -12,9 +13,9 @@ import lombok.Setter;
 public class DashboardCoffeeDetailsResponse {
     private String processingMethodSlug;
     private String coffeeVarietySlug;
-    private BigDecimal  altitude;
+    private BigDecimal altitude;
     private Short harvestYear;
     private String story;
 
-    private RoastLevelSummary roastLevel;
+    private String roastLevelSlug;
 }

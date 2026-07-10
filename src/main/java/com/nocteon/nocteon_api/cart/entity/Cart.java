@@ -4,12 +4,14 @@ import java.util.List;
 
 import org.hibernate.annotations.BatchSize;
 
+import java.time.Instant;
 import java.util.ArrayList;
 
 import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.common.entity.BaseEntity;
 
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
@@ -40,4 +42,8 @@ public class Cart extends BaseEntity {
     @Builder.Default
     @BatchSize(size = 30)
     private List<CartItem> items = new ArrayList<>();
+
+    @Column(name = "last_reminded_at")
+    private Instant lastRemindedAt;
+
 }

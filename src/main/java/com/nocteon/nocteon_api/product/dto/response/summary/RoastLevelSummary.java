@@ -1,4 +1,4 @@
-package com.nocteon.nocteon_api.product.dto.response;
+package com.nocteon.nocteon_api.product.dto.response.summary;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
