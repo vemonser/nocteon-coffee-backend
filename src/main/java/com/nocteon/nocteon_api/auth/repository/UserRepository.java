@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -61,5 +62,20 @@ public interface UserRepository extends JpaRepository<User, Long> {
     void updateLastActiveAt(@Param("userId") Long userId, @Param("now") Instant now);
 
     long countByLastActiveAtAfter(Instant threshold);
-
+    
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.profile p WHERE " +
+           "(:role IS NULL OR u.role = :role) AND " +
+           "(:isActive IS NULL OR u.isActive = :isActive) AND " +
+           "(:enabled IS NULL OR u.enabled = :enabled) AND " +
+           "(LOWER(u.username) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           " LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           " LOWER(p.firstName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           " LOWER(p.lastName) LIKE LOWER(CONCAT('%', :search, '%')))")
+    Page<User> findAllForAdmin(
+        @Param("role") Role role,
+        @Param("isActive") Boolean isActive,
+        @Param("enabled") Boolean enabled,
+        @Param("search") String search,
+        Pageable pageable
+    );
 }

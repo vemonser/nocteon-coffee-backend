@@ -19,6 +19,8 @@ import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.auth.entity.UserProfile;
 import com.nocteon.nocteon_api.auth.enums.Provider;
 import com.nocteon.nocteon_api.auth.enums.Role;
+import com.nocteon.nocteon_api.auth.exception.AccountDisabledException;
+import com.nocteon.nocteon_api.auth.exception.AccountLockedException;
 import com.nocteon.nocteon_api.auth.repository.RefreshTokenRepository;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.auth.repository.UserProfileRepository;
@@ -114,11 +116,17 @@ public class AuthService {
         if (!user.isEnabled()) {
             throw new AccountNotVerifiedException();
         }
+        if (!user.isActive()) {
+            throw new AccountDisabledException();
+        }
 
+        if (user.isLocked()) {
+            throw new AccountLockedException();
+        }
         user.resetFailedLogin();
         user.setLastActiveAt(Instant.now());
         userRepository.save(user);
-        
+
         loginActivityService.recordLogin(user, userAgent);
         return buildAuthResponse(user);
     }

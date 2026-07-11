@@ -53,6 +53,10 @@ public class User extends BaseEntity {
     @Builder.Default
     private boolean enabled = false;
 
+    @Column(name = "is_active", nullable = false)
+    @Builder.Default
+    private boolean isActive = true;
+
     @Column(name = "failed_login_attempts")
     @Builder.Default
     private int failedLoginAttempts = 0;
