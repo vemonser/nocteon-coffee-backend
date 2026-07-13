@@ -13,7 +13,7 @@ import com.nocteon.nocteon_api.cart.repository.CartRepository;
 import com.nocteon.nocteon_api.mail.enums.EmailType;
 import com.nocteon.nocteon_api.mail.service.TransactionalEmailService;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

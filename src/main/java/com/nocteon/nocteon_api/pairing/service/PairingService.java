@@ -25,7 +25,7 @@ import com.nocteon.nocteon_api.pairing.repository.PairingRepository;
 import com.nocteon.nocteon_api.pairing.repository.PairingTranslationRepository;
 import com.nocteon.nocteon_api.product.enums.MediaType;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,9 +33,11 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class PairingService {
+        
         private final PairingRepository pairingRepository;
         private final PairingTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
+
 
         @Transactional
         public PairingResponse create(PairingRequest request, MultipartFile image) {
@@ -48,7 +50,7 @@ public class PairingService {
                                 .orElseThrow(InvalidTranslationException::new);
 
                 String slug = helper.generateUniqueSlug(englishName, pairingRepository::existsBySlug);
-                String imageUrl = helper.uploadMedia(image, "pairings",MediaType.IMAGE);
+                String imageUrl = helper.uploadMedia(image, "pairings", MediaType.IMAGE);
 
                 Pairing pairing = Pairing.builder()
                                 .slug(slug)
@@ -79,7 +81,7 @@ public class PairingService {
 
                 if (image != null && !image.isEmpty()) {
                         helper.deleteMediaIfExists(pairing.getImageUrl());
-                        pairing.setImageUrl(helper.uploadMedia(image, "pairings",MediaType.IMAGE));
+                        pairing.setImageUrl(helper.uploadMedia(image, "pairings", MediaType.IMAGE));
                 }
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
@@ -111,7 +113,7 @@ public class PairingService {
                                 .orElseThrow(PairingNotFoundException::new);
 
                 helper.deleteMediaIfExists(pairing.getImageUrl());
-                pairing.setImageUrl(helper.uploadMedia(file, "pairings",MediaType.IMAGE));
+                pairing.setImageUrl(helper.uploadMedia(file, "pairings", MediaType.IMAGE));
                 pairingRepository.save(pairing);
 
                 return buildResponse(pairing, LocaleContextHolder.getLocale().getLanguage());
@@ -140,12 +142,18 @@ public class PairingService {
                 return PageResponse.of(page.map(p -> buildResponse(p, language)));
         }
 
+        public PairingResponseDashboard getDashboardBySlug(String slug) {
+                Pairing pairing = pairingRepository.findBySlugWithTranslations(slug)
+                                .orElseThrow(PairingNotFoundException::new);
+                return buildResponse(pairing);
+        }
+
         public PageResponse<PairingResponseDashboard> getAllDashboard(LookupFilterRequest filter) {
                 String search = Objects.requireNonNullElse(
                                 filter.getSearch(),
                                 "");
 
-                                Page<Pairing> page = pairingRepository.findAllDashboard(
+                Page<Pairing> page = pairingRepository.findAllDashboard(
                                 search,
                                 filter.toPageable());
                 return PageResponse.of(
@@ -167,12 +175,15 @@ public class PairingService {
                                 .name(translation != null ? translation.getName() : null)
                                 .description(translation != null ? translation.getDescription() : null)
                                 .imageUrl(pairing.getImageUrl())
+                                .createdAt(pairing.getCreatedAt())
                                 .build();
         }
-                private PairingResponseDashboard buildResponse(Pairing pairing) {
+
+        private PairingResponseDashboard buildResponse(Pairing pairing) {
                 return PairingResponseDashboard.builder()
                                 .id(pairing.getId())
                                 .slug(pairing.getSlug())
+                                .createdAt(pairing.getCreatedAt())
                                 .imageUrl(pairing.getImageUrl())
                                 .translations(
                                                 pairing.getTranslations()

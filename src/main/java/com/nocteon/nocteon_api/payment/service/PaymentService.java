@@ -27,7 +27,7 @@ import com.nocteon.nocteon_api.payment.enums.PaymentStatus;
 import com.nocteon.nocteon_api.payment.repository.PaymentRepository;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

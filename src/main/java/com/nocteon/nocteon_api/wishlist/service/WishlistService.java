@@ -24,7 +24,7 @@ import com.nocteon.nocteon_api.wishlist.entity.WishlistItem;
 import com.nocteon.nocteon_api.wishlist.repository.WishlistItemRepository;
 import com.nocteon.nocteon_api.wishlist.repository.WishlistRepository;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

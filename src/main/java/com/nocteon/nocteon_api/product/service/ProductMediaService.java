@@ -20,7 +20,7 @@ import com.nocteon.nocteon_api.product.entity.ProductMedia;
 import com.nocteon.nocteon_api.product.enums.MediaType;
 import com.nocteon.nocteon_api.product.repository.ProductMediaRepository;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service

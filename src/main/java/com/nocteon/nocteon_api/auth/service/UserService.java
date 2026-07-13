@@ -32,7 +32,7 @@ import com.nocteon.nocteon_api.common.exception.user.UsernameAlreadyExistsExcept
 import com.nocteon.nocteon_api.common.util.PasswordValidator;
 import com.nocteon.nocteon_api.dashboard.dto.UserGrowthDto;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

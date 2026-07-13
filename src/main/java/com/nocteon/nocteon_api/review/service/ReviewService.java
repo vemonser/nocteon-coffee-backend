@@ -19,7 +19,7 @@ import com.nocteon.nocteon_api.review.dto.response.ReviewResponse;
 import com.nocteon.nocteon_api.review.entity.Review;
 import com.nocteon.nocteon_api.review.repository.ReviewRepository;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

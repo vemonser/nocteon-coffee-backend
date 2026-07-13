@@ -1,5 +1,7 @@
 package com.nocteon.nocteon_api.farm.dto.response;
 
+import java.time.Instant;
+
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -15,5 +17,6 @@ public class FarmResponse {
     private String country;  
     private String description;
     private String imageUrl;
+    private Instant createdAt;
     
 }

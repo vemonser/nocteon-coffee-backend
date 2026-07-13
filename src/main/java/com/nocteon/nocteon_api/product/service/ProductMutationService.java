@@ -60,7 +60,7 @@ import com.nocteon.nocteon_api.roastLevel.repository.RoastLevelRepository;
 import com.nocteon.nocteon_api.tastingNote.entity.TastingNote;
 import com.nocteon.nocteon_api.tastingNote.repository.TastingNoteRepository;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

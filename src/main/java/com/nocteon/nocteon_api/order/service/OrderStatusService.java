@@ -18,7 +18,7 @@ import com.nocteon.nocteon_api.order.exception.InvalidOrderStatusTransitionExcep
 import com.nocteon.nocteon_api.order.repository.OrderRepository;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

@@ -3,7 +3,6 @@ package com.nocteon.nocteon_api.auth.dto.response;
 import java.time.Instant;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.nocteon.nocteon_api.auth.enums.Role;
 
 import lombok.AllArgsConstructor;

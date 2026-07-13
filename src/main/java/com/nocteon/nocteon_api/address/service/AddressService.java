@@ -3,6 +3,7 @@ package com.nocteon.nocteon_api.address.service;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.nocteon.nocteon_api.address.dto.request.AddressRequest;
 import com.nocteon.nocteon_api.address.dto.response.AddressResponse;
@@ -12,7 +13,7 @@ import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.common.exception.notFound.AddressNotFoundException;
 
-import jakarta.transaction.Transactional;
+
 import lombok.RequiredArgsConstructor;
 
 @Service

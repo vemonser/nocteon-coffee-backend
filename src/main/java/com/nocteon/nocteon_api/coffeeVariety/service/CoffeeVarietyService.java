@@ -23,7 +23,7 @@ import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationExcept
 import com.nocteon.nocteon_api.common.exception.notFound.CoffeeVarietyNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

@@ -39,7 +39,7 @@ import com.nocteon.nocteon_api.promoCode.exceptions.PromoCodeNotFoundException;
 import com.nocteon.nocteon_api.promoCode.repository.PromoCodeRedemptionRepository;
 import com.nocteon.nocteon_api.promoCode.repository.PromoCodeRepository;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service

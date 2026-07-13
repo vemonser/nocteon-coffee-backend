@@ -1,5 +1,7 @@
 package com.nocteon.nocteon_api.origin.dto.response;
 
+import java.time.Instant;
+
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -13,7 +15,7 @@ public class OriginResponse {
     private String name;
     private String description;
     private String code;
+    private Instant createdAt;
     private String imageUrl;
-    
-}
 
+}

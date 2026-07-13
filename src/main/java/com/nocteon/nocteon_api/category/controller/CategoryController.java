@@ -1,5 +1,6 @@
 package com.nocteon.nocteon_api.category.controller;
 
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,7 @@ import com.nocteon.nocteon_api.category.service.CategoryService;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +55,14 @@ public class CategoryController {
                                 ApiResponse.success(categoryService.getBySlug(slug), "Category retrieved"));
         }
 
+        @GetMapping("/categories/{slug}/products")
+        public ResponseEntity<ApiResponse<PageResponse<ProductCardResponse>>> getCategoryProducts(
+                        @PathVariable String slug,
+                        @ModelAttribute LookupFilterRequest filter) {
+                Page<ProductCardResponse> page = categoryService.getProductsByCategorySlug(slug, filter.toPageable());
+                return ResponseEntity.ok(ApiResponse.success(PageResponse.of(page), "Products retrieved"));
+        }
+
         // ===== Dashboard Endpoints =====
 
         @GetMapping("/dashboard/categories")
@@ -61,6 +71,13 @@ public class CategoryController {
                         @ModelAttribute LookupFilterRequest filter) {
                 return ResponseEntity.ok(
                                 ApiResponse.success(categoryService.getAllDashboard(filter), "Categories retrieved"));
+        }
+
+        @GetMapping("/dashboard/categories/{slug}")
+        @PreAuthorize("hasAuthority('category:read')")
+        public ResponseEntity<ApiResponse<DashboardCategoryResponse>> getDashboardBySlug(@PathVariable String slug) {
+                return ResponseEntity.ok(
+                                ApiResponse.success(categoryService.getDashboardBySlug(slug), "Category retrieved"));
         }
 
         @PostMapping(value = "/dashboard/categories", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

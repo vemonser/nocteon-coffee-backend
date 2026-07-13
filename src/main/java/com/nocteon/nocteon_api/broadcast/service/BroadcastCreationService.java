@@ -20,7 +20,7 @@ import com.nocteon.nocteon_api.broadcast.repository.BroadcastRepository;
 import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service

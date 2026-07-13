@@ -47,7 +47,7 @@ import com.nocteon.nocteon_api.promoCode.service.PromoCodeService;
 import com.nocteon.nocteon_api.shippingZone.service.ShippingZoneService;
 import com.nocteon.nocteon_api.storeSettings.service.StoreSettingsService;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

@@ -7,7 +7,7 @@ import com.nocteon.nocteon_api.storeSettings.dto.response.StoreSettingsResponse;
 import com.nocteon.nocteon_api.storeSettings.entity.StoreSettings;
 import com.nocteon.nocteon_api.storeSettings.repository.StoreSettingsRepository;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service

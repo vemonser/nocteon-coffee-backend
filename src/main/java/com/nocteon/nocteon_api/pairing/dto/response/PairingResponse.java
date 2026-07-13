@@ -1,5 +1,7 @@
 package com.nocteon.nocteon_api.pairing.dto.response;
 
+import java.time.Instant;
+
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -13,4 +15,6 @@ public class PairingResponse {
     private String name;
     private String description;
     private String imageUrl;
+    private Instant createdAt;
+
 }

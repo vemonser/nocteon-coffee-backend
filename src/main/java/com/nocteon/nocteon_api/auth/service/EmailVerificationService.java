@@ -18,7 +18,7 @@ import com.nocteon.nocteon_api.common.exception.invalid.InvalidVerificationExcep
 import com.nocteon.nocteon_api.common.exception.notFound.UserNotFoundException;
 import com.nocteon.nocteon_api.common.util.OtpGenerator;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

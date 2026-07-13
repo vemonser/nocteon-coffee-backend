@@ -22,7 +22,7 @@ import com.nocteon.nocteon_api.common.util.OtpGenerator;
 import com.nocteon.nocteon_api.common.util.PasswordValidator;
 
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service

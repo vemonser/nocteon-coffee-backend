@@ -17,7 +17,7 @@ import com.nocteon.nocteon_api.shippingZone.exception.ShippingNotAvailableExcept
 import com.nocteon.nocteon_api.shippingZone.exception.ShippingZoneNotFoundException;
 import com.nocteon.nocteon_api.shippingZone.repository.ShippingZoneRepository;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service

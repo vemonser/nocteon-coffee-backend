@@ -6,6 +6,7 @@ import java.util.Objects;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -18,14 +19,18 @@ import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.origin.dto.request.OriginRequest;
 import com.nocteon.nocteon_api.origin.dto.request.OriginTranslationRequest;
 import com.nocteon.nocteon_api.origin.dto.response.DashboardOriginResponse;
+import com.nocteon.nocteon_api.origin.dto.response.OriginOptionResponse;
 import com.nocteon.nocteon_api.origin.dto.response.OriginResponse;
 import com.nocteon.nocteon_api.origin.entity.Origin;
 import com.nocteon.nocteon_api.origin.entity.OriginTranslation;
 import com.nocteon.nocteon_api.origin.repository.OriginRepository;
 import com.nocteon.nocteon_api.origin.repository.OriginTranslationRepository;
+import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.enums.MediaType;
+import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
+import com.nocteon.nocteon_api.product.repository.ProductRepository;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -37,6 +42,18 @@ public class OriginService {
         private final OriginRepository originRepository;
         private final OriginTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
+        private final ProductResponseMapper productResponseMapper;
+        private final ProductRepository productRepository;
+
+        @Transactional(readOnly = true)
+        public Page<ProductCardResponse> getProductsByOriginSlug(String slug, Pageable pageable) {
+                if (!originRepository.existsBySlug(slug)) {
+                        throw new OriginNotFoundException();
+                }
+                String language = LocaleContextHolder.getLocale().getLanguage();
+                return productRepository.findByOriginSlugPublic(slug, pageable)
+                                .map(p -> productResponseMapper.buildListResponse(p, language));
+        }
 
         @Transactional
         public OriginResponse create(OriginRequest request, MultipartFile image) {
@@ -49,7 +66,7 @@ public class OriginService {
                                 .orElseThrow(InvalidTranslationException::new);
 
                 String slug = helper.generateUniqueSlug(englishName, originRepository::existsBySlug);
-                String imageUrl = helper.uploadMedia(image, "origins",MediaType.IMAGE);
+                String imageUrl = helper.uploadMedia(image, "origins", MediaType.IMAGE);
 
                 Origin origin = Origin.builder()
                                 .slug(slug)
@@ -85,7 +102,7 @@ public class OriginService {
 
                 if (image != null && !image.isEmpty()) {
                         helper.deleteMediaIfExists(origin.getImageUrl());
-                        origin.setImageUrl(helper.uploadMedia(image, "origins",MediaType.IMAGE));
+                        origin.setImageUrl(helper.uploadMedia(image, "origins", MediaType.IMAGE));
                 }
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
@@ -117,7 +134,7 @@ public class OriginService {
                                 .orElseThrow(OriginNotFoundException::new);
 
                 helper.deleteMediaIfExists(origin.getImageUrl());
-                origin.setImageUrl(helper.uploadMedia(file, "origins",MediaType.IMAGE));
+                origin.setImageUrl(helper.uploadMedia(file, "origins", MediaType.IMAGE));
                 originRepository.save(origin);
 
                 return buildResponse(origin, LocaleContextHolder.getLocale().getLanguage());
@@ -139,6 +156,29 @@ public class OriginService {
                 Origin origin = originRepository.findBySlugAndLanguage(slug, language)
                                 .orElseThrow(OriginNotFoundException::new);
                 return buildResponse(origin, language);
+        }
+
+        public List<OriginOptionResponse> getOptions() {
+                String language = LocaleContextHolder.getLocale().getLanguage();
+                return originRepository.findAllForOptions().stream()
+                                .map(o -> {
+                                        String name = o.getTranslations().stream()
+                                                        .filter(t -> t.getLanguage().equals(language))
+                                                        .findFirst()
+                                                        .map(OriginTranslation::getName)
+                                                        .orElse(o.getSlug());
+                                        return OriginOptionResponse.builder()
+                                                        .slug(o.getSlug())
+                                                        .name(name)
+                                                        .build();
+                                })
+                                .toList();
+        }
+
+        public DashboardOriginResponse getDashboardBySlug(String slug) {
+                Origin origin = originRepository.findBySlugWithTranslations(slug)
+                                .orElseThrow(OriginNotFoundException::new);
+                return buildResponse(origin);
         }
 
         public OriginResponse getOrigin(String slug) {
@@ -184,6 +224,7 @@ public class OriginService {
                                 .id(origin.getId())
                                 .slug(origin.getSlug())
                                 .code(origin.getCode())
+                                .createdAt(origin.getCreatedAt())
                                 .name(translation != null ? translation.getName() : null)
                                 .description(translation != null ? translation.getDescription() : null)
                                 .imageUrl(origin.getImageUrl())
@@ -196,6 +237,7 @@ public class OriginService {
                                 .code(origin.getCode())
                                 .slug(origin.getSlug())
                                 .imageUrl(origin.getImageUrl())
+                                .createdAt(origin.getCreatedAt())
                                 .translations(
                                                 origin.getTranslations()
                                                                 .stream()

@@ -8,7 +8,7 @@ import com.nocteon.nocteon_api.userActivity.enums.DeviceType;
 import com.nocteon.nocteon_api.userActivity.repository.LoginActivityRepository;
 import com.nocteon.nocteon_api.userActivity.resolver.DeviceTypeResolver;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service

@@ -37,7 +37,7 @@ import com.nocteon.nocteon_api.common.redis.TokenBlacklistService;
 import com.nocteon.nocteon_api.common.util.PasswordValidator;
 import com.nocteon.nocteon_api.userActivity.service.LoginActivityService;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

@@ -62,8 +62,7 @@ public class ProductResponseMapper {
         private final LookupResponseMapper lookupResponseMapper;
 
         public ProductCardResponse buildListResponse(Product product, String language) {
-                List<ProductTranslation> translations = productTranslationRepository
-                                .findByProductId(product.getId());
+                List<ProductTranslation> translations = product.getTranslations();
 
                 ProductTranslation translation = translations.stream()
                                 .filter(t -> t.getLanguage().equals(language))

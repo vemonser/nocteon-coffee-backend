@@ -23,7 +23,7 @@ import com.nocteon.nocteon_api.tastingNote.entity.TastingNoteTranslation;
 import com.nocteon.nocteon_api.tastingNote.repository.TastingNoteRepository;
 import com.nocteon.nocteon_api.tastingNote.repository.TastingNoteTranslationRepository;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

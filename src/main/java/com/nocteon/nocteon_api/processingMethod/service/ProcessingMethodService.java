@@ -23,7 +23,7 @@ import com.nocteon.nocteon_api.processingMethod.entity.ProcessingMethodTranslati
 import com.nocteon.nocteon_api.processingMethod.repository.ProcessingMethodRepository;
 import com.nocteon.nocteon_api.processingMethod.repository.ProcessingMethodTranslationRepository;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

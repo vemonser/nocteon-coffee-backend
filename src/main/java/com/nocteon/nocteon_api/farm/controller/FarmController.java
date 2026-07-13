@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.farm.controller;
 
 
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -18,12 +19,14 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
+import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.farm.dto.request.FarmFilterRequest;
 import com.nocteon.nocteon_api.farm.dto.request.FarmRequest;
 import com.nocteon.nocteon_api.farm.dto.response.DashboardFarmResponse;
 import com.nocteon.nocteon_api.farm.dto.response.FarmResponse;
 import com.nocteon.nocteon_api.farm.service.FarmService;
+import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -49,12 +52,27 @@ public class FarmController {
                                 ApiResponse.success(farmService.getBySlug(slug), "Farm retrieved"));
         }
 
+        @GetMapping("/farms/{slug}/products")
+        public ResponseEntity<ApiResponse<PageResponse<ProductCardResponse>>> getFarmProducts(
+                        @PathVariable String slug,
+                        @ModelAttribute LookupFilterRequest filter) {
+                Page<ProductCardResponse> page = farmService.getProductsByFarmSlug(slug, filter.toPageable());
+                return ResponseEntity.ok(ApiResponse.success(PageResponse.of(page), "Products retrieved"));
+        }
+
         @GetMapping("/dashboard/farms")
         @PreAuthorize("hasAuthority('farm:read')")
         public ResponseEntity<ApiResponse<PageResponse<DashboardFarmResponse>>> getAllDashboard(
                         @ModelAttribute FarmFilterRequest filter) {
                 return ResponseEntity.ok(
                                 ApiResponse.success(farmService.getAllDashboard(filter), "Farms retrieved"));
+        }
+
+        @GetMapping("/dashboard/farms/{slug}")
+        @PreAuthorize("hasAuthority('farm:read')")
+        public ResponseEntity<ApiResponse<DashboardFarmResponse>> getDashboardBySlug(@PathVariable String slug) {
+                return ResponseEntity.ok(
+                                ApiResponse.success(farmService.getDashboardBySlug(slug), "Farm retrieved"));
         }
 
         @PostMapping(value = "/dashboard/farms", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

@@ -20,7 +20,7 @@ import com.nocteon.nocteon_api.auth.repository.UserProfileRepository;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service

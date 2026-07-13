@@ -1,6 +1,5 @@
 package com.nocteon.nocteon_api.pairing.controller;
 
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -51,13 +50,19 @@ public class PairingController {
                 ApiResponse.success(pairingService.getAllDashboard(filter), "Pairings retrieved"));
     }
 
+    @GetMapping("/dashboard/pairings/{slug}")
+    @PreAuthorize("hasAuthority('category:read')")
+    public ResponseEntity<ApiResponse<PairingResponseDashboard>> getDashboardBySlug(@PathVariable String slug) {
+        return ResponseEntity.ok(
+                ApiResponse.success(pairingService.getDashboardBySlug(slug), "Pairing retrieved"));
+    }
 
     @GetMapping("/pairings/{slug}")
     public ResponseEntity<ApiResponse<PairingResponse>> getBySlug(@PathVariable String slug) {
         return ResponseEntity.ok(ApiResponse.success(pairingService.getBySlug(slug), "Pairing retrieved"));
     }
 
-    @PostMapping(value = "/dashboard/pairings",consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/dashboard/pairings", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('pairing:create')")
     public ResponseEntity<ApiResponse<PairingResponse>> create(
             @Valid @RequestPart("data") PairingRequest request,

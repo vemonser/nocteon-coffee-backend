@@ -23,7 +23,7 @@ import com.nocteon.nocteon_api.roastLevel.entity.RoastLevelTranslation;
 import com.nocteon.nocteon_api.roastLevel.repository.RoastLevelRepository;
 import com.nocteon.nocteon_api.roastLevel.repository.RoastLevelTranslationRepository;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
