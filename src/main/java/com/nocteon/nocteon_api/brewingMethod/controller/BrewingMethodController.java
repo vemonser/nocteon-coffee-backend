@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
 
 import com.nocteon.nocteon_api.brewingMethod.dto.request.BrewingMethodRequest;
 import com.nocteon.nocteon_api.brewingMethod.dto.response.BrewingMethodResponse;
@@ -21,7 +21,8 @@ import com.nocteon.nocteon_api.brewingMethod.service.BrewingMethodService;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
-
+import com.nocteon.nocteon_api.product.dto.request.ProductBrewingMethodSortOption;
+import com.nocteon.nocteon_api.product.dto.response.ProductWithScoreResponse;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +48,18 @@ public class BrewingMethodController {
     }
 
     // ===== Dashboard Endpoints =====
+    @GetMapping("/dashboard/brewing-methods/{slug}/products")
+    @PreAuthorize("hasAuthority('brewing_method:read')")
+    public ResponseEntity<ApiResponse<PageResponse<ProductWithScoreResponse>>> getProductsByBrewingMethod(
+            @PathVariable String slug,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size,
+            @RequestParam(defaultValue = "SCORE_DESC") ProductBrewingMethodSortOption sort) {
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        brewingMethodService.getProductsByBrewingMethod(slug, page, size, sort),
+                        "Linked products retrieved"));
+    }
 
     @GetMapping("/dashboard/brewing-methods")
     @PreAuthorize("hasAuthority('brewing_method:read')")

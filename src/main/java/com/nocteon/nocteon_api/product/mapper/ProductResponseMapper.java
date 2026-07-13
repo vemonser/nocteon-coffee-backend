@@ -26,10 +26,12 @@ import com.nocteon.nocteon_api.product.dto.response.ProductMediaResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductTranslationResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductVariantResponse;
+import com.nocteon.nocteon_api.product.dto.response.ProductWithScoreResponse;
 import com.nocteon.nocteon_api.product.dto.response.summary.LockupResponse;
 import com.nocteon.nocteon_api.product.dto.response.summary.RoastLevelSummary;
 import com.nocteon.nocteon_api.product.entity.CoffeeDetails;
 import com.nocteon.nocteon_api.product.entity.Product;
+import com.nocteon.nocteon_api.product.entity.ProductBrewingMethod;
 import com.nocteon.nocteon_api.product.entity.ProductMedia;
 import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
@@ -413,6 +415,14 @@ public class ProductResponseMapper {
                                 .color(roastLevel.getColor())
                                 .build();
 
+        }
+
+        public ProductWithScoreResponse buildProductWithScoreResponse(ProductBrewingMethod pbm, String language) {
+                ProductCardResponse card = buildListResponse(pbm.getProduct(), language);
+                return ProductWithScoreResponse.builder()
+                                .product(card)
+                                .score(pbm.getScore())
+                                .build();
         }
 
         private String slug(Origin origin) {

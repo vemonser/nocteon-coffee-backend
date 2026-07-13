@@ -6,6 +6,9 @@ import java.util.Objects;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.nocteon.nocteon_api.brewingMethod.dto.request.BrewingMethodRequest;
@@ -22,6 +25,11 @@ import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.BrewingMethodNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.product.dto.request.ProductBrewingMethodSortOption;
+import com.nocteon.nocteon_api.product.dto.response.ProductWithScoreResponse;
+import com.nocteon.nocteon_api.product.entity.ProductBrewingMethod;
+import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
+import com.nocteon.nocteon_api.product.repository.ProductBrewingMethodRepository;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +43,33 @@ public class BrewingMethodService {
         private final BrewingMethodRepository brewingMethodRepository;
         private final BrewingMethodTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
+        private final ProductBrewingMethodRepository productBrewingMethodRepository; 
+        private final ProductResponseMapper productResponseMapper;
+
+        public PageResponse<ProductWithScoreResponse> getProductsByBrewingMethod(
+                        String slug, int page, int size, ProductBrewingMethodSortOption sortOption) {
+                if (!brewingMethodRepository.existsBySlug(slug)) {
+                        throw new BrewingMethodNotFoundException();
+                }
+
+                String language = LocaleContextHolder.getLocale().getLanguage();
+                Pageable pageable = PageRequest.of(page, size, resolveSort(sortOption));
+
+                Page<ProductBrewingMethod> pbmPage = productBrewingMethodRepository
+                                .findByBrewingMethodSlug(slug, pageable);
+
+                return PageResponse.of(
+                                pbmPage.map(pbm -> productResponseMapper.buildProductWithScoreResponse(pbm, language)));
+        }
+
+        private Sort resolveSort(ProductBrewingMethodSortOption option) {
+                return switch (option) {
+                        case SCORE_DESC -> Sort.by(Sort.Direction.DESC, "score");
+                        case SCORE_ASC -> Sort.by(Sort.Direction.ASC, "score");
+                        case NEWEST -> Sort.by(Sort.Direction.DESC, "createdAt");
+                        case OLDEST -> Sort.by(Sort.Direction.ASC, "createdAt");
+                };
+        }
 
         @Transactional
         public BrewingMethodResponse create(BrewingMethodRequest request) {
@@ -150,7 +185,7 @@ public class BrewingMethodService {
                                 .build();
         }
 
-                private BrewingMethodResponseDashboard buildResponse(BrewingMethod brewingMethod) {
+        private BrewingMethodResponseDashboard buildResponse(BrewingMethod brewingMethod) {
                 return BrewingMethodResponseDashboard.builder()
                                 .id(brewingMethod.getId())
                                 .slug(brewingMethod.getSlug())

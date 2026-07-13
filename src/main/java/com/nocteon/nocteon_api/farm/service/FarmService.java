@@ -199,7 +199,7 @@ public class FarmService {
         }
 
         private FarmResponse buildResponse(Farm farm, String language) {
-                List<FarmTranslation> translations = farm.getTranslations(); 
+                List<FarmTranslation> translations = farm.getTranslations();
 
                 FarmTranslation translation = translations.stream()
                                 .filter(t -> t.getLanguage().equals(language))
@@ -214,6 +214,7 @@ public class FarmService {
                                 .country(translation != null ? translation.getCountry() : null)
                                 .description(translation != null ? translation.getDescription() : null)
                                 .imageUrl(farm.getImageUrl())
+                                .createdAt(farm.getCreatedAt())
                                 .build();
         }
 
@@ -223,6 +224,7 @@ public class FarmService {
                                 .originSlug(farm.getOrigin().getSlug())
                                 .slug(farm.getSlug())
                                 .imageUrl(farm.getImageUrl())
+                                .createdAt(farm.getCreatedAt())
                                 .translations(
                                                 farm.getTranslations()
                                                                 .stream()
