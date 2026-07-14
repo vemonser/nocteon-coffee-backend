@@ -54,6 +54,13 @@ public class ProcessingMethodController {
                 ApiResponse.success(processingMethodService.getAllDashboard(filter), "Processing methods retrieved"));
     }
 
+    @GetMapping("/dashboard/processing-methods/{slug}")
+    @PreAuthorize("hasAuthority('processing_method:read')")
+    public ResponseEntity<ApiResponse<ProcessingMethodResponseDashboard>> getDashboardBySlug(@PathVariable String slug) {
+        return ResponseEntity.ok(
+                ApiResponse.success(processingMethodService.getDashboardBySlug(slug), "Processing method retrieved"));
+    }
+
     @PostMapping("/dashboard/processing-methods")
     @PreAuthorize("hasAuthority('processing_method:create')")
     public ResponseEntity<ApiResponse<ProcessingMethodResponse>> create(

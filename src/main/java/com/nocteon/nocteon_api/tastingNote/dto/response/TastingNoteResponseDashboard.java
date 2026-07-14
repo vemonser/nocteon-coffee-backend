@@ -1,5 +1,6 @@
 package com.nocteon.nocteon_api.tastingNote.dto.response;
 
+import java.time.Instant;
 import java.util.List;
 
 import lombok.Builder;
@@ -12,6 +13,7 @@ import lombok.Setter;
 public class TastingNoteResponseDashboard {
     private Long id;
     private String slug;
+    private Instant createdAt;
     private List<TranslationResponseDashboard> translations;
 
 }

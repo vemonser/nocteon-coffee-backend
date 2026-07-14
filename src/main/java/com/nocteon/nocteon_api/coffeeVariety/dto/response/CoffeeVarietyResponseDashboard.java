@@ -1,5 +1,6 @@
 package com.nocteon.nocteon_api.coffeeVariety.dto.response;
 
+import java.time.Instant;
 import java.util.List;
 
 import com.nocteon.nocteon_api.common.dto.TranslationResponse;
@@ -14,6 +15,7 @@ import lombok.Setter;
 public class CoffeeVarietyResponseDashboard {
     private Long id;
     private String slug;
+    private Instant createdAt;
     private List<TranslationResponse> translations;
 
 }

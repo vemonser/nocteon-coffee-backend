@@ -3,6 +3,7 @@ package com.nocteon.nocteon_api.brewingMethod.service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
@@ -25,7 +26,6 @@ import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.BrewingMethodNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
-import com.nocteon.nocteon_api.product.dto.request.ProductBrewingMethodSortOption;
 import com.nocteon.nocteon_api.product.dto.response.ProductWithScoreResponse;
 import com.nocteon.nocteon_api.product.entity.ProductBrewingMethod;
 import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
@@ -43,17 +43,19 @@ public class BrewingMethodService {
         private final BrewingMethodRepository brewingMethodRepository;
         private final BrewingMethodTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
-        private final ProductBrewingMethodRepository productBrewingMethodRepository; 
+        private final ProductBrewingMethodRepository productBrewingMethodRepository;
         private final ProductResponseMapper productResponseMapper;
 
+        private static final Set<String> ALLOWED_SORT_FIELDS = Set.of("score", "createdAt");
+
         public PageResponse<ProductWithScoreResponse> getProductsByBrewingMethod(
-                        String slug, int page, int size, ProductBrewingMethodSortOption sortOption) {
+                        String slug, int page, int size, String sort, String direction) {
                 if (!brewingMethodRepository.existsBySlug(slug)) {
                         throw new BrewingMethodNotFoundException();
                 }
 
                 String language = LocaleContextHolder.getLocale().getLanguage();
-                Pageable pageable = PageRequest.of(page, size, resolveSort(sortOption));
+                Pageable pageable = PageRequest.of(page, size, resolveSort(sort, direction));
 
                 Page<ProductBrewingMethod> pbmPage = productBrewingMethodRepository
                                 .findByBrewingMethodSlug(slug, pageable);
@@ -62,13 +64,16 @@ public class BrewingMethodService {
                                 pbmPage.map(pbm -> productResponseMapper.buildProductWithScoreResponse(pbm, language)));
         }
 
-        private Sort resolveSort(ProductBrewingMethodSortOption option) {
-                return switch (option) {
-                        case SCORE_DESC -> Sort.by(Sort.Direction.DESC, "score");
-                        case SCORE_ASC -> Sort.by(Sort.Direction.ASC, "score");
-                        case NEWEST -> Sort.by(Sort.Direction.DESC, "createdAt");
-                        case OLDEST -> Sort.by(Sort.Direction.ASC, "createdAt");
-                };
+        private Sort resolveSort(String sort, String direction) {
+                String field = (sort != null && ALLOWED_SORT_FIELDS.contains(sort)) ? sort : "score";
+                Sort.Direction dir = "asc".equalsIgnoreCase(direction) ? Sort.Direction.ASC : Sort.Direction.DESC;
+                return Sort.by(dir, field);
+        }
+
+        public BrewingMethodResponseDashboard getDashboardBySlug(String slug) {
+                BrewingMethod brewingMethod = brewingMethodRepository.findBySlugWithTranslations(slug)
+                                .orElseThrow(BrewingMethodNotFoundException::new);
+                return buildResponse(brewingMethod);
         }
 
         @Transactional
@@ -180,6 +185,7 @@ public class BrewingMethodService {
                 return BrewingMethodResponse.builder()
                                 .id(brewingMethod.getId())
                                 .slug(brewingMethod.getSlug())
+                                .createdAt(brewingMethod.getCreatedAt())
                                 .name(translation != null ? translation.getName() : null)
                                 .description(translation != null ? translation.getDescription() : null)
                                 .build();
@@ -189,6 +195,7 @@ public class BrewingMethodService {
                 return BrewingMethodResponseDashboard.builder()
                                 .id(brewingMethod.getId())
                                 .slug(brewingMethod.getSlug())
+                                .createdAt(brewingMethod.getCreatedAt())
                                 .translations(
                                                 brewingMethod.getTranslations()
                                                                 .stream()

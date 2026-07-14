@@ -61,6 +61,12 @@ public class TastingNoteService {
                 return buildResponse(tastingNote, language);
         }
 
+        public TastingNoteResponseDashboard getDashboardBySlug(String slug) {
+                TastingNote tastingNote = tastingNoteRepository.findBySlugWithTranslations(slug)
+                                .orElseThrow(TastingNoteNotFoundException::new);
+                return buildResponse(tastingNote);
+        }
+
         @Transactional
         public TastingNoteResponse create(TastingNoteRequest request) {
                 helper.validateTranslations(request.getTranslations());
@@ -141,6 +147,7 @@ public class TastingNoteService {
                 return TastingNoteResponse.builder()
                                 .id(tastingNote.getId())
                                 .slug(tastingNote.getSlug())
+                                .createdAt(tastingNote.getCreatedAt())
                                 .name(translation != null ? translation.getName() : null)
                                 .build();
         }
@@ -149,6 +156,7 @@ public class TastingNoteService {
                 return TastingNoteResponseDashboard.builder()
                                 .id(tastingNote.getId())
                                 .slug(tastingNote.getSlug())
+                                .createdAt(tastingNote.getCreatedAt())
                                 .translations(
                                                 tastingNote.getTranslations()
                                                                 .stream()

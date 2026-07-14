@@ -21,7 +21,6 @@ import com.nocteon.nocteon_api.brewingMethod.service.BrewingMethodService;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
-import com.nocteon.nocteon_api.product.dto.request.ProductBrewingMethodSortOption;
 import com.nocteon.nocteon_api.product.dto.response.ProductWithScoreResponse;
 
 import jakarta.validation.Valid;
@@ -47,6 +46,14 @@ public class BrewingMethodController {
         return ResponseEntity.ok(ApiResponse.success(brewingMethodService.getBySlug(slug), "Brewing method retrieved"));
     }
 
+    @GetMapping("/dashboard/brewing-methods/{slug}")
+    @PreAuthorize("hasAuthority('brewing_method:read')")
+    public ResponseEntity<ApiResponse<BrewingMethodResponseDashboard>> getDashboardBySlug(
+            @PathVariable String slug) {
+        return ResponseEntity.ok(
+                ApiResponse.success(brewingMethodService.getDashboardBySlug(slug), "Brewing method retrieved"));
+    }
+
     // ===== Dashboard Endpoints =====
     @GetMapping("/dashboard/brewing-methods/{slug}/products")
     @PreAuthorize("hasAuthority('brewing_method:read')")
@@ -54,10 +61,11 @@ public class BrewingMethodController {
             @PathVariable String slug,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "12") int size,
-            @RequestParam(defaultValue = "SCORE_DESC") ProductBrewingMethodSortOption sort) {
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String direction) {
         return ResponseEntity.ok(
                 ApiResponse.success(
-                        brewingMethodService.getProductsByBrewingMethod(slug, page, size, sort),
+                        brewingMethodService.getProductsByBrewingMethod(slug, page, size, sort, direction),
                         "Linked products retrieved"));
     }
 

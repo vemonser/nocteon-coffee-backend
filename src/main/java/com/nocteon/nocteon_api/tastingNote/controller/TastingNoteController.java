@@ -56,6 +56,13 @@ public class TastingNoteController {
                 ApiResponse.success(tastingNoteService.getAllDashboard(filter), "Tasting notes retrieved"));
     }
 
+    @GetMapping("/dashboard/tasting-notes/{slug}")
+    @PreAuthorize("hasAuthority('tasting_note:read')")
+    public ResponseEntity<ApiResponse<TastingNoteResponseDashboard>> getDashboardBySlug(@PathVariable String slug) {
+        return ResponseEntity.ok(
+                ApiResponse.success(tastingNoteService.getDashboardBySlug(slug), "Tasting note retrieved"));
+    }
+
     @PostMapping("/dashboard/tasting-notes")
     @PreAuthorize("hasAuthority('tasting_note:create')")
     public ResponseEntity<ApiResponse<TastingNoteResponse>> create(

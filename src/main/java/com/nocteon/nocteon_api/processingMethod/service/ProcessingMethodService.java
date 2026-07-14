@@ -63,6 +63,13 @@ public class ProcessingMethodService {
                 return buildResponse(processingMethod, language);
         }
 
+        public ProcessingMethodResponseDashboard getDashboardBySlug(String slug) {
+                ProcessingMethod processingMethod = processingMethodRepository
+                                .findBySlugWithTranslations(slug)
+                                .orElseThrow(ProcessingMethodNotFoundException::new);
+                return buildResponse(processingMethod);
+        }
+
         @Transactional
         public ProcessingMethodResponse create(ProcessingMethodRequest request) {
                 helper.validateTranslations(request.getTranslations());
@@ -159,6 +166,7 @@ public class ProcessingMethodService {
                 return ProcessingMethodResponseDashboard.builder()
                                 .id(processingMethod.getId())
                                 .slug(processingMethod.getSlug())
+                                .createdAt(processingMethod.getCreatedAt())
                                 .translations(
                                                 processingMethod.getTranslations()
                                                                 .stream()

@@ -54,6 +54,13 @@ public class CoffeeVarietyController {
                 ApiResponse.success(coffeeVarietyService.getAllDashboard(filter), "Brewing method retrieved"));
     }
 
+    @GetMapping("/dashboard/coffee-varieties/{slug}")
+    @PreAuthorize("hasAuthority('coffee_variety:read')")
+    public ResponseEntity<ApiResponse<CoffeeVarietyResponseDashboard>> getDashboardBySlug(@PathVariable String slug) {
+        return ResponseEntity.ok(
+                ApiResponse.success(coffeeVarietyService.getDashboardBySlug(slug), "Coffee variety retrieved"));
+    }
+
 
     @PostMapping("/dashboard/coffee-varieties")
     @PreAuthorize("hasAuthority('coffee_variety:create')")

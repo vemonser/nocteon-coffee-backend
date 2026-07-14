@@ -119,6 +119,12 @@ public class CoffeeVarietyService {
                 return PageResponse.of(page.map(c -> buildResponse(c, language)));
         }
 
+        public CoffeeVarietyResponseDashboard getDashboardBySlug(String slug) {
+                CoffeeVariety coffeeVariety = coffeeVarietyRepository.findBySlugWithTranslations(slug)
+                                .orElseThrow(CoffeeVarietyNotFoundException::new);
+                return buildResponse(coffeeVariety);
+        }
+
         public PageResponse<CoffeeVarietyResponseDashboard> getAllDashboard(LookupFilterRequest filter) {
                 String search = Objects.requireNonNullElse(
                                 filter.getSearch(),
@@ -147,6 +153,7 @@ public class CoffeeVarietyService {
                                 .slug(coffeeVariety.getSlug())
                                 .name(translation != null ? translation.getName() : null)
                                 .description(translation != null ? translation.getDescription() : null)
+                                .createdAt(coffeeVariety.getCreatedAt())
                                 .build();
         }
 
@@ -155,6 +162,7 @@ public class CoffeeVarietyService {
                 return CoffeeVarietyResponseDashboard.builder()
                                 .id(coffeeVariety.getId())
                                 .slug(coffeeVariety.getSlug())
+                                .createdAt(coffeeVariety.getCreatedAt())
                                 .translations(
                                                 coffeeVariety.getTranslations()
                                                                 .stream()

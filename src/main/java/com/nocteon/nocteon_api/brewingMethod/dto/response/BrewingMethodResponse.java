@@ -1,5 +1,7 @@
 package com.nocteon.nocteon_api.brewingMethod.dto.response;
 
+import java.time.Instant;
+
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -12,5 +14,5 @@ public class BrewingMethodResponse {
     private String slug;
     private String name;
     private String description;
-
+    private Instant createdAt;
 }
