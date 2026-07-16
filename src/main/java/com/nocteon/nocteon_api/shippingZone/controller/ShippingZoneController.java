@@ -37,6 +37,12 @@ public class ShippingZoneController {
         return ResponseEntity.ok(ApiResponse.success(shippingZoneService.getAll(filter), "Shipping zones retrieved"));
     }
 
+    @GetMapping("/dashboard/shipping-zones/{id}")
+    @PreAuthorize("hasAuthority('shipping:read')")
+    public ResponseEntity<ApiResponse<ShippingZoneResponse>> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(shippingZoneService.getById(id), "Shipping zone retrieved"));
+    }
+
     @PostMapping("/dashboard/shipping-zones")
     @PreAuthorize("hasAuthority('shipping:create')")
     public ResponseEntity<ApiResponse<ShippingZoneResponse>> create(@RequestBody @Valid ShippingZoneRequest request) {

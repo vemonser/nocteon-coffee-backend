@@ -122,6 +122,12 @@ public class RoastLevelService {
                 return PageResponse.of(page.map(r -> buildResponse(r, language)));
         }
 
+        public DashboardRoastLevelResponse getDashboardBySlug(String slug) {
+                RoastLevel roastLevel = roastLevelRepository.findBySlugWithTranslations(slug)
+                                .orElseThrow(RoastLevelNotFoundException::new);
+                return buildResponse(roastLevel);
+        }
+
         public PageResponse<DashboardRoastLevelResponse> getAllDashboard(LookupFilterRequest filter) {
                 String search = Objects.requireNonNullElse(
                                 filter.getSearch(),
@@ -155,6 +161,8 @@ public class RoastLevelService {
                                 .id(roastLevel.getId())
                                 .slug(roastLevel.getSlug())
                                 .color(roastLevel.getColor())
+                                .createdAt(roastLevel.getCreatedAt())
+                                .updatedAt(roastLevel.getUpdatedAt())
                                 .translations(
                                                 roastLevel.getTranslations()
                                                                 .stream()

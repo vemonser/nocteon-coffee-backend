@@ -53,6 +53,12 @@ public class ShippingZoneService {
         return buildResponse(zone);
     }
 
+    public ShippingZoneResponse getById(Long id) {
+        ShippingZone zone = shippingZoneRepository.findById(id)
+                .orElseThrow(ShippingZoneNotFoundException::new);
+        return buildResponse(zone);
+    }
+
     @Transactional
     public ShippingZoneResponse update(Long id, ShippingZoneRequest request) {
         ShippingZone zone = shippingZoneRepository.findById(id)
@@ -96,6 +102,8 @@ public class ShippingZoneService {
                 .shippingCost(zone.getShippingCost())
                 .cities(zone.getCities())
                 .active(zone.isActive())
+                .createdAt(zone.getCreatedAt())
+                .updatedAt(zone.getUpdatedAt())
                 .build();
     }
 }

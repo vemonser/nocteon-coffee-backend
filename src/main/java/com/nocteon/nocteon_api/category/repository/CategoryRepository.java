@@ -13,6 +13,13 @@ import com.nocteon.nocteon_api.category.entity.Category;
 import io.lettuce.core.dynamic.annotation.Param;
 
 public interface CategoryRepository extends JpaRepository<Category, Long> {
+        @Query("""
+                            SELECT DISTINCT c FROM Category c
+                            JOIN c.translations t
+                            WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :query, '%'))
+                               OR LOWER(c.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        """)
+        List<Category> searchCategories(@Param("query") String query, Pageable pageable);
 
      @Query("""
                SELECT DISTINCT c

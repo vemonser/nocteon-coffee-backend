@@ -1,5 +1,8 @@
 package com.nocteon.nocteon_api.review.service;
 
+import java.util.List;
+import java.util.Objects;
+
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
@@ -13,6 +16,8 @@ import com.nocteon.nocteon_api.common.exception.notFound.ProductNotFoundExceptio
 import com.nocteon.nocteon_api.common.exception.notFound.ReviewNotFoundException;
 import com.nocteon.nocteon_api.common.exception.product.DuplicateReviewException;
 import com.nocteon.nocteon_api.product.entity.Product;
+import com.nocteon.nocteon_api.product.entity.ProductMedia;
+import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import com.nocteon.nocteon_api.review.dto.request.ReviewRequest;
 import com.nocteon.nocteon_api.review.dto.response.ReviewResponse;
@@ -70,9 +75,22 @@ public class ReviewService {
         public PageResponse<ReviewResponse> getDashboardReviews(
                         String productSlug, Boolean isApproved, Boolean isVerified,
                         Integer minRating, BaseFilterRequest filter) {
+                String search = Objects.requireNonNullElse(
+                                productSlug,
+                                "");
+
                 Page<Review> page = reviewRepository.findAllDashboard(
-                                productSlug, isApproved, isVerified, minRating, filter.toPageable());
+                                search, isApproved, isVerified, minRating, filter.toPageable());
                 return PageResponse.of(page.map(this::buildResponse));
+        }
+
+        public ReviewResponse getDashboardById(Long id) {
+                Review review = reviewRepository.findById(id)
+                                .orElseThrow(ReviewNotFoundException::new);
+                if (review.getDeletedAt() != null) {
+                        throw new ReviewNotFoundException();
+                }
+                return buildResponse(review);
         }
 
         @Transactional
@@ -109,7 +127,21 @@ public class ReviewService {
         }
 
         public ReviewResponse buildResponse(Review review) {
+                String language = LocaleContextHolder.getLocale().getLanguage();
                 UserProfile profile = review.getUser().getProfile();
+
+                Product product = review.getProduct();
+                List<ProductTranslation> productTranslations = product.getTranslations();
+                ProductTranslation productTranslation = productTranslations.stream()
+                                .filter(t -> t.getLanguage().equals(language))
+                                .findFirst()
+                                .orElse(productTranslations.isEmpty() ? null : productTranslations.get(0));
+
+                ProductMedia primaryMedia = product.getMedia().stream()
+                                .filter(ProductMedia::isPrimary)
+                                .findFirst()
+                                .orElse(product.getMedia().isEmpty() ? null : product.getMedia().get(0));
+
                 return ReviewResponse.builder()
                                 .id(review.getId())
                                 .username(review.getUser().getUsername())
@@ -119,6 +151,8 @@ public class ReviewService {
                                 .verified(review.isVerified())
                                 .isApproved(review.isApproved())
                                 .productSlug(review.getProduct().getSlug())
+                                .primaryImageUrl(primaryMedia != null ? primaryMedia.getUrl() : null)
+                                .productName(productTranslation != null ? productTranslation.getName() : null)
                                 .createdAt(review.getCreatedAt())
                                 .build();
         }

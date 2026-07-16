@@ -8,6 +8,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import com.nocteon.nocteon_api.category.entity.CategoryTranslation;
+import com.nocteon.nocteon_api.category.repository.CategoryRepository;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.journal.entity.JournalPostTranslation;
 import com.nocteon.nocteon_api.journal.repository.JournalPostRepository;
@@ -27,6 +29,7 @@ public class GlobalSearchService {
 
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
+    private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
     private final PromoCodeRepository promoCodeRepository;
     private final JournalPostRepository journalPostRepository;
@@ -46,6 +49,7 @@ public class GlobalSearchService {
         results.addAll(searchOrders(trimmedQuery, limit));
         results.addAll(searchUsers(trimmedQuery, limit));
         results.addAll(searchProducts(trimmedQuery, limit));
+        results.addAll(searchCategories(trimmedQuery, limit));
         results.addAll(searchPromoCodes(trimmedQuery, limit));
         results.addAll(searchJournalPosts(trimmedQuery, limit));
 
@@ -111,6 +115,27 @@ public class GlobalSearchService {
                         .build())
                 .toList();
     }
+    private List<SearchResultDto> searchCategories(String query, Pageable limit) {
+        String language = LocaleContextHolder.getLocale().getLanguage();
+
+        return categoryRepository.searchCategories(query, limit).stream()
+                .map(c -> {
+                    CategoryTranslation translation = c.getTranslations().stream()
+                            .filter(t -> t.getLanguage().equals(language))
+                            .findFirst()
+                            .orElseGet(() -> c.getTranslations().stream().findFirst().orElse(null));
+
+                    return SearchResultDto.builder()
+                            .type(SearchResultType.CATEGORY)
+                            .id(c.getId())
+                            .title(translation != null ? translation.getName() : c.getSlug())
+                            .subtitle(Boolean.TRUE.equals(c.getIsActive()) ? "Active" : "Inactive")
+                            .identifier(c.getSlug())
+                            .build();
+                })
+                .toList();
+    }
+
 
     private List<SearchResultDto> searchJournalPosts(String query, Pageable limit) {
         String language = LocaleContextHolder.getLocale().getLanguage();

@@ -47,6 +47,13 @@ public class RoastLevelController {
                 ApiResponse.success(roastLevelService.getAllDashboard(filter), "Roast levels retrieved"));
     }
 
+    @GetMapping("/dashboard/roast-levels/{slug}")
+    @PreAuthorize("hasAuthority('roast_level:read')")
+    public ResponseEntity<ApiResponse<DashboardRoastLevelResponse>> getDashboardBySlug(@PathVariable String slug) {
+        return ResponseEntity.ok(
+                ApiResponse.success(roastLevelService.getDashboardBySlug(slug), "Roast level retrieved"));
+    }
+
     @PostMapping("/dashboard/roast-levels")
     @PreAuthorize("hasAuthority('roast_level:create')")
     public ResponseEntity<ApiResponse<RoastLevelResponse>> create(

@@ -79,6 +79,7 @@ public class SecurityConfig {
                                                                 "/api/pairings/**",
                                                                 "/api/products",
                                                                 "/api/products/**",
+                                                                "/api/settings",
                                                                 "/api/orders/payment/webhook")
                                                 .permitAll()
                                                 .requestMatchers("/api/dashboard/**").authenticated()

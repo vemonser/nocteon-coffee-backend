@@ -80,7 +80,12 @@ public enum Permission {
     REVIEW_MODERATE("review:moderate"),
     REVIEW_UPDATE("review:update"),
     REVIEW_DELETE("review:delete"),
-
+    
+    SHIPPING_CREATE("shipping:create"),
+    SHIPPING_READ("shipping:read"),
+    SHIPPING_MODERATE("shipping:moderate"),
+    SHIPPING_UPDATE("shipping:update"),
+    SHIPPING_DELETE("shipping:delete"),
     // user
     USER_READ("user:read"),
     USER_UPDATE("user:update"),

@@ -7,7 +7,8 @@ public enum SearchResultType {
     USER("users"),
     PRODUCT("products"),
     PROMO_CODE("promo-codes"),
-    JOURNAL_POST("journal-posts");
+    JOURNAL_POST("journal-posts"),
+    CATEGORY("categories");
 
     private final String routeSegment;
 

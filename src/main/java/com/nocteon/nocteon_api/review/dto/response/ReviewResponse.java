@@ -17,7 +17,8 @@ public class ReviewResponse {
     private String comment;
     private boolean verified;
     private boolean isApproved; 
-    private String productSlug; 
-
+    private String productName;
+    private String productSlug;
+    private String primaryImageUrl;
     private Instant createdAt;
 }

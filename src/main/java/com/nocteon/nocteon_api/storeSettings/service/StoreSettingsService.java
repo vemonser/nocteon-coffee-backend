@@ -20,7 +20,9 @@ public class StoreSettingsService {
         StoreSettings settings = repository.getSettings();
         return StoreSettingsResponse.builder()
                 .freeShippingThreshold(settings.getFreeShippingThreshold())
-                .build();
+                .id(settings.getId())
+                .updatedAt(settings.getUpdatedAt())
+                .createdAt(settings.getCreatedAt()).build();
     }
 
     @Transactional

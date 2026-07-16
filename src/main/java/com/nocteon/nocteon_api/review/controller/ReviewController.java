@@ -78,6 +78,15 @@ public class ReviewController {
                         "Dashboard reviews retrieved"));
     }
 
+    @GetMapping("/dashboard/reviews/{id}")
+    @PreAuthorize("hasAuthority('review:moderate')")
+    public ResponseEntity<ApiResponse<ReviewResponse>> getDashboardById(@PathVariable Long id) {
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        reviewService.getDashboardById(id),
+                        "Review retrieved"));
+    }
+
     @PatchMapping("/dashboard/reviews/{id}/approval")
     @PreAuthorize("hasAuthority('review:moderate')")
     public ResponseEntity<ApiResponse<ReviewResponse>> setApproval(
