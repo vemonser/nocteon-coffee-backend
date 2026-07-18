@@ -3,6 +3,7 @@ package com.nocteon.nocteon_api.review.service;
 import java.util.List;
 import java.util.Objects;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
@@ -15,6 +16,7 @@ import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.ReviewNotFoundException;
 import com.nocteon.nocteon_api.common.exception.product.DuplicateReviewException;
+import com.nocteon.nocteon_api.notifications.event.ReviewCreatedEvent;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.entity.ProductMedia;
 import com.nocteon.nocteon_api.product.entity.ProductTranslation;
@@ -34,6 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ReviewService {
         private final ReviewRepository reviewRepository;
         private final ProductRepository productRepository;
+        private final ApplicationEventPublisher eventPublisher;
 
         @Transactional
         public ReviewResponse create(ReviewRequest request, UserPrincipal principal) {
@@ -62,6 +65,8 @@ public class ReviewService {
                 review = reviewRepository.save(review);
                 log.info("Review created by user {} for product {}",
                                 principal.getUserId(), request.getProductSlug());
+                eventPublisher.publishEvent(new ReviewCreatedEvent(review.getId(), review.getProduct().getSlug()));
+
                 return buildResponse(review);
         }
 

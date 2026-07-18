@@ -41,6 +41,14 @@ public class AdminUserController {
                                 "Users retrieved successfully"));
         }
 
+        @GetMapping("/{id}")
+        @PreAuthorize("hasAuthority('user:read')")
+        public ResponseEntity<ApiResponse<UserResponse>> getById(@PathVariable Long id) {
+                return ResponseEntity.ok(ApiResponse.success(
+                                userService.getById(id),
+                                "User retrieved successfully"));
+        }
+
         @PostMapping
         @PreAuthorize("hasAuthority('user:create')")
         public ResponseEntity<ApiResponse<UserResponse>> create(

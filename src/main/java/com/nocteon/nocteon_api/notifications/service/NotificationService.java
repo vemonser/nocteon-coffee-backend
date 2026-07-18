@@ -6,6 +6,7 @@ import com.nocteon.nocteon_api.notifications.entity.Notification;
 import com.nocteon.nocteon_api.notifications.enums.NotificationType;
 import com.nocteon.nocteon_api.notifications.event.OrderCreatedEvent;
 import com.nocteon.nocteon_api.notifications.event.PaymentSucceededEvent;
+import com.nocteon.nocteon_api.notifications.event.ReviewCreatedEvent;
 import com.nocteon.nocteon_api.notifications.repository.NotificationRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -56,6 +57,21 @@ public class NotificationService {
         }
     }
 
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onReviewCreated(ReviewCreatedEvent event) {
+        try {
+            notificationRepository.save(Notification.builder()
+                    .type(NotificationType.REVIEW_CREATED)
+                    .title("Review Created")
+                    .message("A new review " + event.reviewId() + " was submitted for product  #" + event.productSlug())
+                    .link("/dashboard/reviews/" + event.reviewId())
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to create notification for Review on product {}", event.reviewId(), e);
+        }
+    }
+
     public PageResponse<NotificationResponse> getNotifications(boolean unreadOnly, Pageable pageable) {
         var page = unreadOnly
                 ? notificationRepository.findByIsReadFalseOrderByCreatedAtDesc(pageable)
@@ -68,6 +84,7 @@ public class NotificationService {
         return notificationRepository.countByIsReadFalse();
     }
 
+    @Transactional
     public void markAsRead(Long id) {
         Notification notification = notificationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Notification not found"));
@@ -75,6 +92,7 @@ public class NotificationService {
         notificationRepository.save(notification);
     }
 
+    @Transactional
     public void markAllAsRead() {
         notificationRepository.markAllAsRead();
     }

@@ -78,7 +78,7 @@ public class GlobalSearchService {
                         .id(u.getId())
                         .title(u.getProfile().getFullName())
                         .subtitle(u.getEmail())
-                        .identifier(u.getUsername())
+                        .identifier(u.getId().toString())
                         .build())
                 .toList();
     }

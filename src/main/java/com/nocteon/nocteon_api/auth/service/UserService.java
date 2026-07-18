@@ -24,6 +24,7 @@ import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.cloudinary.service.CloudinaryService;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.common.enums.Permission;
 import com.nocteon.nocteon_api.common.exception.email.EmailAlreadyExistsException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidCredentialsException;
 import com.nocteon.nocteon_api.common.exception.notFound.UserNotFoundException;
@@ -46,19 +47,16 @@ public class UserService {
     private final CloudinaryService cloudinaryService;
     private final PasswordValidator passwordValidator;
 
+    @Transactional(readOnly = true)
     public UserResponse getMe(UserPrincipal principal) {
-        User user = userRepository.findByIdWithProfile(principal.getUserId())
-                .orElseThrow(UserNotFoundException::new);
-        UserProfile profile = user.getProfile();
-        return UserResponse.builder()
-                .id(user.getId())
-                .email(user.getEmail())
-                .username(user.getUsername())
-                .role(user.getRole())
-                .firstName(profile != null ? profile.getFirstName() : null)
-                .lastName(profile != null ? profile.getLastName() : null)
-                .avatarUrl(profile != null ? profile.getAvatarUrl() : null)
-                .build();
+        return getById(principal.getUserId());
+    }
+
+    @Transactional(readOnly = true)
+    public UserResponse getById(Long id) {
+        User user = userRepository.findByIdWithProfile(id)
+                .orElseThrow(() -> new UserNotFoundException());
+        return mapToResponse(user);
     }
 
     @Transactional
@@ -70,6 +68,7 @@ public class UserService {
 
         if (profile == null) {
             profile = UserProfile.builder().user(user).build();
+            user.setProfile(profile);
         }
         if (request.getFirstName() != null)
             profile.setFirstName(request.getFirstName());
@@ -84,7 +83,7 @@ public class UserService {
 
         log.info("Profile updated for user: {}", user.getEmail());
 
-        return getMe(principal);
+        return mapToResponse(user);
     }
 
     @Transactional
@@ -96,6 +95,7 @@ public class UserService {
 
         if (profile == null) {
             profile = UserProfile.builder().user(user).build();
+            user.setProfile(profile);
         }
 
         if (profile.getAvatarUrl() != null) {
@@ -107,7 +107,7 @@ public class UserService {
 
         log.info("Avatar updated for user: {}", user.getEmail());
 
-        return getMe(principal);
+        return mapToResponse(user);
     }
 
     @Transactional
@@ -132,6 +132,7 @@ public class UserService {
         log.info("Password changed for user: {}", user.getEmail());
     }
 
+    @Transactional(readOnly = true)
     public UserGrowthDto calculateUserGrowth(Duration period) {
         Instant now = Instant.now();
 
@@ -165,6 +166,7 @@ public class UserService {
 
     // ─── Admin methods ─────────────────────────────────────────────
 
+    @Transactional(readOnly = true)
     public PageResponse<UserResponse> getAllForAdmin(UserFilterRequest filter) {
         String searchTerm = filter.getSearch() != null ? filter.getSearch() : "";
 
@@ -181,7 +183,7 @@ public class UserService {
     @Transactional
     public UserResponse toggleActive(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(UserNotFoundException::new);
+                .orElseThrow(() -> new UserNotFoundException());
 
         user.setActive(!user.isActive());
         userRepository.save(user);
@@ -194,7 +196,7 @@ public class UserService {
     @Transactional
     public UserResponse adminUpdate(Long userId, AdminUpdateUserRequest request) {
         User user = userRepository.findByIdWithProfile(userId)
-                .orElseThrow(UserNotFoundException::new);
+                .orElseThrow(() -> new UserNotFoundException());
 
         if (request.getUsername() != null && !request.getUsername().equals(user.getUsername())) {
             if (userRepository.existsByUsername(request.getUsername())) {
@@ -288,7 +290,9 @@ public class UserService {
                 .avatarUrl(profile != null ? profile.getAvatarUrl() : null)
                 .createdAt(user.getCreatedAt())
                 .lastActiveAt(user.getLastActiveAt())
+                .permissions(user.getRole().getPermissions().stream()
+                        .map(Permission::getPermission)
+                        .toList())
                 .build();
     }
-
 }
