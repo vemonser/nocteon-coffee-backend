@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.payment.service;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.HexFormat;
@@ -187,7 +188,9 @@ public class PaymentService {
 
             String computed = HexFormat.of().formatHex(hash);
 
-            return computed.equals(receivedHmac);
+            return MessageDigest.isEqual(
+                    computed.getBytes(StandardCharsets.UTF_8),
+                    receivedHmac.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
             log.error("HMAC verification failed", e);
             return false;
@@ -203,6 +206,9 @@ public class PaymentService {
                 "https://accept.paymob.com/api/auth/tokens",
                 body, Map.class);
 
+        if (response == null || response.get("token") == null) {
+            throw new IllegalStateException("Failed to obtain Paymob auth token");
+        }
         return (String) response.get("token");
     }
 
@@ -222,6 +228,9 @@ public class PaymentService {
                 "https://accept.paymob.com/api/ecommerce/orders",
                 body, Map.class);
 
+        if (response == null || response.get("id") == null) {
+            throw new IllegalStateException("Failed to create Paymob order");
+        }
         return response.get("id").toString();
     }
 
@@ -259,6 +268,9 @@ public class PaymentService {
                 "https://accept.paymob.com/api/acceptance/payment_keys",
                 body, Map.class);
 
+        if (response == null || response.get("token") == null) {
+            throw new IllegalStateException("Failed to obtain Paymob payment key");
+        }
         return (String) response.get("token");
     }
 }

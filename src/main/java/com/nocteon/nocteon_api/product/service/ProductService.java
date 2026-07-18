@@ -5,17 +5,11 @@ import java.util.Objects;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.nocteon.nocteon_api.common.dto.PageResponse;
-import com.nocteon.nocteon_api.common.exception.notFound.FarmNotFoundException;
-import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductNotFoundException;
-import com.nocteon.nocteon_api.farm.repository.FarmRepository;
-import com.nocteon.nocteon_api.origin.repository.OriginRepository;
 import com.nocteon.nocteon_api.product.dto.request.ProductFilterRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductMediaRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductRequest;
@@ -23,6 +17,7 @@ import com.nocteon.nocteon_api.product.dto.response.DashboardProductResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
 import com.nocteon.nocteon_api.product.entity.Product;
+import com.nocteon.nocteon_api.product.mapper.DashboardProductMapper;
 import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 
@@ -34,9 +29,8 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final ProductResponseMapper productResponseMapper;
+    private final DashboardProductMapper dashboardProductMapper;
     private final ProductMutationService productMutationService;
-    private final OriginRepository originRepository;
-    private final FarmRepository farmRepository;
 
     public PageResponse<ProductCardResponse> getAll(ProductFilterRequest filter) {
         String language = LocaleContextHolder.getLocale().getLanguage();
@@ -66,7 +60,7 @@ public class ProductService {
         Product product = productRepository.findBySlug(slug)
                 .orElseThrow(ProductNotFoundException::new);
 
-        return productResponseMapper.buildDashboardResponse(product);
+        return dashboardProductMapper.buildDashboardResponse(product);
     }
 
     public ProductResponse getBySlug(String slug) {
@@ -111,26 +105,6 @@ public class ProductService {
     }
 
 
-
-    @Transactional(readOnly = true)
-    public Page<ProductCardResponse> getProductsByFarmSlug(String slug, Pageable pageable) {
-        if (!farmRepository.existsBySlug(slug)) {
-            throw new FarmNotFoundException();
-        }
-        String language = LocaleContextHolder.getLocale().getLanguage();
-        return productRepository.findByFarmSlugPublic(slug, pageable)
-                .map(p -> productResponseMapper.buildListResponse(p, language));
-    }
-
-    @Transactional(readOnly = true)
-    public Page<ProductCardResponse> getProductsByOriginSlug(String slug, Pageable pageable) {
-        if (!originRepository.existsBySlug(slug)) {
-            throw new OriginNotFoundException();
-        }
-        String language = LocaleContextHolder.getLocale().getLanguage();
-        return productRepository.findByOriginSlugPublic(slug, pageable)
-                .map(p -> productResponseMapper.buildListResponse(p, language));
-    }
 
     private Page<Product> findDashboardPage(ProductFilterRequest filter) {
         return productRepository.findAllDashboard(

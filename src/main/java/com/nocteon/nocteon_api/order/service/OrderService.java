@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.nocteon.nocteon_api.address.entity.Address;
 import com.nocteon.nocteon_api.address.repository.AddressRepository;
@@ -161,8 +163,16 @@ public class OrderService {
                 }
 
                 cartItemRepository.deleteByCartId(cart.getId());
-                eventPublisher.publishEvent(new OrderCreatedEvent(order.getId(), total));
-                eventPublisher.publishEvent(new OrderPlacedEvent(order.getId()));
+
+                final Order savedOrder = order;
+                final BigDecimal finalTotal = total;
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                                eventPublisher.publishEvent(new OrderCreatedEvent(savedOrder.getId(), finalTotal));
+                                eventPublisher.publishEvent(new OrderPlacedEvent(savedOrder.getId()));
+                        }
+                });
 
                 if (request.getPaymentMethod() == PaymentMethod.CASH_ON_DELIVERY) {
                         if (appliedPromoCode != null) {
@@ -236,6 +246,7 @@ public class OrderService {
                                 .build();
         }
 
+        @Transactional(readOnly = true)
         public PageResponse<OrderResponse> getUserOrders(UserPrincipal principal,
                         BaseFilterRequest filter) {
                 Page<Order> page = orderRepository.findByUserId(
@@ -243,6 +254,7 @@ public class OrderService {
                 return PageResponse.of(page.map(this::buildResponse));
         }
 
+        @Transactional(readOnly = true)
         public PageResponse<OrderResponse> getAllOrders(OrderFilterRequest filter) {
                 Page<Order> page = orderRepository.findAllWithFilters(
                                 filter.getStatus(), filter.toPageable());
@@ -250,10 +262,31 @@ public class OrderService {
         }
 
         @Transactional
-        public OrderResponse updateStatus(Long orderId, OrderStatus status) {
+        public OrderResponse updateStatus(Long orderId, OrderStatus newStatus) {
                 Order order = orderRepository.findById(orderId)
                                 .orElseThrow(OrderNotFoundException::new);
-                order.setStatus(status);
+
+                OrderStatus currentStatus = order.getStatus();
+
+                if (currentStatus == newStatus) {
+                        return buildResponse(order);
+                }
+
+                if (currentStatus == OrderStatus.DELIVERED || currentStatus == OrderStatus.CANCELLED) {
+                        throw new IllegalStateException(
+                                        "Cannot change order status from " + currentStatus + " to " + newStatus);
+                }
+
+                order.setStatus(newStatus);
+
+                if (newStatus == OrderStatus.CANCELLED) {
+                        for (OrderItem item : order.getItems()) {
+                                ProductVariant variant = item.getProductVariant();
+                                variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity());
+                                variantRepository.save(variant);
+                        }
+                }
+
                 return buildResponse(orderRepository.save(order));
         }
 

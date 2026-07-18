@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 
 
@@ -29,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@Validated
 @RequiredArgsConstructor
 public class TastingNoteController {
 
@@ -82,8 +84,8 @@ public class TastingNoteController {
 
     @DeleteMapping("/dashboard/tasting-notes/{slug}")
     @PreAuthorize("hasAuthority('tasting_note:delete')")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String slug) {
+    public ResponseEntity<Void> delete(@PathVariable String slug) {
         tastingNoteService.delete(slug);
-        return ResponseEntity.ok(ApiResponse.success(null, "Tasting note deleted"));
+        return ResponseEntity.noContent().build();
     }
 }

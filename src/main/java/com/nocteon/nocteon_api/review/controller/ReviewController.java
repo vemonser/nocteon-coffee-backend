@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
@@ -28,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@Validated
 @RequiredArgsConstructor
 public class ReviewController {
 
@@ -56,11 +58,11 @@ public class ReviewController {
 
     @DeleteMapping("/products/reviews/{id}")
     @PreAuthorize("hasAuthority('review:delete')")
-    public ResponseEntity<ApiResponse<Void>> delete(
+    public ResponseEntity<Void> delete(
             @PathVariable Long id,
             @AuthenticationPrincipal UserPrincipal principal) {
         reviewService.delete(id, principal);
-        return ResponseEntity.ok(ApiResponse.success(null, "Review deleted"));
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/dashboard/reviews")
@@ -100,8 +102,8 @@ public class ReviewController {
 
     @DeleteMapping("/dashboard/reviews/{id}")
     @PreAuthorize("hasAuthority('review:delete')")
-    public ResponseEntity<ApiResponse<Void>> adminDelete(@PathVariable Long id) {
+    public ResponseEntity<Void> adminDelete(@PathVariable Long id) {
         reviewService.adminDelete(id);
-        return ResponseEntity.ok(ApiResponse.success(null, "Review deleted"));
+        return ResponseEntity.noContent().build();
     }
 }

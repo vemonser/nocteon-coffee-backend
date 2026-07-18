@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 import com.nocteon.nocteon_api.address.dto.request.AddressRequest;
 import com.nocteon.nocteon_api.address.dto.response.AddressResponse;
@@ -26,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/addresses")
+@Validated
 @RequiredArgsConstructor
 public class AddressController {
 
@@ -60,10 +62,10 @@ public class AddressController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('user:update')")
-    public ResponseEntity<ApiResponse<Void>> delete(
+    public ResponseEntity<Void> delete(
             @PathVariable Long id,
             @AuthenticationPrincipal UserPrincipal principal) {
         addressService.delete(id, principal);
-        return ResponseEntity.ok(ApiResponse.success(null, "Address deleted"));
+        return ResponseEntity.noContent().build();
     }
 }

@@ -11,19 +11,13 @@ import com.nocteon.nocteon_api.brewingMethod.entity.BrewingMethod;
 import com.nocteon.nocteon_api.brewingMethod.repository.BrewingMethodRepository;
 import com.nocteon.nocteon_api.category.entity.Category;
 import com.nocteon.nocteon_api.category.repository.CategoryRepository;
-import com.nocteon.nocteon_api.coffeeVariety.entity.CoffeeVariety;
-import com.nocteon.nocteon_api.coffeeVariety.repository.CoffeeVarietyRepository;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidProductTypeException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.BrewingMethodNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.CategoryNotFoundException;
-import com.nocteon.nocteon_api.common.exception.notFound.CoffeeVarietyNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.FarmNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException;
-import com.nocteon.nocteon_api.common.exception.notFound.ProcessingMethodNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductNotFoundException;
-import com.nocteon.nocteon_api.common.exception.notFound.RoastLevelNotFoundException;
-import com.nocteon.nocteon_api.common.exception.product.DuplicateSkuException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.farm.entity.Farm;
 import com.nocteon.nocteon_api.farm.repository.FarmRepository;
@@ -31,32 +25,23 @@ import com.nocteon.nocteon_api.origin.entity.Origin;
 import com.nocteon.nocteon_api.origin.repository.OriginRepository;
 import com.nocteon.nocteon_api.pairing.entity.Pairing;
 import com.nocteon.nocteon_api.pairing.repository.PairingRepository;
-import com.nocteon.nocteon_api.processingMethod.entity.ProcessingMethod;
-import com.nocteon.nocteon_api.processingMethod.repository.ProcessingMethodRepository;
-import com.nocteon.nocteon_api.product.dto.request.CoffeeDetailsRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductBrewingMethodRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductMediaRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductTranslationRequest;
-import com.nocteon.nocteon_api.product.dto.request.ProductVariantRequest;
 import com.nocteon.nocteon_api.product.dto.response.DashboardProductResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
-import com.nocteon.nocteon_api.product.entity.CoffeeDetails;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.entity.ProductBrewingMethod;
 import com.nocteon.nocteon_api.product.entity.ProductMedia;
 import com.nocteon.nocteon_api.product.entity.ProductTranslation;
-import com.nocteon.nocteon_api.product.entity.ProductVariant;
 import com.nocteon.nocteon_api.product.enums.ProductType;
+import com.nocteon.nocteon_api.product.mapper.DashboardProductMapper;
 import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
-import com.nocteon.nocteon_api.product.repository.CoffeeDetailsRepository;
 import com.nocteon.nocteon_api.product.repository.ProductBrewingMethodRepository;
 import com.nocteon.nocteon_api.product.repository.ProductMediaRepository;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import com.nocteon.nocteon_api.product.repository.ProductTranslationRepository;
-import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
-import com.nocteon.nocteon_api.roastLevel.entity.RoastLevel;
-import com.nocteon.nocteon_api.roastLevel.repository.RoastLevelRepository;
 import com.nocteon.nocteon_api.tastingNote.entity.TastingNote;
 import com.nocteon.nocteon_api.tastingNote.repository.TastingNoteRepository;
 
@@ -71,22 +56,20 @@ public class ProductMutationService {
 
     private final ProductRepository productRepository;
     private final ProductTranslationRepository productTranslationRepository;
-    private final ProductVariantRepository productVariantRepository;
-    private final ProductMediaRepository productMediaRepository;
     private final ProductBrewingMethodRepository productBrewingMethodRepository;
-    private final CoffeeDetailsRepository coffeeDetailsRepository;
+    private final ProductMediaRepository productMediaRepository;
     private final CategoryRepository categoryRepository;
     private final OriginRepository originRepository;
     private final FarmRepository farmRepository;
-    private final RoastLevelRepository roastLevelRepository;
-    private final ProcessingMethodRepository processingMethodRepository;
-    private final CoffeeVarietyRepository coffeeVarietyRepository;
     private final TastingNoteRepository tastingNoteRepository;
     private final PairingRepository pairingRepository;
     private final BrewingMethodRepository brewingMethodRepository;
     private final LookupServiceHelper helper;
     private final ProductMediaService productMediaService;
     private final ProductResponseMapper productResponseMapper;
+    private final DashboardProductMapper dashboardProductMapper;
+    private final ProductVariantService productVariantService;
+    private final ProductCoffeeDetailsService productCoffeeDetailsService;
 
     @Transactional
     public ProductResponse create(ProductRequest request, List<MultipartFile> files) {
@@ -118,11 +101,11 @@ public class ProductMutationService {
         product = productRepository.save(product);
 
         saveTranslations(product, request.getTranslations());
-        saveVariants(product, request.getVariants());
+        productVariantService.saveVariants(product, request.getVariants());
 
         if (request.getProductType() == ProductType.COFFEE
                 && request.getCoffeeDetails() != null) {
-            saveCoffeeDetails(product, request.getCoffeeDetails());
+            productCoffeeDetailsService.saveCoffeeDetails(product, request.getCoffeeDetails());
         }
 
         attachTastingNotes(product, request.getTastingNoteSlugs());
@@ -156,8 +139,8 @@ public class ProductMutationService {
         productRepository.save(product);
 
         upsertTranslations(product, request.getTranslations());
-        replaceVariants(product, request.getVariants());
-        replaceCoffeeDetails(product, request);
+        productVariantService.replaceVariants(product, request.getVariants());
+        productCoffeeDetailsService.replaceCoffeeDetails(product, request.getProductType(), request.getCoffeeDetails());
         replaceTastingNotes(product, request.getTastingNoteSlugs());
         replacePairings(product, request.getPairingSlugs());
         replaceBrewingMethods(product, request.getBrewingMethods());
@@ -165,7 +148,7 @@ public class ProductMutationService {
 
         productRepository.save(product);
         log.info("Product updated with slug: {}", slug);
-        return productResponseMapper.buildDashboardResponse(product);
+        return dashboardProductMapper.buildDashboardResponse(product);
     }
 
     @Transactional
@@ -174,7 +157,7 @@ public class ProductMutationService {
                 .orElseThrow(ProductNotFoundException::new);
         product.setActive(active);
         productRepository.save(product);
-        return productResponseMapper.buildDashboardResponse(product);
+        return dashboardProductMapper.buildDashboardResponse(product);
     }
 
     @Transactional
@@ -183,7 +166,7 @@ public class ProductMutationService {
                 .orElseThrow(ProductNotFoundException::new);
         product.setFeatured(featured);
         productRepository.save(product);
-        return productResponseMapper.buildDashboardResponse(product);
+        return dashboardProductMapper.buildDashboardResponse(product);
     }
 
     @Transactional
@@ -271,84 +254,6 @@ public class ProductMutationService {
                             .description(t.getDescription())
                             .build()));
         }
-    }
-
-    private void saveVariants(Product product, List<ProductVariantRequest> requests) {
-        for (ProductVariantRequest v : requests) {
-            if (productVariantRepository.existsBySku(v.getSku())) {
-                throw new DuplicateSkuException();
-            }
-            productVariantRepository.save(buildVariant(product, v));
-        }
-    }
-
-    private void replaceVariants(Product product, List<ProductVariantRequest> requests) {
-        productVariantRepository.deleteByProductId(product.getId());
-        productVariantRepository.flush();
-        for (ProductVariantRequest v : requests) {
-            productVariantRepository.findBySku(v.getSku())
-                    .filter(existing -> !existing.getProduct().getId().equals(product.getId()))
-                    .ifPresent(existing -> {
-                        throw new DuplicateSkuException();
-                    });
-            productVariantRepository.save(buildVariant(product, v));
-        }
-    }
-
-    private ProductVariant buildVariant(Product product, ProductVariantRequest v) {
-        return ProductVariant.builder()
-                .product(product)
-                .sku(v.getSku())
-                .price(v.getPrice())
-                .weightGrams(v.getWeightGrams())
-                .grindType(v.getGrindType())
-                .stockQuantity(v.getStockQuantity())
-                .compareAtPrice(v.getCompareAtPrice())
-                .isActive(v.getIsActive() != null ? v.getIsActive() : true)
-                .build();
-    }
-
-    private void replaceCoffeeDetails(Product product, ProductRequest request) {
-        coffeeDetailsRepository.deleteByProductId(product.getId());
-        coffeeDetailsRepository.flush();
-        if (request.getProductType() == ProductType.COFFEE
-                && request.getCoffeeDetails() != null) {
-            saveCoffeeDetails(product, request.getCoffeeDetails());
-        }
-    }
-
-    private void saveCoffeeDetails(Product product, CoffeeDetailsRequest cd) {
-        RoastLevel roastLevel = null;
-
-        if (cd.getRoastLevelSlug() != null) {
-            roastLevel = roastLevelRepository
-                    .findBySlug(cd.getRoastLevelSlug())
-                    .orElseThrow(RoastLevelNotFoundException::new);
-        }
-        ProcessingMethod processingMethod = null;
-        if (cd.getProcessingMethodSlug() != null) {
-            processingMethod = processingMethodRepository
-                    .findBySlug(cd.getProcessingMethodSlug())
-                    .orElseThrow(ProcessingMethodNotFoundException::new);
-        }
-
-        CoffeeVariety coffeeVariety = null;
-        if (cd.getCoffeeVarietySlug() != null) {
-            coffeeVariety = coffeeVarietyRepository
-                    .findBySlug(cd.getCoffeeVarietySlug())
-                    .orElseThrow(CoffeeVarietyNotFoundException::new);
-        }
-
-        coffeeDetailsRepository.save(
-                CoffeeDetails.builder()
-                        .product(product)
-                        .processingMethod(processingMethod)
-                        .coffeeVariety(coffeeVariety)
-                        .roastLevel(roastLevel)
-                        .altitude(cd.getAltitude())
-                        .harvestYear(cd.getHarvestYear())
-                        .story(cd.getStory())
-                        .build());
     }
 
     private void attachTastingNotes(Product product, List<String> slugs) {

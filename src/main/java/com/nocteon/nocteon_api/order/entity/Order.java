@@ -84,7 +84,7 @@ public class Order extends SoftDeletableEntity {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
-    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     @BatchSize(size = 30)
     private List<OrderItem> items = new ArrayList<>();

@@ -3,6 +3,8 @@ package com.nocteon.nocteon_api.wishlist.entity;
 import java.util.List;
 import java.util.ArrayList;
 
+import org.hibernate.annotations.BatchSize;
+
 import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.common.entity.BaseEntity;
 
@@ -33,7 +35,8 @@ public class Wishlist extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
-    @OneToMany(mappedBy = "wishlist", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "wishlist", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
+    @BatchSize(size = 30)
     private List<WishlistItem> items = new ArrayList<>();
 }

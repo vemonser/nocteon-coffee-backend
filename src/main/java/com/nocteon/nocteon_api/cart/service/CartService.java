@@ -41,6 +41,7 @@ public class CartService {
     private final ProductTranslationRepository productTranslationRepository;
     private final ProductMediaRepository productMediaRepository;
 
+    @Transactional(readOnly = true)
     public CartResponse getCart(UserPrincipal principal) {
         Cart cart = getOrCreateCart(principal.getUserId());
         return buildResponse(cart);
@@ -77,7 +78,7 @@ public class CartService {
                                 .quantity(request.getQuantity())
                                 .build()));
 
-        return buildResponse(getOrCreateCart(principal.getUserId()));
+        return buildResponse(cart);
     }
 
     @Transactional
@@ -101,7 +102,7 @@ public class CartService {
             cartItemRepository.save(item);
         }
 
-        return buildResponse(getOrCreateCart(principal.getUserId()));
+        return buildResponse(cart);
     }
 
     @Transactional
@@ -116,7 +117,7 @@ public class CartService {
         }
 
         cartItemRepository.delete(item);
-        return buildResponse(getOrCreateCart(principal.getUserId()));
+        return buildResponse(cart);
     }
 
     @Transactional

@@ -6,7 +6,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -14,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
@@ -25,9 +25,7 @@ import com.nocteon.nocteon_api.order.dto.request.OrderFilterRequest;
 import com.nocteon.nocteon_api.order.dto.request.UpdateOrderStatusRequest;
 import com.nocteon.nocteon_api.order.dto.response.OrderPaymentResponse;
 import com.nocteon.nocteon_api.order.dto.response.OrderResponse;
-import com.nocteon.nocteon_api.order.enums.OrderStatus;
 import com.nocteon.nocteon_api.order.service.OrderService;
-import com.nocteon.nocteon_api.order.service.OrderStatusService;
 import com.nocteon.nocteon_api.payment.dto.request.PaymobCallbackRequest;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -37,13 +35,13 @@ import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api")
+@Validated
 @RequiredArgsConstructor
 @Slf4j
 public class OrderController {
 
         private final OrderService orderService;
         private final RateLimiterService rateLimiterService;
-        private final OrderStatusService orderStatusService;
 
         @PostMapping("/orders")
         @PreAuthorize("hasAuthority('order:create')")
@@ -56,26 +54,8 @@ public class OrderController {
                                                 "Order created"));
         }
 
-        // @GetMapping("/orders/payment/callback")
-        // public ResponseEntity<Void> paymentCallback(
-        // @RequestParam String id,
-        // @RequestParam Long orderId) {
-        // orderService.handlePaymentCallback(id, orderId);
-        // return ResponseEntity.ok().build();
-        // }
-        // Paymob Webhook
-        @PatchMapping("/dashboard/orders/{id}/status")
-        @PreAuthorize("hasAuthority('orders:update')")
-        public ResponseEntity<ApiResponse<OrderResponse>> updateStatus(
-                        @PathVariable Long id,
-                        @RequestBody @Valid UpdateOrderStatusRequest request) {
-                return ResponseEntity.ok(
-                                ApiResponse.success(orderStatusService.updateStatus(id, request.getStatus()),
-                                                "Order status updated"));
-        }
-
         @PostMapping("/orders/{orderId}/payment/retry")
-        @PreAuthorize("hasAuthority('order:create')")
+        @PreAuthorize("hasAuthority('order:update')")
         public ResponseEntity<ApiResponse<OrderPaymentResponse>> retryPayment(
                         @PathVariable Long orderId,
                         @AuthenticationPrincipal UserPrincipal principal) {
@@ -94,7 +74,7 @@ public class OrderController {
                 String clientIp = extractClientIp(request);
 
                 if (!rateLimiterService.tryConsumeWebhook(clientIp)) {
-                        log.warn("Webhook rate limit exceeded for IP: {}", clientIp);
+                        log.warn("Webhook rate limit exceeded");
                         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
                 }
 
@@ -103,10 +83,9 @@ public class OrderController {
         }
 
         private String extractClientIp(HttpServletRequest request) {
-                String forwardedFor = request.getHeader("X-Forwarded-For");
-                if (forwardedFor != null && !forwardedFor.isEmpty()) {
-                        // لو فيه أكتر من IP مفصولين بفاصلة، الأول هو الأصلي
-                        return forwardedFor.split(",")[0].trim();
+                String realIp = request.getHeader("X-Real-IP");
+                if (realIp != null && !realIp.isEmpty()) {
+                        return realIp.trim();
                 }
                 return request.getRemoteAddr();
         }
@@ -136,10 +115,10 @@ public class OrderController {
         @PreAuthorize("hasAuthority('order:update')")
         public ResponseEntity<ApiResponse<OrderResponse>> updateStatus(
                         @PathVariable Long id,
-                        @RequestParam OrderStatus status) {
+                        @RequestBody @Valid UpdateOrderStatusRequest request) {
                 return ResponseEntity.ok(
                                 ApiResponse.success(
-                                                orderService.updateStatus(id, status),
+                                                orderService.updateStatus(id, request.getStatus()),
                                                 "Order status updated"));
         }
 }

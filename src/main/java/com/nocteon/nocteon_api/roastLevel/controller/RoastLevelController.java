@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
@@ -26,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@Validated
 @RequiredArgsConstructor
 public class RoastLevelController {
 
@@ -73,9 +75,9 @@ public class RoastLevelController {
 
     @DeleteMapping("/dashboard/roast-levels/{slug}")
     @PreAuthorize("hasAuthority('roast_level:delete')")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String slug) {
+    public ResponseEntity<Void> delete(@PathVariable String slug) {
         roastLevelService.delete(slug);
-        return ResponseEntity.ok(ApiResponse.success(null, "Roast level deleted"));
+        return ResponseEntity.noContent().build();
     }
     @GetMapping("/{slug}")
     public ResponseEntity<ApiResponse<RoastLevelResponse>> getBySlug(@PathVariable String slug) {

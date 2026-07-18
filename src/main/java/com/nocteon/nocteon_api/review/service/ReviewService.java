@@ -70,6 +70,7 @@ public class ReviewService {
                 return buildResponse(review);
         }
 
+        @Transactional(readOnly = true)
         public PageResponse<ReviewResponse> getProductReviews(
                         String productSlug, BaseFilterRequest filter) {
                 Page<Review> page = reviewRepository.findByProductSlug(
@@ -77,6 +78,7 @@ public class ReviewService {
                 return PageResponse.of(page.map(this::buildResponse));
         }
 
+        @Transactional(readOnly = true)
         public PageResponse<ReviewResponse> getDashboardReviews(
                         String productSlug, Boolean isApproved, Boolean isVerified,
                         Integer minRating, BaseFilterRequest filter) {
@@ -89,23 +91,17 @@ public class ReviewService {
                 return PageResponse.of(page.map(this::buildResponse));
         }
 
+        @Transactional(readOnly = true)
         public ReviewResponse getDashboardById(Long id) {
                 Review review = reviewRepository.findById(id)
                                 .orElseThrow(ReviewNotFoundException::new);
-                if (review.getDeletedAt() != null) {
-                        throw new ReviewNotFoundException();
-                }
                 return buildResponse(review);
         }
 
         @Transactional
         public ReviewResponse setApproval(Long reviewId, boolean approved) {
                 Review review = reviewRepository.findById(reviewId)
-                                .orElseThrow(ReviewNotFoundException::new);
-
-                if (review.getDeletedAt() != null) {
-                        throw new ReviewNotFoundException();
-                }
+                        .orElseThrow(ReviewNotFoundException::new);
 
                 review.setApproved(approved);
                 review = reviewRepository.save(review);

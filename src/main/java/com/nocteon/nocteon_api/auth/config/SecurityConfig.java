@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.auth.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -58,7 +59,9 @@ public class SecurityConfig {
                                                 .requestMatchers(
                                                                 "/api/auth/**",
                                                                 "/oauth2/**",
-                                                                "/login/oauth2/**",
+                                                                "/login/oauth2/**")
+                                                .permitAll()
+                                                .requestMatchers(HttpMethod.GET,
                                                                 "/api/categories",
                                                                 "/api/categories/**",
                                                                 "/api/origins",
@@ -79,7 +82,9 @@ public class SecurityConfig {
                                                                 "/api/pairings/**",
                                                                 "/api/products",
                                                                 "/api/products/**",
-                                                                "/api/settings",
+                                                                "/api/settings")
+                                                .permitAll()
+                                                .requestMatchers(HttpMethod.POST,
                                                                 "/api/orders/payment/webhook")
                                                 .permitAll()
                                                 .requestMatchers("/api/dashboard/**").authenticated()

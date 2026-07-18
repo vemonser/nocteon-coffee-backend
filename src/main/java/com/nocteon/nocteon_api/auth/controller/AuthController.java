@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 import com.nocteon.nocteon_api.auth.dto.request.ForgotPasswordRequest;
 import com.nocteon.nocteon_api.auth.dto.request.LoginRequest;
@@ -35,6 +36,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/auth")
+@Validated
 @RequiredArgsConstructor
 public class AuthController {
 

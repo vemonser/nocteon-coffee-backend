@@ -73,20 +73,20 @@ public class Product extends SoftDeletableEntity {
 
     // ===== Relations =====
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     @BatchSize(size = 30)
     private List<ProductTranslation> translations = new ArrayList<>();
 
-    @OneToOne(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToOne(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private CoffeeDetails coffeeDetails;
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     @BatchSize(size = 30)
     private List<ProductVariant> variants = new ArrayList<>();
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     @BatchSize(size = 30)
     private List<ProductMedia> media = new ArrayList<>();
@@ -109,8 +109,8 @@ public class Product extends SoftDeletableEntity {
     @Builder.Default
     private List<Pairing> pairings = new ArrayList<>();
 
-    // BrewingMethod مختلفة عشان فيها score
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    // BrewingMethod
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     @BatchSize(size = 30)
     private List<ProductBrewingMethod> brewingMethods = new ArrayList<>();
@@ -123,5 +123,6 @@ public class Product extends SoftDeletableEntity {
                 inverseJoinColumns = @JoinColumn(name = "journal_post_id")
         )
         @Builder.Default
+        @BatchSize(size = 30)
         private List<JournalPost> journalPosts = new ArrayList<>();
 }

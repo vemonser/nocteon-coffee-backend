@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 import com.nocteon.nocteon_api.brewingMethod.dto.request.BrewingMethodRequest;
 import com.nocteon.nocteon_api.brewingMethod.dto.response.BrewingMethodResponse;
@@ -28,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@Validated
 @RequiredArgsConstructor
 public class BrewingMethodController {
 
@@ -96,8 +98,8 @@ public class BrewingMethodController {
 
     @DeleteMapping("/dashboard/brewing-methods/{slug}")
     @PreAuthorize("hasAuthority('brewing_method:delete')")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String slug) {
+    public ResponseEntity<Void> delete(@PathVariable String slug) {
         brewingMethodService.delete(slug);
-        return ResponseEntity.ok(ApiResponse.success(null, "Brewing method deleted"));
+        return ResponseEntity.noContent().build();
     }
 }

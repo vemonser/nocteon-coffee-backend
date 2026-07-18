@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
@@ -29,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@Validated
 @RequiredArgsConstructor
 public class PromoCodeController {
 
@@ -72,8 +74,8 @@ public class PromoCodeController {
 
     @DeleteMapping("/dashboard/promo-codes/{id}")
     @PreAuthorize("hasAuthority('promo:delete')")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
         promoCodeService.delete(id);
-        return ResponseEntity.ok(ApiResponse.success(null, "Promo code deleted"));
+        return ResponseEntity.noContent().build();
     }
 }

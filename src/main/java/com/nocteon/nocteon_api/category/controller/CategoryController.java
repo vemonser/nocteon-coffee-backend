@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.nocteon.nocteon_api.category.dto.request.CategoryRequest;
@@ -32,6 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api")
+@Validated
 @RequiredArgsConstructor
 @Slf4j
 public class CategoryController {
@@ -110,9 +112,9 @@ public class CategoryController {
 
         @DeleteMapping("/dashboard/categories/{slug}")
         @PreAuthorize("hasAuthority('category:delete')")
-        public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String slug) {
+        public ResponseEntity<Void> delete(@PathVariable String slug) {
                 categoryService.delete(slug);
-                return ResponseEntity.ok(ApiResponse.success(null, "Category deleted"));
+                return ResponseEntity.noContent().build();
         }
 
 }

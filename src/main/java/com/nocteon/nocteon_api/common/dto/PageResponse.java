@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.common.dto;
 
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 
@@ -30,10 +31,10 @@ public class PageResponse<T> {
                 .last(page.isLast())
                 .build();
     }
-    
-        public static <T> PageResponse<T> of(Page<T> page, Function<T, ?> mapper) {
-        return PageResponse.<T>builder()
-                .content(page.getContent())
+
+    public static <T, R> PageResponse<R> of(Page<T> page, Function<T, R> mapper) {
+        return PageResponse.<R>builder()
+                .content(page.getContent().stream().map(mapper).collect(Collectors.toList()))
                 .page(page.getNumber())
                 .size(page.getSize())
                 .totalElements(page.getTotalElements())

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 import com.nocteon.nocteon_api.coffeeVariety.dto.request.CoffeeVarietyRequest;
 import com.nocteon.nocteon_api.coffeeVariety.dto.response.CoffeeVarietyResponse;
@@ -26,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@Validated
 @RequiredArgsConstructor
 public class CoffeeVarietyController {
 
@@ -80,8 +82,8 @@ public class CoffeeVarietyController {
 
     @DeleteMapping("/dashboard/coffee-varieties/{slug}")
     @PreAuthorize("hasAuthority('coffee_variety:delete')")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String slug) {
+    public ResponseEntity<Void> delete(@PathVariable String slug) {
         coffeeVarietyService.delete(slug);
-        return ResponseEntity.ok(ApiResponse.success(null, "Coffee variety deleted"));
+        return ResponseEntity.noContent().build();
     }
 }

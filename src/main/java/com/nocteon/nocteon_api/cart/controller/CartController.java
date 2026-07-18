@@ -1,5 +1,6 @@
 package com.nocteon.nocteon_api.cart.controller;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.cart.dto.request.CartItemRequest;
@@ -25,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/cart")
+@Validated
 @RequiredArgsConstructor
 public class CartController {
 
@@ -43,8 +46,8 @@ public class CartController {
     public ResponseEntity<ApiResponse<CartResponse>> addItem(
             @Valid @RequestBody CartItemRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(
-                ApiResponse.success(cartService.addItem(request, principal), "Item added to cart"));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(cartService.addItem(request, principal), "Item added to cart"));
     }
 
     @PutMapping("/items/{itemId}")

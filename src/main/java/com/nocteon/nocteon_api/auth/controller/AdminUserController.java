@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 import com.nocteon.nocteon_api.auth.dto.request.AdminRegisterRequest;
 import com.nocteon.nocteon_api.auth.dto.request.AdminUpdateUserRequest;
@@ -26,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/dashboard/users")
+@Validated
 @RequiredArgsConstructor
 public class AdminUserController {
 

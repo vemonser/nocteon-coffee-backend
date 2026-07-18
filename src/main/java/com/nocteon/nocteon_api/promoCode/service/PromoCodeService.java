@@ -51,17 +51,20 @@ public class PromoCodeService {
     private final CategoryRepository categoryRepository;
     private final CartRepository cartRepository;
 
+    @Transactional(readOnly = true)
     public PageResponse<PromoCodeResponse> getAll(BaseFilterRequest filter) {
         Page<PromoCode> page = promoCodeRepository.findAll(filter.toPageable());
         return PageResponse.of(page.map(this::buildResponse));
     }
 
+    @Transactional(readOnly = true)
     public PromoCodeResponse getById(Long id) {
         PromoCode promoCode = promoCodeRepository.findById(id)
                 .orElseThrow(PromoCodeNotFoundException::new);
         return buildResponse(promoCode);
     }
 
+    @Transactional(readOnly = true)
     public PromoCodeCalculationResult previewDiscount(String code, Long userId) {
         Cart cart = cartRepository.findByUserId(userId)
                 .orElseThrow(CartEmptyException::new);
@@ -151,6 +154,7 @@ public class PromoCodeService {
         return categoryRepository.findBySlugIn(request.getCategorySlugs());
     }
 
+    @Transactional(readOnly = true)
     public PromoCode getEntityById(Long id) {
         return promoCodeRepository.findById(id)
                 .orElseThrow(PromoCodeNotFoundException::new);
@@ -168,6 +172,7 @@ public class PromoCodeService {
         redemptionRepository.save(redemption);
     }
 
+    @Transactional(readOnly = true)
     public PromoCodeCalculationResult calculateDiscountForCart(
             String code, List<CartItem> cartItems, BigDecimal cartTotal, Long userId) {
 
@@ -246,7 +251,8 @@ public class PromoCodeService {
         }
 
         long userUsageCount = redemptionRepository.countByPromoCodeIdAndUserId(promoCode.getId(), userId);
-        if (userUsageCount >= promoCode.getMaxRedemptionsPerUser()) {
+        if (promoCode.getMaxRedemptionsPerUser() != null
+                && userUsageCount >= promoCode.getMaxRedemptionsPerUser()) {
             throw new PromoCodeAlreadyUsedException();
         }
     }
@@ -272,7 +278,7 @@ public class PromoCodeService {
                 .categorySlugs(promoCode.getCategories().stream().map(Category::getSlug).toList())
                 .maxTotalRedemptions(promoCode.getMaxTotalRedemptions())
                 .maxRedemptionsPerUser(promoCode.getMaxRedemptionsPerUser())
-                .totalRedemptions(redemptionRepository.countByPromoCodeId(promoCode.getId()))
+                .totalRedemptions(totalRedemptions)
                 .totalDiscountGiven(totalDiscountGiven)
                 .usageRate(usageRate)
                 .validFrom(promoCode.getValidFrom())

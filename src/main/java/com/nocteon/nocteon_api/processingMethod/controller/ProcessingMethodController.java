@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
@@ -27,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@Validated
 @RequiredArgsConstructor
 public class ProcessingMethodController {
 
@@ -80,8 +82,8 @@ public class ProcessingMethodController {
 
     @DeleteMapping("/dashboard/processing-methods/{slug}")
     @PreAuthorize("hasAuthority('processing_method:delete')")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String slug) {
+    public ResponseEntity<Void> delete(@PathVariable String slug) {
         processingMethodService.delete(slug);
-        return ResponseEntity.ok(ApiResponse.success(null, "Processing method deleted"));
+        return ResponseEntity.noContent().build();
     }
 }

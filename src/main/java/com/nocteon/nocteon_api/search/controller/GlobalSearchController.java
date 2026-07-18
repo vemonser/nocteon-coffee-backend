@@ -5,6 +5,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.search.dto.response.GlobalSearchResponse;
@@ -13,6 +14,7 @@ import com.nocteon.nocteon_api.search.service.GlobalSearchService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
+@Validated
 @RequiredArgsConstructor
 public class GlobalSearchController {
 

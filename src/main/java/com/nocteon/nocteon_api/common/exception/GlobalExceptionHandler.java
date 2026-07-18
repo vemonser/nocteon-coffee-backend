@@ -6,7 +6,12 @@ import java.util.Locale;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.context.MessageSource;
@@ -15,14 +20,14 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.ApiFieldError;
 
+import jakarta.validation.ConstraintViolation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -68,7 +73,7 @@ public class GlobalExceptionHandler {
                 String message = messageSource.getMessage(
                                 "error.invalid.body",
                                 null,
-                                "Cannot read request body. Expected: multipart/form-data with 'data' and optional 'image' parts",
+                                "Cannot read request body",
                                 locale);
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                                 .body(ApiResponse.error(message, null));
@@ -82,7 +87,7 @@ public class GlobalExceptionHandler {
                                 "error.unsupported.media.type",
                                 new Object[] { ex.getContentType() },
                                 "Content-Type '" + ex.getContentType()
-                                                + "' not supported. Expected: multipart/form-data or application/json",
+                                                + "' not supported",
                                 locale);
                 return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
                                 .body(ApiResponse.error(message, null));
@@ -95,7 +100,20 @@ public class GlobalExceptionHandler {
                 String message = messageSource.getMessage(
                                 "error.multipart.invalid",
                                 null,
-                                "Invalid multipart request. Check that 'data' part contains valid JSON",
+                                "Invalid multipart request",
+                                locale);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(ApiResponse.error(message, null));
+        }
+
+        @ExceptionHandler(MaxUploadSizeExceededException.class)
+        public ResponseEntity<ApiResponse<Void>> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+                log.warn("File upload size exceeded: {}", ex.getMessage());
+                Locale locale = LocaleContextHolder.getLocale();
+                String message = messageSource.getMessage(
+                                "error.image.size.exceeded",
+                                null,
+                                "File size exceeds the maximum allowed limit",
                                 locale);
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                                 .body(ApiResponse.error(message, null));
@@ -103,8 +121,22 @@ public class GlobalExceptionHandler {
 
         @ExceptionHandler(IllegalArgumentException.class)
         public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
+                Locale locale = LocaleContextHolder.getLocale();
+                String message = messageSource.getMessage("error.validation.failed", null, locale);
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                                .body(ApiResponse.error(ex.getMessage(), null));
+                                .body(ApiResponse.error(message, null));
+        }
+
+        @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+        public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+                Locale locale = LocaleContextHolder.getLocale();
+                String message = messageSource.getMessage(
+                                "error.missing.parameter",
+                                new Object[] { ex.getName() },
+                                "Invalid value for parameter '" + ex.getName() + "'",
+                                locale);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(ApiResponse.error(message, null));
         }
 
         // ─── 400: Validation ───────────────────────────────────────────────────
@@ -123,6 +155,28 @@ public class GlobalExceptionHandler {
 
                 return ResponseEntity.badRequest()
                                 .body(ApiResponse.error(message, errors));
+        }
+
+        @ExceptionHandler(ConstraintViolationException.class)
+        public ResponseEntity<ApiResponse<Void>> handleConstraintViolation(ConstraintViolationException ex) {
+                Locale locale = LocaleContextHolder.getLocale();
+                String message = messageSource.getMessage("error.validation.failed", null, locale);
+
+                List<ApiFieldError> errors = ex.getConstraintViolations().stream()
+                                .map(violation -> ApiFieldError.builder()
+                                                .field(extractFieldPath(violation))
+                                                .message(violation.getMessage())
+                                                .build())
+                                .toList();
+
+                return ResponseEntity.badRequest()
+                                .body(ApiResponse.error(message, errors));
+        }
+
+        private String extractFieldPath(ConstraintViolation<?> violation) {
+                String path = violation.getPropertyPath().toString();
+                int lastDot = path.lastIndexOf('.');
+                return lastDot >= 0 ? path.substring(lastDot + 1) : path;
         }
 
         // ─── 401/403: Auth ──────────────────────────────────────────────────────
@@ -149,8 +203,23 @@ public class GlobalExceptionHandler {
 
         @ExceptionHandler(NoResourceFoundException.class)
         public ResponseEntity<ApiResponse<Void>> handleNotFound(NoResourceFoundException e) {
+                Locale locale = LocaleContextHolder.getLocale();
+                String message = messageSource.getMessage("error.unexpected", null, locale);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                                .body(ApiResponse.error("Resource not found", null));
+                                .body(ApiResponse.error(message, null));
+        }
+
+        // ─── 405: Method Not Allowed ────────────────────────────────────────────
+
+        @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+        public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(
+                        HttpRequestMethodNotSupportedException ex) {
+                Locale locale = LocaleContextHolder.getLocale();
+                String message = messageSource.getMessage("error.unsupported.media.type",
+                                new Object[] { ex.getMethod() },
+                                "HTTP method not supported", locale);
+                return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                                .body(ApiResponse.error(message, null));
         }
 
         // ─── 409: Conflict ─────────────────────────────────────────────────────
@@ -158,20 +227,22 @@ public class GlobalExceptionHandler {
         @ExceptionHandler(DataIntegrityViolationException.class)
         public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(
                         DataIntegrityViolationException ex) {
-                String message = ex.getRootCause() != null
+                Locale locale = LocaleContextHolder.getLocale();
+                String rootMessage = ex.getRootCause() != null
                                 ? ex.getRootCause().getMessage()
                                 : ex.getMessage();
-                String userMessage;
-                if (message != null && message.contains("slug")) {
-                        userMessage = "error.duplicate.slug";
-                } else if (message != null && message.contains("uk_category_name_language")) {
-                        userMessage = "error.duplicate.translation";
+                String messageKey;
+                if (rootMessage != null && rootMessage.contains("slug")) {
+                        messageKey = "error.duplicate.slug";
+                } else if (rootMessage != null && rootMessage.contains("uk_category_name_language")) {
+                        messageKey = "error.duplicate.translation";
                 } else {
-                        userMessage = "error.duplicate.entry";
+                        messageKey = "error.duplicate.entry";
                 }
 
+                String message = messageSource.getMessage(messageKey, null, messageKey, locale);
                 return ResponseEntity.status(HttpStatus.CONFLICT)
-                                .body(ApiResponse.error(userMessage, null));
+                                .body(ApiResponse.error(message, null));
         }
 
         // ─── Custom API Exceptions ─────────────────────────────────────────────
@@ -192,7 +263,7 @@ public class GlobalExceptionHandler {
 
         @ExceptionHandler(Exception.class)
         public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
-                log.error("Unexpected error occurred", ex);
+                log.error("Unexpected error occurred: {}", ex.getMessage());
                 Locale locale = LocaleContextHolder.getLocale();
                 String message = messageSource.getMessage("error.unexpected", null, locale);
 

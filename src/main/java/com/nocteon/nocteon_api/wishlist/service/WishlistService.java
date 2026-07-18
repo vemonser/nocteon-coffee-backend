@@ -40,6 +40,7 @@ public class WishlistService {
     private final ProductMediaRepository productMediaRepository;
     private final ProductVariantRepository variantRepository;
 
+    @Transactional(readOnly = true)
     public WishlistResponse getWishlist(UserPrincipal principal) {
         Wishlist wishlist = getOrCreateWishlist(principal.getUserId());
         return buildResponse(wishlist);
@@ -55,9 +56,7 @@ public class WishlistService {
         }
 
         Product product = productRepository
-                .findBySlugAndLanguage(
-                        productSlug,
-                        LocaleContextHolder.getLocale().getLanguage())
+                .findBySlug(productSlug)
                 .orElseThrow(ProductNotFoundException::new);
 
         wishlistItemRepository.save(WishlistItem.builder()

@@ -43,7 +43,7 @@ public class BaseEntity {
             return true;
         if (!(o instanceof BaseEntity that))
             return false;
-        return id != null && id.equals(that.id);
+        return id != null && getClass().equals(that.getClass()) && id.equals(that.id);
     }
 
     @Override

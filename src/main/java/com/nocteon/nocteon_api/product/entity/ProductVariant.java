@@ -2,6 +2,8 @@ package com.nocteon.nocteon_api.product.entity;
 
 import java.math.BigDecimal;
 
+import org.springframework.data.annotation.Version;
+
 import com.nocteon.nocteon_api.common.entity.SoftDeletableEntity;
 import com.nocteon.nocteon_api.product.enums.GrindType;
 
@@ -54,7 +56,10 @@ public class ProductVariant extends SoftDeletableEntity {
 
     @Column(name = "stock_quantity", nullable = false)
     @Builder.Default
-    private Integer stockQuantity = 0;
+    private int stockQuantity = 0;
+
+    @Version
+    private Long version;
 
     @Column(name = "is_active", nullable = false)
     @Builder.Default
@@ -65,9 +70,9 @@ public class ProductVariant extends SoftDeletableEntity {
     }
 
     public void decreaseStock(int quantity) {
-        if (stockQuantity < quantity) {
+        if (this.stockQuantity < quantity) {
             throw new IllegalArgumentException("Insufficient stock");
         }
-        stockQuantity -= quantity;
+        this.stockQuantity -= quantity;
     }
 }

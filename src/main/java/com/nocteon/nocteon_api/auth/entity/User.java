@@ -72,6 +72,7 @@ public class User extends BaseEntity {
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
+    @org.hibernate.annotations.BatchSize(size = 30)
     private List<UserLinkedAccount> linkedAccounts = new ArrayList<>();
 
     @Column(name = "last_active_at")

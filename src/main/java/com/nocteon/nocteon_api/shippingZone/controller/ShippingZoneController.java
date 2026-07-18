@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
@@ -25,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@Validated
 @RequiredArgsConstructor
 public class ShippingZoneController {
 
@@ -59,8 +61,8 @@ public class ShippingZoneController {
 
     @DeleteMapping("/dashboard/shipping-zones/{id}")
     @PreAuthorize("hasAuthority('shipping:delete')")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
         shippingZoneService.delete(id);
-        return ResponseEntity.ok(ApiResponse.success(null, "Shipping zone deleted"));
+        return ResponseEntity.noContent().build();
     }
 }
