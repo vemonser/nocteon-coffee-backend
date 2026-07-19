@@ -30,18 +30,52 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
             @Param("productType") ProductType productType);
 
     @Query("""
-                SELECT c.slug, SUM(oi.totalPrice)
+                SELECT ct.name, SUM(oi.totalPrice)
                 FROM OrderItem oi
                 JOIN oi.order o
                 JOIN oi.productVariant pv
                 JOIN pv.product p
                 JOIN p.category c
+                LEFT JOIN c.translations ct
                 WHERE o.paymentStatus = :paymentStatus
                 AND o.createdAt >= :since
-                GROUP BY c.slug
+                GROUP BY ct.name
                 ORDER BY SUM(oi.totalPrice) DESC
             """)
     List<Object[]> getRevenueByCategory(@Param("paymentStatus") PaymentStatus paymentStatus,
+            @Param("since") Instant since);
+
+    @Query("""
+                SELECT origin.slug, SUM(oi.totalPrice)
+                FROM OrderItem oi
+                JOIN oi.order ord
+                JOIN oi.productVariant pv
+                JOIN pv.product p
+                LEFT JOIN p.origin origin
+                WHERE ord.paymentStatus = :paymentStatus
+                AND ord.createdAt >= :since
+                AND origin IS NOT NULL
+                GROUP BY origin.slug
+                ORDER BY SUM(oi.totalPrice) DESC
+            """)
+    List<Object[]> getRevenueByOrigin(@Param("paymentStatus") PaymentStatus paymentStatus,
+            @Param("since") Instant since);
+
+    @Query("""
+                SELECT rl.slug, SUM(oi.totalPrice)
+                FROM OrderItem oi
+                JOIN oi.order ord
+                JOIN oi.productVariant pv
+                JOIN pv.product p
+                LEFT JOIN p.coffeeDetails cd
+                LEFT JOIN cd.roastLevel rl
+                WHERE ord.paymentStatus = :paymentStatus
+                AND ord.createdAt >= :since
+                AND rl IS NOT NULL
+                GROUP BY rl.slug
+                ORDER BY SUM(oi.totalPrice) DESC
+            """)
+    List<Object[]> getRevenueByRoastLevel(@Param("paymentStatus") PaymentStatus paymentStatus,
             @Param("since") Instant since);
 
     @Query("""

@@ -25,6 +25,7 @@ import com.nocteon.nocteon_api.order.dto.request.OrderFilterRequest;
 import com.nocteon.nocteon_api.order.dto.request.UpdateOrderStatusRequest;
 import com.nocteon.nocteon_api.order.dto.response.OrderPaymentResponse;
 import com.nocteon.nocteon_api.order.dto.response.OrderResponse;
+import com.nocteon.nocteon_api.order.service.OrderQueryService;
 import com.nocteon.nocteon_api.order.service.OrderService;
 import com.nocteon.nocteon_api.payment.dto.request.PaymobCallbackRequest;
 
@@ -41,6 +42,7 @@ import lombok.extern.slf4j.Slf4j;
 public class OrderController {
 
         private final OrderService orderService;
+        private final OrderQueryService orderQueryService;
         private final RateLimiterService rateLimiterService;
 
         @PostMapping("/orders")
@@ -97,7 +99,7 @@ public class OrderController {
                         @AuthenticationPrincipal UserPrincipal principal) {
                 return ResponseEntity.ok(
                                 ApiResponse.success(
-                                                orderService.getUserOrders(principal, filter),
+                                                orderQueryService.getUserOrders(principal, filter),
                                                 "Orders retrieved"));
         }
 
@@ -107,7 +109,7 @@ public class OrderController {
                         @ModelAttribute OrderFilterRequest filter) {
                 return ResponseEntity.ok(
                                 ApiResponse.success(
-                                                orderService.getAllOrders(filter),
+                                                orderQueryService.getAllOrders(filter),
                                                 "Orders retrieved"));
         }
 

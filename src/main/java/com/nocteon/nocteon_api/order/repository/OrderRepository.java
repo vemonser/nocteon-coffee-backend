@@ -34,8 +34,14 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                         "GROUP BY CAST(o.createdAt AS date) ORDER BY CAST(o.createdAt AS date)")
         List<Object[]> getRevenueByDay(@Param("status") PaymentStatus status, @Param("since") Instant since);
 
-        @Query("SELECT o.status, COUNT(o) FROM Order o WHERE o.createdAt >= :since GROUP BY o.status")
-        List<Object[]> getOrdersByStatus(@Param("since") Instant since);
+        @Query("SELECT o.status, COUNT(o) FROM Order o WHERE o.paymentStatus = :status AND o.createdAt >= :since GROUP BY o.status")
+        List<Object[]> getOrdersByStatus(@Param("status") PaymentStatus status, @Param("since") Instant since);
+
+        @Query("SELECT o.paymentMethod, COUNT(o) FROM Order o WHERE o.paymentStatus = :status AND o.createdAt >= :since GROUP BY o.paymentMethod")
+        List<Object[]> getOrdersByPaymentMethod(@Param("status") PaymentStatus status, @Param("since") Instant since);
+
+        @Query("SELECT COUNT(o) FROM Order o WHERE o.paymentStatus = :status AND o.createdAt >= :since")
+        long countByPaymentStatusAndCreatedAtAfter(@Param("status") PaymentStatus status, @Param("since") Instant since);
 
         Optional<Order> findByIdAndUserId(Long id, Long userId);
 

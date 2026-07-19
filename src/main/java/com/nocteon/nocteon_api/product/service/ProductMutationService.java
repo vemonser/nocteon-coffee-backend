@@ -7,13 +7,10 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.nocteon.nocteon_api.brewingMethod.entity.BrewingMethod;
-import com.nocteon.nocteon_api.brewingMethod.repository.BrewingMethodRepository;
 import com.nocteon.nocteon_api.category.entity.Category;
 import com.nocteon.nocteon_api.category.repository.CategoryRepository;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidProductTypeException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
-import com.nocteon.nocteon_api.common.exception.notFound.BrewingMethodNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.CategoryNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.FarmNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException;
@@ -23,27 +20,20 @@ import com.nocteon.nocteon_api.farm.entity.Farm;
 import com.nocteon.nocteon_api.farm.repository.FarmRepository;
 import com.nocteon.nocteon_api.origin.entity.Origin;
 import com.nocteon.nocteon_api.origin.repository.OriginRepository;
-import com.nocteon.nocteon_api.pairing.entity.Pairing;
-import com.nocteon.nocteon_api.pairing.repository.PairingRepository;
-import com.nocteon.nocteon_api.product.dto.request.ProductBrewingMethodRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductMediaRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductTranslationRequest;
 import com.nocteon.nocteon_api.product.dto.response.DashboardProductResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
 import com.nocteon.nocteon_api.product.entity.Product;
-import com.nocteon.nocteon_api.product.entity.ProductBrewingMethod;
 import com.nocteon.nocteon_api.product.entity.ProductMedia;
 import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.enums.ProductType;
 import com.nocteon.nocteon_api.product.mapper.DashboardProductMapper;
 import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
-import com.nocteon.nocteon_api.product.repository.ProductBrewingMethodRepository;
 import com.nocteon.nocteon_api.product.repository.ProductMediaRepository;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import com.nocteon.nocteon_api.product.repository.ProductTranslationRepository;
-import com.nocteon.nocteon_api.tastingNote.entity.TastingNote;
-import com.nocteon.nocteon_api.tastingNote.repository.TastingNoteRepository;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -56,20 +46,17 @@ public class ProductMutationService {
 
     private final ProductRepository productRepository;
     private final ProductTranslationRepository productTranslationRepository;
-    private final ProductBrewingMethodRepository productBrewingMethodRepository;
     private final ProductMediaRepository productMediaRepository;
     private final CategoryRepository categoryRepository;
     private final OriginRepository originRepository;
     private final FarmRepository farmRepository;
-    private final TastingNoteRepository tastingNoteRepository;
-    private final PairingRepository pairingRepository;
-    private final BrewingMethodRepository brewingMethodRepository;
     private final LookupServiceHelper helper;
     private final ProductMediaService productMediaService;
     private final ProductResponseMapper productResponseMapper;
     private final DashboardProductMapper dashboardProductMapper;
     private final ProductVariantService productVariantService;
     private final ProductCoffeeDetailsService productCoffeeDetailsService;
+    private final ProductRelationService productRelationService;
 
     @Transactional
     public ProductResponse create(ProductRequest request, List<MultipartFile> files) {
@@ -108,9 +95,9 @@ public class ProductMutationService {
             productCoffeeDetailsService.saveCoffeeDetails(product, request.getCoffeeDetails());
         }
 
-        attachTastingNotes(product, request.getTastingNoteSlugs());
-        attachPairings(product, request.getPairingSlugs());
-        saveBrewingMethods(product, request.getBrewingMethods());
+        productRelationService.attachTastingNotes(product, request.getTastingNoteSlugs());
+        productRelationService.attachPairings(product, request.getPairingSlugs());
+        productRelationService.saveBrewingMethods(product, request.getBrewingMethods());
         productMediaService.saveMedia(product, request.getMedia(), files);
 
         log.info("Product created with slug: {}", slug);
@@ -141,9 +128,9 @@ public class ProductMutationService {
         upsertTranslations(product, request.getTranslations());
         productVariantService.replaceVariants(product, request.getVariants());
         productCoffeeDetailsService.replaceCoffeeDetails(product, request.getProductType(), request.getCoffeeDetails());
-        replaceTastingNotes(product, request.getTastingNoteSlugs());
-        replacePairings(product, request.getPairingSlugs());
-        replaceBrewingMethods(product, request.getBrewingMethods());
+        productRelationService.replaceTastingNotes(product, request.getTastingNoteSlugs());
+        productRelationService.replacePairings(product, request.getPairingSlugs());
+        productRelationService.replaceBrewingMethods(product, request.getBrewingMethods());
         productMediaService.replaceMedia(product, request.getMedia(), files);
 
         productRepository.save(product);
@@ -254,64 +241,5 @@ public class ProductMutationService {
                             .description(t.getDescription())
                             .build()));
         }
-    }
-
-    private void attachTastingNotes(Product product, List<String> slugs) {
-        if (slugs == null || slugs.isEmpty()) {
-            return;
-        }
-        List<TastingNote> tastingNotes = tastingNoteRepository.findBySlugIn(slugs);
-        product.getTastingNotes().addAll(tastingNotes);
-        productRepository.save(product);
-    }
-
-    private void replaceTastingNotes(Product product, List<String> slugs) {
-        product.getTastingNotes().clear();
-        if (slugs != null && !slugs.isEmpty()) {
-            product.getTastingNotes().addAll(tastingNoteRepository.findBySlugIn(slugs));
-        }
-    }
-
-    private void attachPairings(Product product, List<String> slugs) {
-        if (slugs == null || slugs.isEmpty()) {
-            return;
-        }
-        List<Pairing> pairings = pairingRepository.findBySlugIn(slugs);
-        product.getPairings().addAll(pairings);
-        productRepository.save(product);
-    }
-
-    private void replacePairings(Product product, List<String> slugs) {
-        product.getPairings().clear();
-        if (slugs != null && !slugs.isEmpty()) {
-            product.getPairings().addAll(pairingRepository.findBySlugIn(slugs));
-        }
-    }
-
-    private void saveBrewingMethods(Product product, List<ProductBrewingMethodRequest> requests) {
-        if (requests == null || requests.isEmpty()) {
-            return;
-        }
-        for (ProductBrewingMethodRequest bm : requests) {
-            productBrewingMethodRepository.save(buildBrewingMethod(product, bm));
-        }
-    }
-
-    private void replaceBrewingMethods(Product product, List<ProductBrewingMethodRequest> requests) {
-        productBrewingMethodRepository.deleteByProductId(product.getId());
-        productBrewingMethodRepository.flush();
-        saveBrewingMethods(product, requests);
-    }
-
-    private ProductBrewingMethod buildBrewingMethod(Product product, ProductBrewingMethodRequest bm) {
-        BrewingMethod brewingMethod = brewingMethodRepository
-                .findBySlug(bm.getBrewingMethodSlug())
-                .orElseThrow(BrewingMethodNotFoundException::new);
-
-        return ProductBrewingMethod.builder()
-                .product(product)
-                .brewingMethod(brewingMethod)
-                .score(bm.getScore())
-                .build();
     }
 }

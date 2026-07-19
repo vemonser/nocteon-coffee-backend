@@ -21,5 +21,11 @@ public class DashboardOverviewResponse {
     private List<OrdersByStatusDto> ordersByStatus;
     private List<RevenueByCategoryDto> revenueByCategory; 
     private List<TopSellingProductDto> topSellingProducts; 
+    private List<RevenueByOriginDto> revenueByOrigin;
+    private List<RevenueByRoastLevelDto> revenueByRoastLevel;
+    private RefundRateDto refundRate;
+    private List<LowStockProductDto> lowStockProducts;
+    private List<OrdersByPaymentMethodDto> ordersByPaymentMethod;
+    private RepeatPurchaseRateDto repeatPurchaseRate;
 
 }

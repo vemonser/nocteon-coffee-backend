@@ -111,4 +111,15 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     List<Product> findBySlugIn(List<String> slugs);
 
     boolean existsBySlug(String slug);
+
+    @Query("""
+                SELECT DISTINCT p FROM Product p
+                LEFT JOIN FETCH p.translations t
+                LEFT JOIN FETCH p.media m
+                LEFT JOIN FETCH p.variants v
+                WHERE v.stockQuantity <= :threshold
+                AND v.isActive = true
+                AND p.isActive = true
+            """)
+    List<Product> findLowStockProducts(@Param("threshold") int threshold);
 }

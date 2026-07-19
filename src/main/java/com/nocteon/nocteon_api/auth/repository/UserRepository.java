@@ -62,6 +62,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
     void updateLastActiveAt(@Param("userId") Long userId, @Param("now") Instant now);
 
     long countByLastActiveAtAfter(Instant threshold);
+
+    long countByRoleAndLastActiveAtAfter(Role role, Instant threshold);
+
+    @Query("SELECT COUNT(DISTINCT o.user.id) FROM Order o WHERE o.paymentStatus = com.nocteon.nocteon_api.payment.enums.PaymentStatus.PAID AND o.createdAt >= :since")
+    long countCustomersWithOrdersSince(@Param("since") Instant since);
+
+    @Query(value = "SELECT COUNT(*) FROM (SELECT user_id, COUNT(*) as order_count FROM orders WHERE payment_status = 'PAID' AND created_at >= :since GROUP BY user_id HAVING COUNT(*) > 1) sub", nativeQuery = true)
+    long countRepeatCustomersSince(@Param("since") Instant since);
     
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.profile p WHERE " +
            "(:role IS NULL OR u.role = :role) AND " +

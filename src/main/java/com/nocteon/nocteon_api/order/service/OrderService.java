@@ -5,7 +5,6 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -18,8 +17,6 @@ import com.nocteon.nocteon_api.cart.entity.Cart;
 import com.nocteon.nocteon_api.cart.entity.CartItem;
 import com.nocteon.nocteon_api.cart.repository.CartItemRepository;
 import com.nocteon.nocteon_api.cart.repository.CartRepository;
-import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
-import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.notFound.AddressNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.OrderNotFoundException;
 import com.nocteon.nocteon_api.common.exception.payment.OrderNotPayableException;
@@ -28,8 +25,6 @@ import com.nocteon.nocteon_api.common.exception.product.InsufficientStockExcepti
 import com.nocteon.nocteon_api.mail.event.OrderPlacedEvent;
 import com.nocteon.nocteon_api.notifications.event.OrderCreatedEvent;
 import com.nocteon.nocteon_api.order.dto.request.CreateOrderRequest;
-import com.nocteon.nocteon_api.order.dto.request.OrderFilterRequest;
-import com.nocteon.nocteon_api.order.dto.response.OrderItemResponse;
 import com.nocteon.nocteon_api.order.dto.response.OrderPaymentResponse;
 import com.nocteon.nocteon_api.order.dto.response.OrderResponse;
 import com.nocteon.nocteon_api.order.entity.Order;
@@ -69,6 +64,7 @@ public class OrderService {
         private final ApplicationEventPublisher eventPublisher;
         private final StoreSettingsService storeSettingsService;
         private final ShippingZoneService shippingZoneService;
+        private final OrderQueryService orderQueryService;
 
         @Value("${application.paymob.hmac-secret}")
         private String hmacSecret;
@@ -114,7 +110,6 @@ public class OrderService {
                         freeShippingFromPromo = discountResult.isFreeShipping();
                 }
 
-                // ─── حساب الشحن ───
                 BigDecimal shippingCost = shippingZoneService.calculateShippingCost(address.getCity());
 
                 BigDecimal amountAfterDiscount = total.subtract(discountAmount);
@@ -246,21 +241,6 @@ public class OrderService {
                                 .build();
         }
 
-        @Transactional(readOnly = true)
-        public PageResponse<OrderResponse> getUserOrders(UserPrincipal principal,
-                        BaseFilterRequest filter) {
-                Page<Order> page = orderRepository.findByUserId(
-                                principal.getUserId(), filter.toPageable());
-                return PageResponse.of(page.map(this::buildResponse));
-        }
-
-        @Transactional(readOnly = true)
-        public PageResponse<OrderResponse> getAllOrders(OrderFilterRequest filter) {
-                Page<Order> page = orderRepository.findAllWithFilters(
-                                filter.getStatus(), filter.toPageable());
-                return PageResponse.of(page.map(this::buildResponse));
-        }
-
         @Transactional
         public OrderResponse updateStatus(Long orderId, OrderStatus newStatus) {
                 Order order = orderRepository.findById(orderId)
@@ -269,7 +249,7 @@ public class OrderService {
                 OrderStatus currentStatus = order.getStatus();
 
                 if (currentStatus == newStatus) {
-                        return buildResponse(order);
+                        return orderQueryService.buildResponse(order);
                 }
 
                 if (currentStatus == OrderStatus.DELIVERED || currentStatus == OrderStatus.CANCELLED) {
@@ -287,32 +267,7 @@ public class OrderService {
                         }
                 }
 
-                return buildResponse(orderRepository.save(order));
-        }
-
-        private OrderResponse buildResponse(Order order) {
-                List<OrderItemResponse> items = order.getItems().stream()
-                                .map(item -> OrderItemResponse.builder()
-                                                .id(item.getId())
-                                                .variantId(item.getProductVariant().getId())
-                                                .sku(item.getProductVariant().getSku())
-                                                .productSlug(item.getProductVariant().getProduct().getSlug())
-                                                .quantity(item.getQuantity())
-                                                .unitPrice(item.getUnitPrice())
-                                                .totalPrice(item.getTotalPrice())
-                                                .build())
-                                .toList();
-
-                return OrderResponse.builder()
-                                .id(order.getId())
-                                .status(order.getStatus())
-                                .totalAmount(order.getTotalAmount())
-                                .paymentStatus(order.getPaymentStatus())
-                                .notes(order.getNotes())
-                                .items(items)
-                                .createdAt(order.getCreatedAt())
-                                .build();
-
+                return orderQueryService.buildResponse(orderRepository.save(order));
         }
 
 }
