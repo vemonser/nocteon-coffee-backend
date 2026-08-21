@@ -3,6 +3,7 @@ package com.nocteon.nocteon_api.product.mapper;
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
@@ -57,17 +58,18 @@ public class ProductResponseMapper {
         private final LookupResponseMapper lookupResponseMapper;
 
         public ProductCardResponse buildListResponse(Product product, String language) {
-                List<ProductTranslation> translations = product.getTranslations();
+                Set<ProductTranslation> translations = product.getTranslations();
 
                 ProductTranslation translation = translations.stream()
                                 .filter(t -> t.getLanguage().equals(language))
                                 .findFirst()
-                                .orElse(translations.isEmpty() ? null : translations.get(0));
+                                .orElse(translations.isEmpty() ? null : translations.stream().findFirst().orElse(null));
 
                 ProductMedia primaryMedia = product.getMedia().stream()
                                 .filter(ProductMedia::isPrimary)
                                 .findFirst()
-                                .orElse(product.getMedia().isEmpty() ? null : product.getMedia().get(0));
+                                .orElse(product.getMedia().isEmpty() ? null
+                                                : product.getMedia().stream().findFirst().orElse(null));
 
                 ProductVariant lowestPriceVariant = product.getVariants().stream()
                                 .filter(ProductVariant::isActive)
@@ -310,6 +312,5 @@ public class ProductResponseMapper {
                                 .build();
 
         }
-
 
 }

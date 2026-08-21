@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.journal.dto.request.JournalFilterRequest;
@@ -61,9 +63,12 @@ public class JournalController {
         @PreAuthorize("hasAuthority('journal:create')")
         public ResponseEntity<ApiResponse<JournalPostResponse>> create(
                         @Valid @RequestPart("data") JournalPostRequest request,
-                        @RequestPart(value = "image", required = false) MultipartFile image) {
+                        @RequestPart(value = "image", required = false) MultipartFile image,
+                        @AuthenticationPrincipal UserPrincipal principal) {
                 return ResponseEntity.status(HttpStatus.CREATED)
-                                .body(ApiResponse.success(journalService.create(request, image), "Post created"));
+                                .body(ApiResponse.success(
+                                                journalService.create(request, image, principal.getUserId()),
+                                                "Post created"));
         }
 
         @PutMapping(value = "/dashboard/journal/{slug}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

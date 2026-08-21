@@ -1,18 +1,26 @@
 package com.nocteon.nocteon_api.journal.entity;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.hibernate.annotations.BatchSize;
 
 import java.util.ArrayList;
 
+import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.common.entity.SoftDeletableEntity;
+import com.nocteon.nocteon_api.journal.enums.JournalPostStatus;
 import com.nocteon.nocteon_api.product.entity.Product;
 
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
@@ -40,6 +48,10 @@ public class JournalPost extends SoftDeletableEntity {
     @JoinColumn(name = "journal_category_id", nullable = false)
     private JournalCategory journalCategory;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "author_id", nullable = false)
+    private User author;
+
     @Column(nullable = false, unique = true)
     private String slug;
 
@@ -50,8 +62,23 @@ public class JournalPost extends SoftDeletableEntity {
     @Builder.Default
     private boolean featured = false;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private JournalPostStatus status = JournalPostStatus.DRAFT;
+
+    @Column(name = "reading_time_minutes", nullable = false)
+    @Builder.Default
+    private int readingTimeMinutes = 0;
+
     @Column(name = "published_at")
     private Instant publishedAt;
+
+    @ElementCollection
+    @CollectionTable(name = "journal_post_tags", joinColumns = @JoinColumn(name = "journal_post_id"))
+    @Column(name = "tag")
+    @Builder.Default
+    private Set<String> tags = new HashSet<>();
 
     @OneToMany(mappedBy = "journalPost", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default

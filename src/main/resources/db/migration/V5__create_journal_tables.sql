@@ -19,9 +19,12 @@ CREATE TABLE journal_category_translations (
 CREATE TABLE journal_posts (
     id BIGSERIAL PRIMARY KEY,
     journal_category_id BIGINT NOT NULL REFERENCES journal_categories(id),
+    author_id BIGINT NOT NULL REFERENCES users(id),
     slug VARCHAR(150) UNIQUE NOT NULL,
     cover_image_url VARCHAR(500) NULL,
     featured BOOLEAN NOT NULL DEFAULT FALSE,
+    status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+    reading_time_minutes INT NOT NULL DEFAULT 0,
     published_at TIMESTAMPTZ NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -46,4 +49,10 @@ CREATE TABLE product_journal_posts (
     product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     journal_post_id BIGINT NOT NULL REFERENCES journal_posts(id) ON DELETE CASCADE,
     PRIMARY KEY (product_id, journal_post_id)
+);
+
+CREATE TABLE journal_post_tags (
+    journal_post_id BIGINT NOT NULL REFERENCES journal_posts(id) ON DELETE CASCADE,
+    tag VARCHAR(100) NOT NULL,
+    PRIMARY KEY (journal_post_id, tag)
 );

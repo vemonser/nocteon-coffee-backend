@@ -1,6 +1,5 @@
 package com.nocteon.nocteon_api.cart.controller;
 
-import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,6 +13,7 @@ import com.nocteon.nocteon_api.cart.dto.request.DashboardCartFilterRequest;
 import com.nocteon.nocteon_api.cart.dto.response.DashboardCartResponse;
 import com.nocteon.nocteon_api.cart.service.DashboardCartService;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
+import com.nocteon.nocteon_api.common.dto.PageResponse;
 
 import lombok.RequiredArgsConstructor;
 
@@ -27,10 +27,10 @@ public class DashboardCartController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('cart:manage')")
-    public ResponseEntity<ApiResponse<Page<DashboardCartResponse>>> getAll(
+    public ResponseEntity<ApiResponse<PageResponse<DashboardCartResponse>>> getAll(
             @ModelAttribute DashboardCartFilterRequest filter) {
         return ResponseEntity.ok(ApiResponse.success(
-                dashboardCartService.getAll(filter),
+                PageResponse.of(dashboardCartService.getAll(filter)),
                 "Carts retrieved successfully"));
     }
 

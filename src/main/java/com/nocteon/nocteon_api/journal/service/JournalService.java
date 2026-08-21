@@ -2,12 +2,15 @@ package com.nocteon.nocteon_api.journal.service;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Set;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.nocteon.nocteon_api.auth.entity.User;
+import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.JournalCategoryNotFoundException;
@@ -20,6 +23,7 @@ import com.nocteon.nocteon_api.journal.dto.response.JournalPostResponse;
 import com.nocteon.nocteon_api.journal.entity.JournalCategory;
 import com.nocteon.nocteon_api.journal.entity.JournalPost;
 import com.nocteon.nocteon_api.journal.entity.JournalPostTranslation;
+import com.nocteon.nocteon_api.journal.enums.JournalPostStatus;
 import com.nocteon.nocteon_api.journal.repository.JournalCategoryRepository;
 import com.nocteon.nocteon_api.journal.repository.JournalPostRepository;
 import com.nocteon.nocteon_api.journal.repository.JournalPostTranslationRepository;
@@ -40,7 +44,10 @@ public class JournalService {
         private final ProductRepository productRepository;
         private final JournalPostTranslationRepository translationRepository;
         private final JournalCategoryRepository categoryRepository;
+        private final UserRepository userRepository;
         private final LookupServiceHelper helper;
+
+        private static final int WORDS_PER_MINUTE = 200;
 
         public PageResponse<JournalPostResponse> getAll(JournalFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
@@ -70,11 +77,13 @@ public class JournalService {
         }
 
         @Transactional
-        public JournalPostResponse create(JournalPostRequest request, MultipartFile image) {
+        public JournalPostResponse create(JournalPostRequest request, MultipartFile image, Long authorId) {
                 helper.validateTranslations(request.getTranslations());
 
                 JournalCategory category = categoryRepository.findBySlug(request.getCategorySlug())
                                 .orElseThrow(JournalCategoryNotFoundException::new);
+
+                User author = userRepository.findById(authorId).orElseThrow();
 
                 String title = request.getTranslations().stream()
                                 .filter(t -> t.getLanguage().equals("en"))
@@ -85,13 +94,22 @@ public class JournalService {
                 String slug = helper.generateUniqueSlug(title, postRepository::existsBySlug);
                 String imageUrl = helper.uploadMedia(image, "journal", MediaType.IMAGE);
 
+                int readingTime = calculateReadingTime(request.getTranslations());
+
                 JournalPost post = JournalPost.builder()
                                 .journalCategory(category)
+                                .author(author)
                                 .slug(slug)
                                 .coverImageUrl(imageUrl)
                                 .featured(request.isFeatured())
-                                .publishedAt(request.getPublishedAt())
+                                .status(request.getStatus())
+                                .readingTimeMinutes(readingTime)
+                                .tags(request.getTags() != null ? Set.copyOf(request.getTags()) : Set.of())
                                 .build();
+
+                if (request.getStatus() == JournalPostStatus.PUBLISHED && post.getPublishedAt() == null) {
+                        post.setPublishedAt(java.time.Instant.now());
+                }
 
                 post = postRepository.save(post);
 
@@ -144,7 +162,13 @@ public class JournalService {
 
                 post.setJournalCategory(category);
                 post.setFeatured(request.isFeatured());
-                post.setPublishedAt(request.getPublishedAt());
+                post.setStatus(request.getStatus());
+                post.setReadingTimeMinutes(calculateReadingTime(request.getTranslations()));
+                post.setTags(request.getTags() != null ? Set.copyOf(request.getTags()) : Set.of());
+
+                if (request.getStatus() == JournalPostStatus.PUBLISHED && post.getPublishedAt() == null) {
+                        post.setPublishedAt(java.time.Instant.now());
+                }
 
                 if (image != null && !image.isEmpty()) {
                         helper.deleteMediaIfExists(post.getCoverImageUrl());
@@ -197,6 +221,19 @@ public class JournalService {
                 postRepository.save(post);
         }
 
+        private int calculateReadingTime(List<JournalPostTranslationRequest> translations) {
+                if (translations == null || translations.isEmpty()) {
+                        return 0;
+                }
+                int totalWords = 0;
+                for (JournalPostTranslationRequest t : translations) {
+                        if (t.getContent() != null && !t.getContent().isBlank()) {
+                                totalWords += t.getContent().split("\\s+").length;
+                        }
+                }
+                return Math.max(1, (int) Math.ceil((double) totalWords / WORDS_PER_MINUTE));
+        }
+
         private JournalPostResponse buildListResponse(JournalPost post, String language) {
                 JournalPostTranslation translation = post.getTranslations().stream()
                                 .filter(t -> t.getLanguage().equals(language))
@@ -207,9 +244,13 @@ public class JournalService {
                                 .id(post.getId())
                                 .slug(post.getSlug())
                                 .categorySlug(post.getJournalCategory().getSlug())
+                                .authorUsername(post.getAuthor().getUsername())
                                 .coverImageUrl(post.getCoverImageUrl())
                                 .featured(post.isFeatured())
+                                .status(post.getStatus())
+                                .readingTimeMinutes(post.getReadingTimeMinutes())
                                 .publishedAt(post.getPublishedAt())
+                                .tags(post.getTags())
                                 .title(translation != null ? translation.getTitle() : null)
                                 .excerpt(translation != null ? translation.getExcerpt() : null)
                                 .build();
@@ -229,9 +270,13 @@ public class JournalService {
                                 .id(post.getId())
                                 .slug(post.getSlug())
                                 .categorySlug(post.getJournalCategory().getSlug())
+                                .authorUsername(post.getAuthor().getUsername())
                                 .coverImageUrl(post.getCoverImageUrl())
                                 .featured(post.isFeatured())
+                                .status(post.getStatus())
+                                .readingTimeMinutes(post.getReadingTimeMinutes())
                                 .publishedAt(post.getPublishedAt())
+                                .tags(post.getTags())
                                 .title(translation != null ? translation.getTitle() : null)
                                 .excerpt(translation != null ? translation.getExcerpt() : null)
                                 .content(translation != null ? translation.getContent() : null)

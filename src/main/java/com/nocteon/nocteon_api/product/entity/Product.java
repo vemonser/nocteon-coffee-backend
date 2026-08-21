@@ -1,10 +1,12 @@
 package com.nocteon.nocteon_api.product.entity;
 
 import java.util.List;
+import java.util.Set;
 
 import org.hibernate.annotations.BatchSize;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 
 import com.nocteon.nocteon_api.category.entity.Category;
 import com.nocteon.nocteon_api.common.entity.SoftDeletableEntity;
@@ -76,7 +78,7 @@ public class Product extends SoftDeletableEntity {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     @BatchSize(size = 30)
-    private List<ProductTranslation> translations = new ArrayList<>();
+    private Set<ProductTranslation> translations = new HashSet<>();
 
     @OneToOne(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private CoffeeDetails coffeeDetails;
@@ -84,12 +86,12 @@ public class Product extends SoftDeletableEntity {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     @BatchSize(size = 30)
-    private List<ProductVariant> variants = new ArrayList<>();
+    private Set<ProductVariant> variants = new HashSet<>();
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     @BatchSize(size = 30)
-    private List<ProductMedia> media = new ArrayList<>();
+    private Set<ProductMedia> media = new HashSet<>();
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

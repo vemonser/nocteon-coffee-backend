@@ -24,6 +24,7 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
                         SELECT DISTINCT p FROM JournalPost p
                         LEFT JOIN FETCH p.translations
                         LEFT JOIN FETCH p.products
+                        LEFT JOIN FETCH p.author
                         WHERE p.slug = :slug
                         """)
         Optional<JournalPost> findBySlugForDashboard(@Param("slug") String slug);
@@ -31,9 +32,9 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
         @Query("""
                         SELECT DISTINCT p FROM JournalPost p
                         LEFT JOIN p.translations t
+                        LEFT JOIN FETCH p.author
                         WHERE t.language = :language
-                        AND p.publishedAt IS NOT NULL
-                        AND p.publishedAt <= CURRENT_TIMESTAMP
+                        AND p.status = com.nocteon.nocteon_api.journal.enums.JournalPostStatus.PUBLISHED
                         AND (:search = ''
                              OR LOWER(t.title) LIKE LOWER(CONCAT('%', :search, '%')))
                         AND (:categorySlug IS NULL OR p.journalCategory.slug = :categorySlug)
@@ -50,6 +51,7 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
         @Query("""
                         SELECT DISTINCT p FROM JournalPost p
                         LEFT JOIN p.translations t
+                        LEFT JOIN FETCH p.author
                         WHERE (:search = ''
                                OR  LOWER(t.title) LIKE LOWER(CONCAT('%', :search, '%')))
                         AND (:categorySlug IS NULL OR p.journalCategory.slug = :categorySlug)
@@ -63,6 +65,7 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
                         SELECT DISTINCT p FROM JournalPost p
                         LEFT JOIN FETCH p.translations t
                         LEFT JOIN FETCH p.products
+                        LEFT JOIN FETCH p.author
                         WHERE p.slug = :slug
                         AND t.language = :language
                         """)

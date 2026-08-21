@@ -3,7 +3,6 @@ package com.nocteon.nocteon_api.product.service;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.nocteon.nocteon_api.brewingMethod.entity.BrewingMethod;
 import com.nocteon.nocteon_api.brewingMethod.repository.BrewingMethodRepository;

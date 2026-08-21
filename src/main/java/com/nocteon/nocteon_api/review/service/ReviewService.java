@@ -1,7 +1,7 @@
 package com.nocteon.nocteon_api.review.service;
 
-import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -132,16 +132,16 @@ public class ReviewService {
                 UserProfile profile = review.getUser().getProfile();
 
                 Product product = review.getProduct();
-                List<ProductTranslation> productTranslations = product.getTranslations();
+                Set<ProductTranslation> productTranslations = product.getTranslations();
                 ProductTranslation productTranslation = productTranslations.stream()
                                 .filter(t -> t.getLanguage().equals(language))
                                 .findFirst()
-                                .orElse(productTranslations.isEmpty() ? null : productTranslations.get(0));
+                                .orElse(productTranslations.isEmpty() ? null : productTranslations.stream().findFirst().orElse(null));
 
                 ProductMedia primaryMedia = product.getMedia().stream()
                                 .filter(ProductMedia::isPrimary)
                                 .findFirst()
-                                .orElse(product.getMedia().isEmpty() ? null : product.getMedia().get(0));
+                                .orElse(product.getMedia().isEmpty() ? null : product.getMedia().stream().findFirst().orElse(null));
 
                 return ReviewResponse.builder()
                                 .id(review.getId())
