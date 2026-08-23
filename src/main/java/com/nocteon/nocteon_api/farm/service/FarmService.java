@@ -61,9 +61,13 @@ public class FarmService {
 
         public PageResponse<FarmResponse> getAll(FarmFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
+                String search = Objects.requireNonNullElse(
+                                filter.getSearch(),
+                                "");
+
                 Page<Farm> page = farmRepository.findAllPublic(
                                 language,
-                                filter.getSearch(),
+                                search,
                                 filter.getOriginSlug(),
                                 filter.toPageable());
                 return PageResponse.of(page.map(f -> buildResponse(f, language)));

@@ -3,7 +3,6 @@ package com.nocteon.nocteon_api.product.dto.response;
 import java.math.BigDecimal;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.nocteon.nocteon_api.product.enums.ProductType;
 
 import lombok.Builder;
@@ -21,7 +20,6 @@ public class DashboardProductResponse {
     private String farmSlug;
     private ProductType productType;
     private boolean featured;
-    @JsonProperty("isActive")
     private boolean isActive;
 
     private String name;

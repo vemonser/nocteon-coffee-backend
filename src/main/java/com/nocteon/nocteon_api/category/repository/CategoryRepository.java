@@ -27,9 +27,11 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
                LEFT JOIN c.translations t
                WHERE t.language = :language
                AND c.isActive = true
-               AND (:search IS NULL OR
-                    LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
+               AND (:search = ''
+                    OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
+               )
                """)
+
      Page<Category> findAllPublic(
                @Param("language") String language,
                @Param("search") String search,

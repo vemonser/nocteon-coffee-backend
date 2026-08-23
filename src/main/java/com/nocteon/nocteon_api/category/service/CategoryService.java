@@ -96,7 +96,7 @@ public class CategoryService {
                                 .orElseThrow(CategoryNotFoundException::new);
 
                 helper.deleteMediaIfExists(category.getImageUrl());
-                category.setImageUrl(helper.uploadMedia(file, "categories",MediaType.IMAGE));
+                category.setImageUrl(helper.uploadMedia(file, "categories", MediaType.IMAGE));
                 categoryRepository.save(category);
 
                 return buildResponse(category, LocaleContextHolder.getLocale().getLanguage());
@@ -159,10 +159,13 @@ public class CategoryService {
 
         public PageResponse<CategoryResponse> getAll(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
+                String search = Objects.requireNonNullElse(
+                                filter.getSearch(),
+                                "");
 
                 Page<Category> page = categoryRepository.findAllPublic(
                                 language,
-                                filter.getSearch(),
+                                search,
                                 filter.toPageable());
 
                 return PageResponse.of(page.map(c -> buildResponse(c, language)));

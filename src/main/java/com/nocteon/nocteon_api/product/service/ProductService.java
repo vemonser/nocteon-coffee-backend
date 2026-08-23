@@ -5,11 +5,16 @@ import java.util.Objects;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductNotFoundException;
+import com.nocteon.nocteon_api.common.util.ProductSortResolver;
 import com.nocteon.nocteon_api.product.dto.request.ProductFilterRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductMediaRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductRequest;
@@ -20,6 +25,7 @@ import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.mapper.DashboardProductMapper;
 import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
+import com.nocteon.nocteon_api.product.repository.specification.ProductSpecifications;
 
 import lombok.RequiredArgsConstructor;
 
@@ -35,16 +41,20 @@ public class ProductService {
     public PageResponse<ProductCardResponse> getAll(ProductFilterRequest filter) {
         String language = LocaleContextHolder.getLocale().getLanguage();
 
-        Page<Product> page = productRepository.findAllPublic(
-                language,
-                Objects.requireNonNullElse(filter.getSearch(), ""),
-                filter.getCategorySlug(),
-                filter.getOriginSlug(),
-                filter.getProductType(),
-                filter.getFeatured(),
-                filter.toPageable());
+        String sort = switch (filter.getSort()) {
+            case "name", "price", "createdAt", "featured" -> filter.getSort();
+            default -> "createdAt";
+        };
+        filter.setSort(sort);
 
-        return PageResponse.of(page.map(p -> productResponseMapper.buildListResponse(p, language)));
+        Specification<Product> spec = ProductSpecifications.withFilters(filter, language);
+        Sort resolvedSort = ProductSortResolver.resolve(sort, filter.getDirection());
+        Pageable pageable = PageRequest.of(filter.getPage(), filter.getSize(), resolvedSort);
+
+        Page<Product> page = productRepository.findAll(spec, pageable);
+
+        return PageResponse.of(
+                page.map(p -> productResponseMapper.buildListResponse(p, language)));
     }
 
     public PageResponse<ProductCardResponse> getAllDashboard(ProductFilterRequest filter) {
@@ -103,8 +113,6 @@ public class ProductService {
     public void delete(String slug) {
         productMutationService.delete(slug);
     }
-
-
 
     private Page<Product> findDashboardPage(ProductFilterRequest filter) {
         return productRepository.findAllDashboard(

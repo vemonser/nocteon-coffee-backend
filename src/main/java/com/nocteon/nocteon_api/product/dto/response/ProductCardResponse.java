@@ -2,7 +2,6 @@ package com.nocteon.nocteon_api.product.dto.response;
 
 import java.math.BigDecimal;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.nocteon.nocteon_api.product.enums.ProductType;
 
 import lombok.AllArgsConstructor;
@@ -26,7 +25,6 @@ public class ProductCardResponse {
     private ProductType productType;
 
     private boolean featured;
-    @JsonProperty("isActive")
     private boolean isActive;
 
     private String name;

@@ -3,7 +3,6 @@ package com.nocteon.nocteon_api.product.dto.response;
 import java.math.BigDecimal;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.nocteon.nocteon_api.product.dto.response.summary.LockupResponse;
 import com.nocteon.nocteon_api.product.enums.ProductType;
 import com.nocteon.nocteon_api.review.dto.response.ReviewResponse;
@@ -23,7 +22,6 @@ public class ProductResponse {
     private LockupResponse farm; 
     private ProductType productType;
     private boolean featured;
-    @JsonProperty("isActive")
     private boolean isActive;
 
     // من الـ translation

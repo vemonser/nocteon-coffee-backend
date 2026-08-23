@@ -13,15 +13,17 @@ import io.lettuce.core.dynamic.annotation.Param;
 
 public interface FarmRepository extends JpaRepository<Farm, Long> {
 
-        @Query("""
-                        SELECT DISTINCT f FROM Farm f
-                        LEFT JOIN FETCH f.origin
-                        LEFT JOIN f.translations t
-                        WHERE t.language = :language
-                        AND (:search IS NULL OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
-                        AND (:originSlug IS NULL OR f.origin.slug = :originSlug)
-                        """)
-        Page<Farm> findAllPublic(
+                        @Query("""
+                                SELECT DISTINCT f
+                                FROM Farm f
+                                LEFT JOIN FETCH f.origin
+                                LEFT JOIN f.translations t
+                                WHERE t.language = :language
+                                AND (:search = ''
+                                OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
+                                AND (:originSlug IS NULL OR f.origin.slug = :originSlug)
+                                """)
+                        Page<Farm> findAllPublic(
                         @Param("language") String language,
                         @Param("search") String search,
                         @Param("originSlug") String originSlug,
