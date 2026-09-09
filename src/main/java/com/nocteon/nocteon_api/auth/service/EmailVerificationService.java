@@ -8,6 +8,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.nocteon.nocteon_api.auth.dto.request.VerifyEmailRequest;
+import com.nocteon.nocteon_api.auth.dto.response.EmailStatusResponse;
 import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.auth.entity.VerificationCode;
 import com.nocteon.nocteon_api.auth.enums.VerificationType;
@@ -69,6 +70,18 @@ public class EmailVerificationService {
         }
 
         sendVerificationEmail(user);
+    }
+
+    public EmailStatusResponse checkEmailStatus(String email) {
+        return userRepository.findByEmail(email)
+                .map(user -> EmailStatusResponse.builder()
+                        .exists(true)
+                        .verified(user.isEnabled())
+                        .build())
+                .orElse(EmailStatusResponse.builder()
+                        .exists(false)
+                        .verified(false)
+                        .build());
     }
 
     @Transactional

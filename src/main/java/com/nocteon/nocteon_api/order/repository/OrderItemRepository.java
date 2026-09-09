@@ -14,15 +14,20 @@ import com.nocteon.nocteon_api.payment.enums.PaymentStatus;
 import com.nocteon.nocteon_api.product.enums.ProductType;
 
 public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
+
     @Query("""
-                SELECT COALESCE(SUM(oi.quantity * pv.weightGrams), 0)
+                SELECT COALESCE(SUM(oi.quantity * ov.numericValue), 0)
                 FROM OrderItem oi
                 JOIN oi.order o
                 JOIN oi.productVariant pv
                 JOIN pv.product p
+                JOIN pv.optionValues ov
+                JOIN ov.option opt
                 WHERE o.paymentStatus = :paymentStatus
                 AND o.createdAt >= :since
                 AND p.productType = :productType
+                AND opt.slug = 'weight'
+                AND ov.numericValue IS NOT NULL
             """)
     BigDecimal getTotalCoffeeSoldGrams(
             @Param("paymentStatus") PaymentStatus paymentStatus,
@@ -93,5 +98,4 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
             @Param("paymentStatus") PaymentStatus paymentStatus,
             @Param("since") Instant since,
             Pageable pageable);
-
 }

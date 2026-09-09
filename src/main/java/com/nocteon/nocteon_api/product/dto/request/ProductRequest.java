@@ -34,7 +34,9 @@ public class ProductRequest {
     private List<@Valid ProductTranslationRequest> translations;
 
     private CoffeeDetailsRequest coffeeDetails;
-
+    
+    private List<@Valid ProductOptionRequest> options;
+    
     @NotEmpty(message = "{validation.variants.notEmpty}")
     private List<@Valid ProductVariantRequest> variants;
     

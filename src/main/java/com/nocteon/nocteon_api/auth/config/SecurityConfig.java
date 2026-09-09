@@ -3,8 +3,6 @@ package com.nocteon.nocteon_api.auth.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -15,6 +13,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfigurationSource;
 
+import com.nocteon.nocteon_api.auth.oauth2.CookieOAuth2AuthorizationRequestRepository;
 import com.nocteon.nocteon_api.auth.oauth2.CustomOAuth2UserService;
 import com.nocteon.nocteon_api.auth.oauth2.OAuth2FailureHandler;
 import com.nocteon.nocteon_api.auth.oauth2.OAuth2SuccessHandler;
@@ -40,6 +39,7 @@ public class SecurityConfig {
         private final RateLimiterService rateLimiterService;
         private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
         private final UserActivityTrackingFilter userActivityTrackingFilter;
+        private final CookieOAuth2AuthorizationRequestRepository cookieOAuth2AuthorizationRequestRepository;
 
         @Bean
         public RateLimitFilter rateLimitFilter() {
@@ -90,9 +90,21 @@ public class SecurityConfig {
                                                 .requestMatchers(HttpMethod.POST,
                                                                 "/api/orders/payment/webhook")
                                                 .permitAll()
+                                                .requestMatchers(HttpMethod.POST,
+                                                                "/api/newsletter/subscribe")
+                                                .permitAll()
+                                                .requestMatchers(HttpMethod.POST,
+                                                                "/api/contact")
+                                                .permitAll()
+                                                .requestMatchers(HttpMethod.GET,
+                                                                "/api/newsletter/unsubscribe")
+                                                .permitAll()
                                                 .requestMatchers("/api/dashboard/**").authenticated()
                                                 .anyRequest().authenticated())
                                 .oauth2Login(oauth2 -> oauth2
+                                                .authorizationEndpoint(authorization -> authorization
+                                                                .authorizationRequestRepository(
+                                                                                cookieOAuth2AuthorizationRequestRepository))
                                                 .userInfoEndpoint(userInfo -> userInfo
                                                                 .userService(customOAuth2UserService))
                                                 .successHandler(oAuth2SuccessHandler)
@@ -103,10 +115,4 @@ public class SecurityConfig {
                                 .addFilterAfter(userActivityTrackingFilter, RateLimitFilter.class);
                 return http.build();
         }
-
-        @Bean
-        public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-                return config.getAuthenticationManager();
-        }
-
 }

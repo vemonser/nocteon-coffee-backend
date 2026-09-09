@@ -1,6 +1,10 @@
 package com.nocteon.nocteon_api.product.service;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -20,11 +24,19 @@ import com.nocteon.nocteon_api.product.dto.request.ProductMediaRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductRequest;
 import com.nocteon.nocteon_api.product.dto.response.DashboardProductResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
+import com.nocteon.nocteon_api.product.dto.response.ProductOptionOptionResponse;
+import com.nocteon.nocteon_api.product.dto.response.ProductOptionValueOptionResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
 import com.nocteon.nocteon_api.product.entity.Product;
+import com.nocteon.nocteon_api.product.entity.ProductOption;
+import com.nocteon.nocteon_api.product.entity.ProductOptionTranslation;
+import com.nocteon.nocteon_api.product.entity.ProductOptionValue;
+import com.nocteon.nocteon_api.product.entity.ProductOptionValueTranslation;
 import com.nocteon.nocteon_api.product.mapper.DashboardProductMapper;
 import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
+import com.nocteon.nocteon_api.product.repository.ProductOptionValueRepository;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
+import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
 import com.nocteon.nocteon_api.product.repository.specification.ProductSpecifications;
 
 import lombok.RequiredArgsConstructor;
@@ -34,9 +46,11 @@ import lombok.RequiredArgsConstructor;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    private final ProductVariantRepository productVariantRepository;
     private final ProductResponseMapper productResponseMapper;
     private final DashboardProductMapper dashboardProductMapper;
     private final ProductMutationService productMutationService;
+    private final ProductOptionValueRepository productOptionValueRepository;
 
     public PageResponse<ProductCardResponse> getAll(ProductFilterRequest filter) {
         String language = LocaleContextHolder.getLocale().getLanguage();
@@ -45,9 +59,16 @@ public class ProductService {
             case "name", "price", "createdAt", "featured" -> filter.getSort();
             default -> "createdAt";
         };
-        filter.setSort(sort);
 
-        Specification<Product> spec = ProductSpecifications.withFilters(filter, language);
+        filter.setSort(sort);
+        long distinctOptionCount = 0;
+
+        if (filter.getOptionValueIds() != null && !filter.getOptionValueIds().isEmpty()) {
+            distinctOptionCount = productOptionValueRepository
+                    .countDistinctOptionsByValueIds(filter.getOptionValueIds());
+        }
+
+        Specification<Product> spec = ProductSpecifications.withFilters(filter, language, distinctOptionCount);
         Sort resolvedSort = ProductSortResolver.resolve(sort, filter.getDirection());
         Pageable pageable = PageRequest.of(filter.getPage(), filter.getSize(), resolvedSort);
 
@@ -55,6 +76,94 @@ public class ProductService {
 
         return PageResponse.of(
                 page.map(p -> productResponseMapper.buildListResponse(p, language)));
+    }
+
+    // في ProductService
+    public List<ProductOptionOptionResponse> getAvailableOptions(ProductFilterRequest filter) {
+        String language = LocaleContextHolder.getLocale().getLanguage();
+
+        ProductFilterRequest filterWithoutOptions = copyWithoutOptionValueIds(filter);
+
+        Specification<Product> spec = ProductSpecifications.withFilters(filterWithoutOptions, language, 0);
+        List<Long> productIds = productRepository.findAll(spec).stream()
+                .map(Product::getId)
+                .distinct()
+                .toList();
+
+        if (productIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<ProductOptionValue> optionValues = productVariantRepository
+                .findDistinctOptionValuesByProductIds(productIds);
+
+        optionValues.sort(
+                Comparator.comparing((ProductOptionValue ov) -> ov.getOption().getSortOrder())
+                        .thenComparing(ProductOptionValue::getSortOrder));
+
+        Map<Long, String> optionNames = new LinkedHashMap<>();
+        Map<Long, List<ProductOptionValueOptionResponse>> valuesByOption = new LinkedHashMap<>();
+
+        for (ProductOptionValue ov : optionValues) {
+            ProductOption option = ov.getOption();
+
+            optionNames.computeIfAbsent(option.getId(), id -> option.getTranslations().stream()
+                    .filter(t -> t.getLanguage().equals(language))
+                    .findFirst()
+                    .map(ProductOptionTranslation::getName)
+                    .orElse(option.getSlug()));
+
+            String value = ov.getTranslations().stream()
+                    .filter(t -> t.getLanguage().equals(language))
+                    .findFirst()
+                    .map(ProductOptionValueTranslation::getValue)
+                    .orElse(ov.getSlug());
+
+            valuesByOption
+                    .computeIfAbsent(option.getId(), id -> new ArrayList<>())
+                    .add(ProductOptionValueOptionResponse.builder()
+                            .id(ov.getId())
+                            .slug(ov.getSlug())
+                            .value(value)
+                            .build());
+        }
+
+        return optionNames.entrySet().stream()
+                .map(entry -> {
+                    Long optionId = entry.getKey();
+                    // نجيب slug الأوبشن من أول value بتاعتها (كلهم بنفس option فمتساوين)
+                    String optionSlug = optionValues.stream()
+                            .filter(ov -> ov.getOption().getId().equals(optionId))
+                            .findFirst()
+                            .map(ov -> ov.getOption().getSlug())
+                            .orElse("");
+
+                    return ProductOptionOptionResponse.builder()
+                            .id(optionId)
+                            .slug(optionSlug)
+                            .name(entry.getValue())
+                            .values(valuesByOption.get(optionId))
+                            .build();
+                })
+                .toList();
+    }
+
+    private ProductFilterRequest copyWithoutOptionValueIds(ProductFilterRequest filter) {
+        ProductFilterRequest copy = new ProductFilterRequest();
+        copy.setSearch(filter.getSearch());
+        copy.setCategorySlug(filter.getCategorySlug());
+        copy.setOriginSlug(filter.getOriginSlug());
+        copy.setFarmSlug(filter.getFarmSlug());
+        copy.setMinRating(filter.getMinRating());
+        copy.setProductType(filter.getProductType());
+        copy.setFeatured(filter.getFeatured());
+        copy.setIsActive(filter.getIsActive());
+        copy.setMinPrice(filter.getMinPrice());
+        copy.setMaxPrice(filter.getMaxPrice());
+        copy.setBrewingMethodSlug(filter.getBrewingMethodSlug());
+        copy.setInStockOnly(filter.getInStockOnly());
+        copy.setOnSaleOnly(filter.getOnSaleOnly());
+        return copy;
     }
 
     public PageResponse<ProductCardResponse> getAllDashboard(ProductFilterRequest filter) {

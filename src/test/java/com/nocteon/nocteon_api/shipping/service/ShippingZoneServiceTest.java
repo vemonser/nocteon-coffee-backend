@@ -171,7 +171,6 @@ class ShippingZoneServiceTest {
             request.setActive(true);
 
             when(shippingZoneRepository.findById(1L)).thenReturn(Optional.of(existingZone));
-            when(shippingZoneRepository.existsByCitiesContainingAndIdNot("Cairo", 1L)).thenReturn(false);
             when(shippingZoneRepository.existsByCitiesContainingAndIdNot("Alexandria", 1L)).thenReturn(true);
 
             assertThatThrownBy(() -> shippingZoneService.update(1L, request))

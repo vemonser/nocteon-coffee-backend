@@ -23,6 +23,7 @@ import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.entity.ProductMedia;
 import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
+import com.nocteon.nocteon_api.product.mapper.ProductOptionValueMapper;
 import com.nocteon.nocteon_api.product.repository.ProductMediaRepository;
 import com.nocteon.nocteon_api.product.repository.ProductTranslationRepository;
 import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
@@ -162,8 +163,7 @@ public class CartService {
                             .variantId(variant.getId())
                             .sku(variant.getSku())
                             .productSlug(product.getSlug())
-                            .weightGrams(variant.getWeightGrams())
-                            .grindType(variant.getGrindType())
+                            .optionValues(ProductOptionValueMapper.buildSummaries(variant, language))
                             .productName(productName)
                             .primaryImageUrl(imageUrl)
                             .price(price)

@@ -3,7 +3,7 @@ package com.nocteon.nocteon_api.mail.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.client.RestClient;
 
 @Configuration
 public class BrevoConfig {
@@ -15,8 +15,8 @@ public class BrevoConfig {
     private String baseUrl;
 
     @Bean
-    public WebClient brevoWebClient() {
-        return WebClient.builder()
+    public RestClient brevoRestClient() {
+        return RestClient.builder()
                 .baseUrl(baseUrl)
                 .defaultHeader("api-key", apiKey)
                 .defaultHeader("Content-Type", "application/json")

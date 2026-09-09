@@ -29,6 +29,7 @@ public class JwtService {
                 .subject(String.valueOf(userPrincipal.getUserId()))
                 .claim("email", userPrincipal.getUsername())
                 .claim("role", userPrincipal.getUser().getRole().name())
+                .claim("tokenVersion", userPrincipal.getUser().getTokenVersion())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + jwtProperties.getAccessTokenExpiration()))
                 .signWith(jwtPrivateKey, Jwts.SIG.RS256)
@@ -55,6 +56,10 @@ public class JwtService {
 
     public Long extractUserId(String token) {
         return Long.parseLong(extractAllClaims(token).getSubject());
+    }
+
+    public int extractTokenVersion(String token) {
+        return extractAllClaims(token).get("tokenVersion", Integer.class);
     }
 
     public boolean isTokenValid(String token) {

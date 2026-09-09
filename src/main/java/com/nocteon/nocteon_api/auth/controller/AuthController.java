@@ -6,7 +6,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -22,10 +24,12 @@ import com.nocteon.nocteon_api.auth.dto.request.ResetPasswordRequest;
 import com.nocteon.nocteon_api.auth.dto.request.VerifyEmailRequest;
 import com.nocteon.nocteon_api.auth.dto.response.AuthResponse;
 import com.nocteon.nocteon_api.auth.dto.response.AuthResult;
+import com.nocteon.nocteon_api.auth.dto.response.EmailStatusResponse;
 import com.nocteon.nocteon_api.auth.dto.response.RegisterResponse;
 import com.nocteon.nocteon_api.auth.service.AuthService;
 import com.nocteon.nocteon_api.auth.service.EmailVerificationService;
 import com.nocteon.nocteon_api.auth.service.PasswordResetService;
+import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.exception.RateLimitExceededException;
 import com.nocteon.nocteon_api.common.ratelimit.RateLimiterService;
@@ -113,11 +117,43 @@ public class AuthController {
                 .body(ApiResponse.success(null, "Logged out successfully"));
     }
 
+    @PostMapping("/logout-all")
+    public ResponseEntity<ApiResponse<Void>> logoutAll(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        authService.logoutAllDevices(principal.getUserId());
+
+        ResponseCookie expiredCookie = ResponseCookie.from("refreshToken", "")
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("None")
+                .path("/api/auth")
+                .maxAge(0)
+                .build();
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, expiredCookie.toString())
+                .body(ApiResponse.success(null, "Logged out from all devices"));
+    }
+
     @PostMapping("/verify-email")
     public ResponseEntity<ApiResponse<Void>> verifyEmail(
             @Valid @RequestBody VerifyEmailRequest request) {
         emailVerificationService.verifyEmail(request);
         return ResponseEntity.ok(ApiResponse.success(null, "Email verified successfully"));
+    }
+
+    @GetMapping("/email-status")
+    public ResponseEntity<ApiResponse<EmailStatusResponse>> checkEmailStatus(
+            @RequestParam String email,
+            HttpServletRequest httpRequest) {
+        String ip = httpRequest.getRemoteAddr();
+
+        if (!rateLimiterService.tryConsumeEmailStatus(ip)) {
+            throw new RateLimitExceededException();
+        }
+
+        EmailStatusResponse response = emailVerificationService.checkEmailStatus(email);
+        return ResponseEntity.ok(ApiResponse.success(response, "Email status retrieved"));
     }
 
     @PostMapping("/resend-verification")

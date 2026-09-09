@@ -19,7 +19,8 @@ CREATE TABLE
     broadcast_recipients (
         id BIGSERIAL PRIMARY KEY,
         broadcast_id BIGINT NOT NULL,
-        user_id BIGINT NOT NULL,
+        user_id BIGINT,
+        email VARCHAR(255),
         status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
         attempt_count INTEGER NOT NULL DEFAULT 0,
         last_error TEXT,
@@ -34,8 +35,33 @@ CREATE INDEX idx_broadcast_recipients_broadcast ON broadcast_recipients (broadca
 
 CREATE INDEX idx_broadcast_recipients_user ON broadcast_recipients (user_id);
 
+CREATE INDEX idx_broadcast_recipients_email ON broadcast_recipients (email);
+
 CREATE INDEX idx_broadcast_recipients_status ON broadcast_recipients (status);
 
 CREATE INDEX idx_broadcast_recipients_provider_message_id ON broadcast_recipients (provider_message_id);
 
-CREATE UNIQUE INDEX uk_broadcast_recipients_broadcast_user ON broadcast_recipients (broadcast_id, user_id);
+CREATE UNIQUE INDEX uk_broadcast_recipients_broadcast_email ON broadcast_recipients (broadcast_id, email) WHERE email IS NOT NULL;
+
+CREATE TABLE newsletter_subscribers (
+    id BIGSERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    token_hash VARCHAR(255) NOT NULL,
+    subscribed BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW (),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW ()
+);
+
+CREATE INDEX idx_newsletter_subscribers_subscribed ON newsletter_subscribers (subscribed);
+
+CREATE TABLE contact_messages (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    subject VARCHAR(200) NOT NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW (),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW ()
+);
+
+CREATE INDEX idx_contact_messages_created_at ON contact_messages (created_at DESC);

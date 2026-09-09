@@ -1,5 +1,60 @@
 BEGIN;
 
+-- =========================================================
+-- Global Options
+-- =========================================================
+INSERT INTO
+    product_options (slug, sort_order)
+VALUES
+    ('weight', 1),
+    ('grind', 2),
+    ('size', 3);
+
+INSERT INTO
+    product_option_translations (option_id, language, name)
+VALUES
+    (1, 'en', 'Weight'),
+    (1, 'ar', 'الوزن'),
+    (2, 'en', 'Grind Type'),
+    (2, 'ar', 'نوع الطحن'),
+    (3, 'en', 'Size'),
+    (3, 'ar', 'المقاس');
+
+-- =========================================================
+-- Global Option Values
+-- =========================================================
+INSERT INTO
+    product_option_values (option_id, slug, sort_order, numeric_value)
+VALUES
+    (1, '250g', 1, 250),
+    (1, '500g', 2, 500),
+    (2, 'whole-bean', 1, NULL),
+    (2, 'espresso', 2, NULL),
+    (2, 'v60', 3, NULL),
+    (3, '01', 1, NULL),
+    (3, '02', 2, NULL);
+
+INSERT INTO
+    product_option_value_translations (option_value_id, language, value)
+VALUES
+    (1, 'en', '250g'),
+    (1, 'ar', '250 جم'),
+    (2, 'en', '500g'),
+    (2, 'ar', '500 جم'),
+    (3, 'en', 'Whole Bean'),
+    (3, 'ar', 'حبوب كاملة'),
+    (4, 'en', 'Espresso'),
+    (4, 'ar', 'إسبريسو'),
+    (5, 'en', 'V60'),
+    (5, 'ar', 'V60'),
+    (6, 'en', '01 (1-2 cups)'),
+    (6, 'ar', '01 (1-2 كوب)'),
+    (7, 'en', '02 (1-4 cups)'),
+    (7, 'ar', '02 (1-4 أكواب)');
+
+-- =========================================================
+-- Product 1: Ethiopia Yirgacheffe
+-- =========================================================
 INSERT INTO
     products (
         slug,
@@ -59,27 +114,10 @@ VALUES
     (1, 1, 1, 1, 1900, 2025, 'Demo story');
 
 INSERT INTO
-    product_variants (
-        product_id,
-        sku,
-        price,
-        compare_at_price,
-        weight_grams,
-        grind_type,
-        stock_quantity,
-        is_active
-    )
+    product_option_links (product_id, option_id)
 VALUES
-    (
-        1,
-        'SKU-1-1',
-        460,
-        510,
-        250,
-        'WHOLE_BEAN',
-        50,
-        TRUE
-    );
+    (1, 1),
+    (1, 2);
 
 INSERT INTO
     product_variants (
@@ -87,27 +125,23 @@ INSERT INTO
         sku,
         price,
         compare_at_price,
-        weight_grams,
-        grind_type,
         stock_quantity,
         is_active
     )
 VALUES
-    (1, 'SKU-1-2', 500, 550, 250, 'ESPRESSO', 50, TRUE);
+    (1, 'SKU-1-1', 460, 510, 50, TRUE),
+    (1, 'SKU-1-2', 500, 550, 50, TRUE),
+    (1, 'SKU-1-3', 540, 590, 50, TRUE);
 
 INSERT INTO
-    product_variants (
-        product_id,
-        sku,
-        price,
-        compare_at_price,
-        weight_grams,
-        grind_type,
-        stock_quantity,
-        is_active
-    )
+    variant_option_values (variant_id, option_value_id)
 VALUES
-    (1, 'SKU-1-3', 540, 590, 500, 'V60', 50, TRUE);
+    (1, 1),
+    (1, 3),
+    (2, 1),
+    (2, 4),
+    (3, 2),
+    (3, 5);
 
 INSERT INTO
     product_media (
@@ -126,18 +160,7 @@ VALUES
         'IMAGE',
         1,
         TRUE
-    );
-
-INSERT INTO
-    product_media (
-        product_id,
-        url,
-        alt_text,
-        type,
-        sort_order,
-        is_primary
-    )
-VALUES
+    ),
     (
         1,
         'https://images.unsplash.com/photo-1447933601403-0c6688de566e?sig=12',
@@ -145,18 +168,7 @@ VALUES
         'IMAGE',
         2,
         FALSE
-    );
-
-INSERT INTO
-    product_media (
-        product_id,
-        url,
-        alt_text,
-        type,
-        sort_order,
-        is_primary
-    )
-VALUES
+    ),
     (
         1,
         'https://images.unsplash.com/photo-1447933601403-0c6688de566e?sig=13',
@@ -185,6 +197,9 @@ VALUES
     (1, 1),
     (1, 2);
 
+-- =========================================================
+-- Product 2: Colombia Huila
+-- =========================================================
 INSERT INTO
     products (
         slug,
@@ -236,27 +251,10 @@ VALUES
     (2, 3, 2, 2, 1750, 2025, 'Demo story');
 
 INSERT INTO
-    product_variants (
-        product_id,
-        sku,
-        price,
-        compare_at_price,
-        weight_grams,
-        grind_type,
-        stock_quantity,
-        is_active
-    )
+    product_option_links (product_id, option_id)
 VALUES
-    (
-        2,
-        'SKU-2-1',
-        480,
-        530,
-        250,
-        'WHOLE_BEAN',
-        50,
-        TRUE
-    );
+    (2, 1),
+    (2, 2);
 
 INSERT INTO
     product_variants (
@@ -264,27 +262,23 @@ INSERT INTO
         sku,
         price,
         compare_at_price,
-        weight_grams,
-        grind_type,
         stock_quantity,
         is_active
     )
 VALUES
-    (2, 'SKU-2-2', 520, 570, 250, 'ESPRESSO', 50, TRUE);
+    (2, 'SKU-2-1', 480, 530, 50, TRUE),
+    (2, 'SKU-2-2', 520, 570, 50, TRUE),
+    (2, 'SKU-2-3', 560, 610, 50, TRUE);
 
 INSERT INTO
-    product_variants (
-        product_id,
-        sku,
-        price,
-        compare_at_price,
-        weight_grams,
-        grind_type,
-        stock_quantity,
-        is_active
-    )
+    variant_option_values (variant_id, option_value_id)
 VALUES
-    (2, 'SKU-2-3', 560, 610, 500, 'V60', 50, TRUE);
+    (4, 1),
+    (4, 3),
+    (5, 1),
+    (5, 4),
+    (6, 2),
+    (6, 5);
 
 INSERT INTO
     product_media (
@@ -303,18 +297,7 @@ VALUES
         'IMAGE',
         1,
         TRUE
-    );
-
-INSERT INTO
-    product_media (
-        product_id,
-        url,
-        alt_text,
-        type,
-        sort_order,
-        is_primary
-    )
-VALUES
+    ),
     (
         2,
         'https://images.unsplash.com/photo-1447933601403-0c6688de566e?sig=22',
@@ -322,18 +305,7 @@ VALUES
         'IMAGE',
         2,
         FALSE
-    );
-
-INSERT INTO
-    product_media (
-        product_id,
-        url,
-        alt_text,
-        type,
-        sort_order,
-        is_primary
-    )
-VALUES
+    ),
     (
         2,
         'https://images.unsplash.com/photo-1447933601403-0c6688de566e?sig=23',
@@ -362,6 +334,9 @@ VALUES
     (2, 1),
     (2, 2);
 
+-- =========================================================
+-- Product 3: Kenya Nyeri
+-- =========================================================
 INSERT INTO
     products (
         slug,
@@ -413,27 +388,10 @@ VALUES
     (3, 2, 3, 5, 1850, 2025, 'Demo story');
 
 INSERT INTO
-    product_variants (
-        product_id,
-        sku,
-        price,
-        compare_at_price,
-        weight_grams,
-        grind_type,
-        stock_quantity,
-        is_active
-    )
+    product_option_links (product_id, option_id)
 VALUES
-    (
-        3,
-        'SKU-3-1',
-        500,
-        550,
-        250,
-        'WHOLE_BEAN',
-        50,
-        TRUE
-    );
+    (3, 1),
+    (3, 2);
 
 INSERT INTO
     product_variants (
@@ -441,27 +399,23 @@ INSERT INTO
         sku,
         price,
         compare_at_price,
-        weight_grams,
-        grind_type,
         stock_quantity,
         is_active
     )
 VALUES
-    (3, 'SKU-3-2', 540, 590, 250, 'ESPRESSO', 50, TRUE);
+    (3, 'SKU-3-1', 500, 550, 50, TRUE),
+    (3, 'SKU-3-2', 540, 590, 50, TRUE),
+    (3, 'SKU-3-3', 580, 630, 50, TRUE);
 
 INSERT INTO
-    product_variants (
-        product_id,
-        sku,
-        price,
-        compare_at_price,
-        weight_grams,
-        grind_type,
-        stock_quantity,
-        is_active
-    )
+    variant_option_values (variant_id, option_value_id)
 VALUES
-    (3, 'SKU-3-3', 580, 630, 500, 'V60', 50, TRUE);
+    (7, 1),
+    (7, 3),
+    (8, 1),
+    (8, 4),
+    (9, 2),
+    (9, 5);
 
 INSERT INTO
     product_media (
@@ -480,18 +434,7 @@ VALUES
         'IMAGE',
         1,
         TRUE
-    );
-
-INSERT INTO
-    product_media (
-        product_id,
-        url,
-        alt_text,
-        type,
-        sort_order,
-        is_primary
-    )
-VALUES
+    ),
     (
         3,
         'https://images.unsplash.com/photo-1447933601403-0c6688de566e?sig=32',
@@ -499,18 +442,7 @@ VALUES
         'IMAGE',
         2,
         FALSE
-    );
-
-INSERT INTO
-    product_media (
-        product_id,
-        url,
-        alt_text,
-        type,
-        sort_order,
-        is_primary
-    )
-VALUES
+    ),
     (
         3,
         'https://images.unsplash.com/photo-1447933601403-0c6688de566e?sig=33',
@@ -539,6 +471,9 @@ VALUES
     (3, 1),
     (3, 2);
 
+-- =========================================================
+-- Product 4: Brazil Mogiana
+-- =========================================================
 INSERT INTO
     products (
         slug,
@@ -590,27 +525,10 @@ VALUES
     (4, 4, 1, 3, 1200, 2024, 'Demo story');
 
 INSERT INTO
-    product_variants (
-        product_id,
-        sku,
-        price,
-        compare_at_price,
-        weight_grams,
-        grind_type,
-        stock_quantity,
-        is_active
-    )
+    product_option_links (product_id, option_id)
 VALUES
-    (
-        4,
-        'SKU-4-1',
-        520,
-        570,
-        250,
-        'WHOLE_BEAN',
-        50,
-        TRUE
-    );
+    (4, 1),
+    (4, 2);
 
 INSERT INTO
     product_variants (
@@ -618,27 +536,23 @@ INSERT INTO
         sku,
         price,
         compare_at_price,
-        weight_grams,
-        grind_type,
         stock_quantity,
         is_active
     )
 VALUES
-    (4, 'SKU-4-2', 560, 610, 250, 'ESPRESSO', 50, TRUE);
+    (4, 'SKU-4-1', 520, 570, 50, TRUE),
+    (4, 'SKU-4-2', 560, 610, 50, TRUE),
+    (4, 'SKU-4-3', 600, 650, 50, TRUE);
 
 INSERT INTO
-    product_variants (
-        product_id,
-        sku,
-        price,
-        compare_at_price,
-        weight_grams,
-        grind_type,
-        stock_quantity,
-        is_active
-    )
+    variant_option_values (variant_id, option_value_id)
 VALUES
-    (4, 'SKU-4-3', 600, 650, 500, 'V60', 50, TRUE);
+    (10, 1),
+    (10, 3),
+    (11, 1),
+    (11, 4),
+    (12, 2),
+    (12, 5);
 
 INSERT INTO
     product_media (
@@ -657,18 +571,7 @@ VALUES
         'IMAGE',
         1,
         TRUE
-    );
-
-INSERT INTO
-    product_media (
-        product_id,
-        url,
-        alt_text,
-        type,
-        sort_order,
-        is_primary
-    )
-VALUES
+    ),
     (
         4,
         'https://images.unsplash.com/photo-1447933601403-0c6688de566e?sig=42',
@@ -676,18 +579,7 @@ VALUES
         'IMAGE',
         2,
         FALSE
-    );
-
-INSERT INTO
-    product_media (
-        product_id,
-        url,
-        alt_text,
-        type,
-        sort_order,
-        is_primary
-    )
-VALUES
+    ),
     (
         4,
         'https://images.unsplash.com/photo-1447933601403-0c6688de566e?sig=43',
@@ -716,6 +608,9 @@ VALUES
     (4, 1),
     (4, 2);
 
+-- =========================================================
+-- Product 5: Hario V60 Dripper
+-- =========================================================
 INSERT INTO
     products (
         slug,
@@ -756,18 +651,28 @@ VALUES
     (5, 'ar', 'هاريو V60', 'معدات تحضير', 'وصف');
 
 INSERT INTO
+    product_option_links (product_id, option_id)
+VALUES
+    (5, 3);
+
+INSERT INTO
     product_variants (
         product_id,
         sku,
         price,
         compare_at_price,
-        weight_grams,
-        grind_type,
         stock_quantity,
         is_active
     )
 VALUES
-    (5, 'EQ-5', 650, NULL, NULL, NULL, 20, TRUE);
+    (5, 'EQ-5-01', 650, NULL, 20, TRUE),
+    (5, 'EQ-5-02', 750, NULL, 15, TRUE);
+
+INSERT INTO
+    variant_option_values (variant_id, option_value_id)
+VALUES
+    (13, 6),
+    (14, 7);
 
 INSERT INTO
     product_media (
@@ -788,6 +693,9 @@ VALUES
         TRUE
     );
 
+-- =========================================================
+-- Product 6: Chemex 6 Cup
+-- =========================================================
 INSERT INTO
     products (
         slug,
@@ -833,13 +741,11 @@ INSERT INTO
         sku,
         price,
         compare_at_price,
-        weight_grams,
-        grind_type,
         stock_quantity,
         is_active
     )
 VALUES
-    (6, 'EQ-6', 650, NULL, NULL, NULL, 20, TRUE);
+    (6, 'EQ-6', 650, NULL, 20, TRUE);
 
 INSERT INTO
     product_media (
@@ -860,6 +766,9 @@ VALUES
         TRUE
     );
 
+-- =========================================================
+-- Product 7: AeroPress
+-- =========================================================
 INSERT INTO
     products (
         slug,
@@ -905,13 +814,11 @@ INSERT INTO
         sku,
         price,
         compare_at_price,
-        weight_grams,
-        grind_type,
         stock_quantity,
         is_active
     )
 VALUES
-    (7, 'EQ-7', 650, NULL, NULL, NULL, 20, TRUE);
+    (7, 'EQ-7', 650, NULL, 20, TRUE);
 
 INSERT INTO
     product_media (

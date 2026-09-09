@@ -1,19 +1,20 @@
 package com.nocteon.nocteon_api.product.entity;
 
 import java.math.BigDecimal;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.springframework.data.annotation.Version;
 
 import com.nocteon.nocteon_api.common.entity.SoftDeletableEntity;
-import com.nocteon.nocteon_api.product.enums.GrindType;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -47,12 +48,9 @@ public class ProductVariant extends SoftDeletableEntity {
     @Column(name = "compare_at_price", precision = 10, scale = 2)
     private BigDecimal compareAtPrice;
 
-    @Column(name = "weight_grams", precision = 8, scale = 2)
-    private BigDecimal weightGrams;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "grind_type")
-    private GrindType grindType;
+    @ManyToMany
+    @JoinTable(name = "variant_option_values", joinColumns = @JoinColumn(name = "variant_id"), inverseJoinColumns = @JoinColumn(name = "option_value_id"))
+    private Set<ProductOptionValue> optionValues = new HashSet<>();
 
     @Column(name = "stock_quantity", nullable = false)
     @Builder.Default

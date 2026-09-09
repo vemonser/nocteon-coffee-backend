@@ -177,6 +177,11 @@ public class AuthService {
     @Transactional
     public void logoutAllDevices(Long userId) {
         refreshTokenRepository.deleteByUserId(userId);
+        User user = userRepository.findById(userId).orElse(null);
+        if (user != null) {
+            user.incrementTokenVersion();
+            userRepository.save(user);
+        }
     }
 
     private AuthResult buildAuthResponse(User user) {
@@ -213,9 +218,13 @@ public class AuthService {
                                 .email(userWithProfile.getEmail())
                                 .username(userWithProfile.getUsername())
                                 .role(userWithProfile.getRole())
+                                .enabled(userWithProfile.isEnabled())
+                                .isActive(userWithProfile.isActive())
                                 .firstName(profile != null ? profile.getFirstName() : null)
                                 .lastName(profile != null ? profile.getLastName() : null)
                                 .avatarUrl(profile != null ? profile.getAvatarUrl() : null)
+                                .createdAt(userWithProfile.getCreatedAt())
+                                .lastActiveAt(userWithProfile.getLastActiveAt())
                                 .permissions(permissions)
                                 .build())
                         .build())

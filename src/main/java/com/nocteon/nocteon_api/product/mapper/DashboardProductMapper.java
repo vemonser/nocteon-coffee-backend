@@ -46,7 +46,7 @@ public class DashboardProductMapper {
                                 .findFirst()
                                 .orElse(translations.isEmpty() ? null : translations.get(0));
 
-                List<ProductVariantResponse> variants = productResponseMapper.buildVariants(product);
+                List<ProductVariantResponse> variants = productResponseMapper.buildVariants(product,language);
                 List<ProductMediaResponse> media = productResponseMapper.buildMedia(product);
 
                 ProductMediaResponse primaryMedia = media.stream()

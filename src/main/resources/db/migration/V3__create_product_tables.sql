@@ -44,8 +44,6 @@ CREATE TABLE product_variants (
     sku VARCHAR(100) NOT NULL UNIQUE,
     price DECIMAL(10,2) NOT NULL,
     compare_at_price DECIMAL(10,2),
-    weight_grams DECIMAL(8,2),
-    grind_type VARCHAR(50),
     stock_quantity INT NOT NULL DEFAULT 0,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     version BIGINT NOT NULL DEFAULT 0,
@@ -53,6 +51,56 @@ CREATE TABLE product_variants (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ NULL
 );
+
+CREATE TABLE product_options (
+    id BIGSERIAL PRIMARY KEY,
+    slug VARCHAR(100) NOT NULL UNIQUE,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE product_option_translations (
+    id BIGSERIAL PRIMARY KEY,
+    option_id BIGINT NOT NULL REFERENCES product_options(id) ON DELETE CASCADE,
+    language VARCHAR(10) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    CONSTRAINT uk_option_language UNIQUE (option_id, language)
+);
+
+CREATE TABLE product_option_values (
+    id BIGSERIAL PRIMARY KEY,
+    option_id BIGINT NOT NULL REFERENCES product_options(id) ON DELETE CASCADE,
+    slug VARCHAR(100) NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    numeric_value DECIMAL(10,2) NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uk_option_value_slug UNIQUE (option_id, slug)
+);
+
+CREATE TABLE product_option_value_translations (
+    id BIGSERIAL PRIMARY KEY,
+    option_value_id BIGINT NOT NULL REFERENCES product_option_values(id) ON DELETE CASCADE,
+    language VARCHAR(10) NOT NULL,
+    value VARCHAR(150) NOT NULL,
+    CONSTRAINT uk_option_value_language UNIQUE (option_value_id, language)
+);
+
+CREATE TABLE variant_option_values (
+    variant_id BIGINT NOT NULL REFERENCES product_variants(id) ON DELETE CASCADE,
+    option_value_id BIGINT NOT NULL REFERENCES product_option_values(id) ON DELETE CASCADE,
+    PRIMARY KEY (variant_id, option_value_id)
+);
+CREATE TABLE product_option_links (
+    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    option_id BIGINT NOT NULL REFERENCES product_options(id) ON DELETE CASCADE,
+    PRIMARY KEY (product_id, option_id)
+);
+
+CREATE INDEX idx_option_values_option ON product_option_values(option_id);
+CREATE INDEX idx_variant_option_values_variant ON variant_option_values(variant_id);
+CREATE INDEX idx_variant_option_values_value ON variant_option_values(option_value_id);
 
 CREATE INDEX idx_product_variants_product_id
     ON product_variants(product_id);

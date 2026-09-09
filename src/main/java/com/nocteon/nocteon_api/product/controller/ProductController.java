@@ -27,6 +27,7 @@ import com.nocteon.nocteon_api.product.dto.request.ProductMediaRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductRequest;
 import com.nocteon.nocteon_api.product.dto.response.DashboardProductResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
+import com.nocteon.nocteon_api.product.dto.response.ProductOptionOptionResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
 import com.nocteon.nocteon_api.product.service.ProductService;
 
@@ -65,6 +66,15 @@ public class ProductController {
                                                 "Product retrieved"));
         }
 
+        @GetMapping("/products/available-options")
+        public ResponseEntity<ApiResponse<List<ProductOptionOptionResponse>>> getAvailableOptions(
+                        @ModelAttribute ProductFilterRequest filter) {
+
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                productService.getAvailableOptions(filter),
+                                                "Available options retrieved"));
+        }
         // =========================
         // Dashboard
         // =========================

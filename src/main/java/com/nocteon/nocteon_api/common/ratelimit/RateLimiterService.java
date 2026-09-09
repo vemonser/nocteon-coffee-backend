@@ -47,6 +47,34 @@ public class RateLimiterService {
         return bucket.tryConsume(1);
     }
 
+    public boolean tryConsumeEmailStatus(String ip) {
+        Bucket bucket = proxyManager.builder().build("rate:email-status:ip:" + ip, this::emailStatusBucketConfig);
+        return bucket.tryConsume(1);
+    }
+
+    public boolean tryConsumeContact(String ip) {
+        Bucket bucket = proxyManager.builder().build("rate:contact:ip:" + ip, this::contactBucketConfig);
+        return bucket.tryConsume(1);
+    }
+
+    private BucketConfiguration emailStatusBucketConfig() {
+        return BucketConfiguration.builder()
+                .addLimit(Bandwidth.builder()
+                        .capacity(10)
+                        .refillIntervally(10, Duration.ofMinutes(1))
+                        .build())
+                .build();
+    }
+
+    private BucketConfiguration contactBucketConfig() {
+        return BucketConfiguration.builder()
+                .addLimit(Bandwidth.builder()
+                        .capacity(5)
+                        .refillIntervally(5, Duration.ofMinutes(10))
+                        .build())
+                .build();
+    }
+
     private BucketConfiguration loginBucketConfig() {
         return BucketConfiguration.builder()
                 .addLimit(Bandwidth.builder()

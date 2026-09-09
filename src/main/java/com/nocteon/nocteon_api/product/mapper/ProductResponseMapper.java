@@ -19,15 +19,20 @@ import com.nocteon.nocteon_api.product.dto.response.CoffeeDetailsResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductBrewingMethodResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductMediaResponse;
+import com.nocteon.nocteon_api.product.dto.response.ProductPairingResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductVariantResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductWithScoreResponse;
 import com.nocteon.nocteon_api.product.dto.response.summary.LockupResponse;
+import com.nocteon.nocteon_api.product.dto.response.summary.LockupResponseImage;
+import com.nocteon.nocteon_api.product.dto.response.summary.ProductOptionValueSummary;
 import com.nocteon.nocteon_api.product.dto.response.summary.RoastLevelSummary;
 import com.nocteon.nocteon_api.product.entity.CoffeeDetails;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.entity.ProductBrewingMethod;
 import com.nocteon.nocteon_api.product.entity.ProductMedia;
+import com.nocteon.nocteon_api.product.entity.ProductOptionTranslation;
+import com.nocteon.nocteon_api.product.entity.ProductOptionValueTranslation;
 import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
 import com.nocteon.nocteon_api.product.enums.ProductType;
@@ -56,6 +61,7 @@ public class ProductResponseMapper {
         private final ReviewRepository reviewRepository;
         private final ReviewService reviewService;
         private final LookupResponseMapper lookupResponseMapper;
+        private final LookupResponseImageMapper lookupResponseImageMapper;
 
         public ProductCardResponse buildListResponse(Product product, String language) {
                 Set<ProductTranslation> translations = product.getTranslations();
@@ -118,7 +124,7 @@ public class ProductResponseMapper {
                                 .findFirst()
                                 .orElse(translations.isEmpty() ? null : translations.get(0));
 
-                List<ProductVariantResponse> variants = buildVariants(product);
+                List<ProductVariantResponse> variants = buildVariants(product, language);
                 List<ProductMediaResponse> media = buildMedia(product);
 
                 List<String> tastingNotes = product.getTastingNotes().stream()
@@ -127,11 +133,22 @@ public class ProductResponseMapper {
                                 .map(TastingNoteTranslation::getName)
                                 .toList();
 
-                List<String> pairings = product.getPairings().stream()
-                                .flatMap(p -> p.getTranslations().stream()
-                                                .filter(t -> t.getLanguage().equals(language)))
-                                .map(PairingTranslation::getName)
-                                .toList();
+                List<ProductPairingResponse> pairings = product.getPairings().stream()
+                                .map(p -> {
+                                        String name = p.getTranslations().stream()
+                                                        .filter(t -> t.getLanguage().equals(language))
+                                                        .findFirst().map(PairingTranslation::getName)
+                                                        .orElse(p.getSlug());
+
+                                        String imageUrl = p.getImageUrl();
+
+                                        return ProductPairingResponse.builder().pairingSlug(p.getSlug())
+                                                        .pairingName(name).pairingImage(imageUrl).build();
+                                }).toList();
+                // .flatMap(p -> p.getTranslations().stream()
+                // .filter(t -> t.getLanguage().equals(language)))
+                // .map(PairingTranslation::getName)
+                // .toList();
 
                 List<ProductBrewingMethodResponse> brewingMethods = productBrewingMethodRepository
                                 .findByProductId(product.getId()).stream()
@@ -159,31 +176,34 @@ public class ProductResponseMapper {
                                         .orElse(null);
                 }
 
-                LockupResponse category = product.getCategory() != null
-                                ? lookupResponseMapper.buildLookup(
+                LockupResponseImage category = product.getCategory() != null
+                                ? lookupResponseImageMapper.buildLookupImage(
                                                 product.getCategory().getSlug(),
                                                 product.getCategory().getTranslations(),
                                                 language,
+                                                product.getCategory().getImageUrl(),
                                                 CategoryTranslation::getLanguage,
                                                 CategoryTranslation::getName,
                                                 CategoryTranslation::getDescription)
                                 : null;
 
-                LockupResponse origin = product.getOrigin() != null
-                                ? lookupResponseMapper.buildLookup(
+                LockupResponseImage origin = product.getOrigin() != null
+                                ? lookupResponseImageMapper.buildLookupImage(
                                                 product.getOrigin().getSlug(),
                                                 product.getOrigin().getTranslations(),
                                                 language,
+                                                product.getOrigin().getImageUrl(),
                                                 OriginTranslation::getLanguage,
                                                 OriginTranslation::getName,
                                                 OriginTranslation::getDescription)
                                 : null;
 
-                LockupResponse farm = product.getFarm() != null
-                                ? lookupResponseMapper.buildLookup(
+                LockupResponseImage farm = product.getFarm() != null
+                                ? lookupResponseImageMapper.buildLookupImage(
                                                 product.getFarm().getSlug(),
                                                 product.getFarm().getTranslations(),
                                                 language,
+                                                product.getFarm().getImageUrl(),        
                                                 FarmTranslation::getLanguage,
                                                 FarmTranslation::getName,
                                                 FarmTranslation::getDescription)
@@ -261,7 +281,7 @@ public class ProductResponseMapper {
                                 .build();
         }
 
-        List<ProductVariantResponse> buildVariants(Product product) {
+        List<ProductVariantResponse> buildVariants(Product product, String language) {
                 return productVariantRepository
                                 .findByProductId(product.getId()).stream()
                                 .map(v -> ProductVariantResponse.builder()
@@ -269,11 +289,35 @@ public class ProductResponseMapper {
                                                 .sku(v.getSku())
                                                 .price(v.getPrice())
                                                 .compareAtPrice(v.getCompareAtPrice())
-                                                .weightGrams(v.getWeightGrams())
-                                                .grindType(v.getGrindType())
                                                 .stockQuantity(v.getStockQuantity())
                                                 .isActive(v.isActive())
+                                                .optionValues(buildOptionValueSummaries(v, language))
                                                 .build())
+                                .toList();
+        }
+
+        private List<ProductOptionValueSummary> buildOptionValueSummaries(ProductVariant variant, String language) {
+                return variant.getOptionValues().stream()
+                                .map(ov -> {
+                                        String optionName = ov.getOption().getTranslations().stream()
+                                                        .filter(t -> t.getLanguage().equals(language))
+                                                        .findFirst()
+                                                        .map(ProductOptionTranslation::getName)
+                                                        .orElse(ov.getOption().getSlug());
+
+                                        String value = ov.getTranslations().stream()
+                                                        .filter(t -> t.getLanguage().equals(language))
+                                                        .findFirst()
+                                                        .map(ProductOptionValueTranslation::getValue)
+                                                        .orElse(ov.getSlug());
+
+                                        return ProductOptionValueSummary.builder()
+                                                        .optionSlug(ov.getOption().getSlug())
+                                                        .optionName(optionName)
+                                                        .valueSlug(ov.getSlug())
+                                                        .value(value)
+                                                        .build();
+                                })
                                 .toList();
         }
 

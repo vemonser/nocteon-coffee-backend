@@ -82,6 +82,10 @@ public class User extends BaseEntity {
     @Builder.Default
     private boolean subscribed = true;
 
+    @Column(name = "token_version", nullable = false)
+    @Builder.Default
+    private int tokenVersion = 0;
+
     public boolean isLocked() {
         if (lockedUntil == null)
             return false;
@@ -100,6 +104,10 @@ public class User extends BaseEntity {
         this.failedLoginAttempts = 0;
         this.lockedUntil = null;
         this.lastFailedLogin = null;
+    }
+
+    public void incrementTokenVersion() {
+        this.tokenVersion++;
     }
 
 }

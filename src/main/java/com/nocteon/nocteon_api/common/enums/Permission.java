@@ -109,6 +109,13 @@ public enum Permission {
     NOTIFICATION_UPDATE("notification:update"),
     NOTIFICATION_DELETE("notification:delete"),
 
+    // Broadcast
+    BROADCAST_CREATE("broadcast:create"),
+    BROADCAST_READ("broadcast:read"),
+
+    // Contact
+    CONTACT_READ("contact:read"),
+
     // Cart & Wishlist
     CART_MANAGE("cart:manage"),
     WISHLIST_MANAGE("wishlist:manage");

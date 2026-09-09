@@ -32,7 +32,7 @@ public class LookupResponseMapper  {
                 .findFirst()
                 .map(descriptionExtractor)
                 .orElse(null);
-
+                
         return LockupResponse.builder()
                 .slug(slug)
                 .name(name)

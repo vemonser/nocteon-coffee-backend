@@ -8,6 +8,7 @@ CREATE TABLE users (
     provider_id VARCHAR(255) NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'CUSTOMER',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    token_version INT NOT NULL DEFAULT 0,
     failed_login_attempts INT NOT NULL DEFAULT 0,
     locked_until TIMESTAMPTZ NULL,
     last_failed_login TIMESTAMPTZ NULL,

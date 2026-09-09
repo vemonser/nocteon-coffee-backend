@@ -1,8 +1,10 @@
 package com.nocteon.nocteon_api.product.dto.response;
 
 import java.math.BigDecimal;
+import java.util.List;
 
-import com.nocteon.nocteon_api.product.enums.GrindType;
+import com.nocteon.nocteon_api.product.dto.response.summary.ProductOptionValueSummary;
+
 
 import lombok.Builder;
 import lombok.Getter;
@@ -15,10 +17,9 @@ public class ProductVariantResponse {
     private Long id;
     private String sku;
     private BigDecimal price;
-    private BigDecimal weightGrams;
     private BigDecimal compareAtPrice;
-    private GrindType grindType;
     private int stockQuantity;
     private Integer discountPercentage;
     private boolean isActive;
+    private List<ProductOptionValueSummary> optionValues;
 }

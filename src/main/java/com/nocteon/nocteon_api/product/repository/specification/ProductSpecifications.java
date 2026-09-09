@@ -15,6 +15,7 @@ import com.nocteon.nocteon_api.origin.entity.Origin;
 import com.nocteon.nocteon_api.product.dto.request.ProductFilterRequest;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.entity.ProductBrewingMethod;
+import com.nocteon.nocteon_api.product.entity.ProductOptionValue;
 import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
 import com.nocteon.nocteon_api.review.entity.Review;
@@ -30,7 +31,10 @@ import jakarta.persistence.criteria.Subquery;
 
 public class ProductSpecifications {
 
-    public static Specification<Product> withFilters(ProductFilterRequest filter, String language) {
+    public static Specification<Product> withFilters(
+            ProductFilterRequest filter,
+            String language,
+            long distinctOptionCount) {
         return (root, query, cb) -> {
             Join<Product, ProductTranslation> translations = root.join("translations", JoinType.LEFT);
             Join<Product, ProductVariant> variants = root.join("variants", JoinType.LEFT);
@@ -76,15 +80,10 @@ public class ProductSpecifications {
                 ratingSubquery.select(cb.avg(reviewRoot.get("rating")));
                 ratingSubquery.where(
                         cb.equal(reviewRoot.get("product"), root),
-                        cb.isTrue(reviewRoot.get("isApproved")));
+                        cb.isTrue(reviewRoot.get("isApproved")),
+                        cb.isNull(reviewRoot.get("deletedAt")));
 
                 predicates.add(cb.ge(ratingSubquery, filter.getMinRating()));
-            }
-            if (filter.getWeightGrams() != null && !filter.getWeightGrams().isEmpty()) {
-                predicates.add(variants.get("weightGrams").in(filter.getWeightGrams()));
-            }
-            if (filter.getGrindTypes() != null && !filter.getGrindTypes().isEmpty()) {
-                predicates.add(variants.get("grindType").in(filter.getGrindTypes()));
             }
             if (Boolean.TRUE.equals(filter.getInStockOnly())) {
                 predicates.add(cb.gt(variants.get("stockQuantity"), 0));
@@ -92,6 +91,22 @@ public class ProductSpecifications {
             if (Boolean.TRUE.equals(filter.getOnSaleOnly())) {
                 predicates.add(cb.isNotNull(variants.get("compareAtPrice")));
                 predicates.add(cb.gt(variants.get("compareAtPrice"), variants.get("price")));
+            }
+            if (filter.getOptionValueIds() != null && !filter.getOptionValueIds().isEmpty()) {
+                Subquery<Long> matchingVariant = query.subquery(Long.class);
+                Root<ProductVariant> variantSub = matchingVariant.from(ProductVariant.class);
+                Join<ProductVariant, ProductOptionValue> ovSub = variantSub.join("optionValues");
+
+                matchingVariant.select(variantSub.get("id"));
+                matchingVariant.where(
+                        cb.equal(variantSub.get("product"), root),
+                        cb.isTrue(variantSub.get("isActive")),
+                        ovSub.get("id").in(filter.getOptionValueIds()));
+                matchingVariant.groupBy(variantSub.get("id"));
+                matchingVariant.having(
+                        cb.equal(cb.countDistinct(ovSub.get("option").get("id")), distinctOptionCount));
+
+                predicates.add(cb.exists(matchingVariant));
             }
 
             Join<Product, ProductBrewingMethod> brewingMethods = null;

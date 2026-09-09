@@ -29,6 +29,7 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -46,84 +47,75 @@ import lombok.experimental.SuperBuilder;
 @Setter
 public class Product extends SoftDeletableEntity {
 
-    @Column(nullable = false, unique = true)
-    private String slug;
+        @Column(nullable = false, unique = true)
+        private String slug;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id", nullable = false)
-    private Category category;
+        @ManyToOne(fetch = FetchType.LAZY)
+        @JoinColumn(name = "category_id", nullable = false)
+        private Category category;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "origin_id")
-    private Origin origin;
+        @ManyToOne(fetch = FetchType.LAZY)
+        @JoinColumn(name = "origin_id")
+        private Origin origin;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "farm_id")
-    private Farm farm;
+        @ManyToOne(fetch = FetchType.LAZY)
+        @JoinColumn(name = "farm_id")
+        private Farm farm;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "product_type", nullable = false)
-    private ProductType productType;
+        @Enumerated(EnumType.STRING)
+        @Column(name = "product_type", nullable = false)
+        private ProductType productType;
 
-    @Column(nullable = false)
-    @Builder.Default
-    private boolean featured = false;
+        @Column(nullable = false)
+        @Builder.Default
+        private boolean featured = false;
 
-    @Column(name = "is_active", nullable = false)
-    @Builder.Default
-    private boolean isActive = true;
+        @Column(name = "is_active", nullable = false)
+        @Builder.Default
+        private boolean isActive = true;
 
-    // ===== Relations =====
+        // ===== Relations =====
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @Builder.Default
-    @BatchSize(size = 30)
-    private Set<ProductTranslation> translations = new HashSet<>();
+        @ManyToMany
+        @JoinTable(name = "product_option_links", joinColumns = @JoinColumn(name = "product_id"), inverseJoinColumns = @JoinColumn(name = "option_id"))
+        private Set<ProductOption> options = new HashSet<>();
 
-    @OneToOne(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private CoffeeDetails coffeeDetails;
+        @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+        @Builder.Default
+        @BatchSize(size = 30)
+        private Set<ProductTranslation> translations = new HashSet<>();
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @Builder.Default
-    @BatchSize(size = 30)
-    private Set<ProductVariant> variants = new HashSet<>();
+        @OneToOne(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+        private CoffeeDetails coffeeDetails;
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @Builder.Default
-    @BatchSize(size = 30)
-    private Set<ProductMedia> media = new HashSet<>();
+        @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+        @Builder.Default
+        @BatchSize(size = 30)
+        private Set<ProductVariant> variants = new HashSet<>();
 
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-            name = "product_tasting_notes",
-            joinColumns = @JoinColumn(name = "product_id"),
-            inverseJoinColumns = @JoinColumn(name = "tasting_note_id")
-    )
-    @Builder.Default
-    private List<TastingNote> tastingNotes = new ArrayList<>();
-
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-            name = "product_pairings",
-            joinColumns = @JoinColumn(name = "product_id"),
-            inverseJoinColumns = @JoinColumn(name = "pairing_id")
-    )
-    @Builder.Default
-    private List<Pairing> pairings = new ArrayList<>();
-
-    // BrewingMethod
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @Builder.Default
-    @BatchSize(size = 30)
-    private List<ProductBrewingMethod> brewingMethods = new ArrayList<>();
-
+        @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+        @Builder.Default
+        @BatchSize(size = 30)
+        private Set<ProductMedia> media = new HashSet<>();
 
         @ManyToMany(fetch = FetchType.LAZY)
-        @JoinTable(
-                name = "product_journal_posts",
-                joinColumns = @JoinColumn(name = "product_id"),
-                inverseJoinColumns = @JoinColumn(name = "journal_post_id")
-        )
+        @JoinTable(name = "product_tasting_notes", joinColumns = @JoinColumn(name = "product_id"), inverseJoinColumns = @JoinColumn(name = "tasting_note_id"))
+        @Builder.Default
+        private List<TastingNote> tastingNotes = new ArrayList<>();
+
+        @ManyToMany(fetch = FetchType.LAZY)
+        @JoinTable(name = "product_pairings", joinColumns = @JoinColumn(name = "product_id"), inverseJoinColumns = @JoinColumn(name = "pairing_id"))
+        @Builder.Default
+        private List<Pairing> pairings = new ArrayList<>();
+
+        // BrewingMethod
+        @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+        @Builder.Default
+        @BatchSize(size = 30)
+        private List<ProductBrewingMethod> brewingMethods = new ArrayList<>();
+
+        @ManyToMany(fetch = FetchType.LAZY)
+        @JoinTable(name = "product_journal_posts", joinColumns = @JoinColumn(name = "product_id"), inverseJoinColumns = @JoinColumn(name = "journal_post_id"))
         @Builder.Default
         @BatchSize(size = 30)
         private List<JournalPost> journalPosts = new ArrayList<>();

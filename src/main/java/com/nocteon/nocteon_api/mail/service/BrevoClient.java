@@ -1,16 +1,14 @@
 package com.nocteon.nocteon_api.mail.service;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.ClientResponse;
-import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.RestClient;
 
-import  com.nocteon.nocteon_api.mail.dto.BrevoSender;
+import com.nocteon.nocteon_api.mail.dto.BrevoSender;
 import com.nocteon.nocteon_api.mail.config.BrevoTemplateProperties;
 import com.nocteon.nocteon_api.mail.dto.BrevoEmailRequest;
 import com.nocteon.nocteon_api.mail.dto.BrevoEmailResponse;
@@ -21,14 +19,13 @@ import com.nocteon.nocteon_api.mail.exception.BrevoRetryableException;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import reactor.core.publisher.Mono;
 
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class BrevoClient {
 
-    private final WebClient brevoWebClient; 
+    private final RestClient brevoRestClient;
     private final BrevoTemplateProperties templateProperties;
 
     public String sendTransactionalEmail(String recipientEmail, EmailType type, Map<String, Object> params) {
@@ -36,14 +33,11 @@ public class BrevoClient {
         BrevoEmailRequest request = buildRequest(recipientEmail, type, params);
 
         try {
-            BrevoEmailResponse response = brevoWebClient.post()
+            BrevoEmailResponse response = brevoRestClient.post()
                     .uri("/smtp/email")
-                    .bodyValue(request)
+                    .body(request)
                     .retrieve()
-                    .onStatus(HttpStatusCode::is4xxClientError, this::handleClientError)
-                    .onStatus(HttpStatusCode::is5xxServerError, this::handleServerError)
-                    .bodyToMono(BrevoEmailResponse.class)
-                    .block(Duration.ofSeconds(10)); 
+                    .body(BrevoEmailResponse.class);
 
             if (response == null || response.messageId() == null) {
                 throw new BrevoApiException("Empty response from Brevo");
@@ -51,8 +45,12 @@ public class BrevoClient {
 
             return response.messageId();
 
-        } catch (WebClientResponseException ex) {
-            throw new BrevoApiException("Brevo API call failed: " + ex.getResponseBodyAsString(), ex);
+        } catch (HttpClientErrorException ex) {
+            throw new BrevoApiException("Brevo rejected request (4xx): " + ex.getResponseBodyAsString(), ex);
+        } catch (HttpServerErrorException ex) {
+            throw new BrevoRetryableException("Brevo server error (5xx): " + ex.getResponseBodyAsString());
+        } catch (BrevoApiException ex) {
+            throw ex;
         } catch (Exception ex) {
             throw new BrevoApiException("Unexpected error calling Brevo: " + ex.getMessage(), ex);
         }
@@ -73,19 +71,6 @@ public class BrevoClient {
             case ABANDONED_CART -> templateProperties.getAbandonedCart();
             case ADMIN_BROADCAST -> templateProperties.getAdminBroadcast();
             case ORDER_SHIPPED -> templateProperties.getOrderShipped();
-
         };
-    }
-
-    private Mono<Throwable> handleClientError(ClientResponse response) {
-        return response.bodyToMono(String.class)
-                .defaultIfEmpty("")
-                .map(body -> new BrevoApiException("Brevo rejected request (4xx): " + body));
-    }
-
-    private Mono<Throwable> handleServerError(ClientResponse response) {
-        return response.bodyToMono(String.class)
-                .defaultIfEmpty("")
-                .map(body -> new BrevoRetryableException("Brevo server error (5xx): " + body));
     }
 }

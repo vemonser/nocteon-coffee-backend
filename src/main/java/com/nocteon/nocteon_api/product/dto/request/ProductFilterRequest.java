@@ -7,7 +7,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
 
 import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
-import com.nocteon.nocteon_api.product.enums.GrindType;
 import com.nocteon.nocteon_api.product.enums.ProductType;
 
 import lombok.Getter;
@@ -28,13 +27,11 @@ public class ProductFilterRequest extends BaseFilterRequest {
     private BigDecimal maxPrice;
 
     private String brewingMethodSlug;
-    private List<Integer> weightGrams;
-    private List<GrindType> grindTypes;
+    private List<Long> optionValueIds;
     private Boolean inStockOnly;
     private Boolean onSaleOnly;
 
     public Pageable toProductPageable() {
         return PageRequest.of(getPage(), getSize());
     }
-
 }
