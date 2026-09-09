@@ -34,6 +34,11 @@ public class RedisConfig {
     // ===== جديدة - لـ Bucket4j =====
     @Bean
     public RedisClient redisClient() {
+        String redisUrl = System.getenv("REDIS_URL");
+        if (redisUrl != null && !redisUrl.isBlank()) {
+            return RedisClient.create(redisUrl);
+        }
+
         RedisURI.Builder uriBuilder = RedisURI.Builder.redis(redisHost, redisPort);
 
         if (redisPassword != null && !redisPassword.isBlank()) {
