@@ -81,13 +81,14 @@ spring:
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       init:
-        # Spring AI 2.0.1 actively consumes this key (via OllamaModelManager): when the
-        # chat/embedding model beans are first constructed, `when_missing` asks the
-        # server which models exist and pulls the missing one (blocking, up to the
-        # 5m init timeout; requires a reachable Ollama server). The `ollama-init`
-        # compose service pre-pulls both models at `docker compose up`, so in the
-        # normal flow bean construction finds them already present.
-        pull-model-strategy: when_missing
+        # `never` (the Spring AI 2.0.1 default) is deliberate: Spring AI must never
+        # block or fail application startup on an external Ollama call — with any
+        # other value the model beans are pre-instantiated during context refresh
+        # and pull-model would burn the 5m timeout and abort boot when Ollama is
+        # down. Models are provisioned by the `ollama-init` compose service on
+        # `docker compose up` (or manually via `docker compose run --rm ollama-init`),
+        # so with `never` Spring AI never pulls and never contacts Ollama at startup.
+        pull-model-strategy: never
       chat:
         options:
           model: qwen2.5:3b-instruct
