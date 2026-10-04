@@ -16,6 +16,7 @@ import com.nocteon.nocteon_api.shippingZone.repository.ShippingZoneRepository;
 import com.nocteon.nocteon_api.shippingZone.service.ShippingZoneService;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.Set;
 
@@ -167,10 +168,20 @@ class ShippingZoneServiceTest {
             ShippingZoneRequest request = new ShippingZoneRequest();
             request.setName("Cairo & Giza");
             request.setShippingCost(BigDecimal.valueOf(50));
-            request.setCities(Set.of("Cairo", "Alexandria")); // Alexandria owned by another zone
+            // Deliberately a LinkedHashSet, NOT Set.of(...): ShippingZoneService.validateNoCityConflict
+            // iterates the city set, and Set.of's iteration order is randomised per JVM by
+            // ImmutableCollections' SALT. With Set.of, "Cairo" was checked first in roughly half of all
+            // runs, and that unstubbed invocation on an already-stubbed method made Mockito's
+            // STRICT_STUBS throw PotentialStubbingProblem instead of the expected exception — the test was
+            // a coin flip. A LinkedHashSet pins the order so both stubs below are always consumed.
+            Set<String> cities = new LinkedHashSet<>();
+            cities.add("Cairo"); // already owned by zone #1 itself, so excluded from the conflict check
+            cities.add("Alexandria"); // owned by another zone -> conflict
+            request.setCities(cities);
             request.setActive(true);
 
             when(shippingZoneRepository.findById(1L)).thenReturn(Optional.of(existingZone));
+            when(shippingZoneRepository.existsByCitiesContainingAndIdNot("Cairo", 1L)).thenReturn(false);
             when(shippingZoneRepository.existsByCitiesContainingAndIdNot("Alexandria", 1L)).thenReturn(true);
 
             assertThatThrownBy(() -> shippingZoneService.update(1L, request))
