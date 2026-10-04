@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: nocteon-db
     restart: unless-stopped
     ports:
@@ -41,6 +41,25 @@ services:
       retries: 5
       start_period: 10s
 
+  # The `deploy` block requires the NVIDIA container toolkit.
+  # Deleting it (the `deploy` block) falls back to CPU inference.
+  ollama:
+    image: ollama/ollama:latest
+    container_name: nocteon-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
 volumes:
   postgres-data:
   redis-data:
+  ollama-data:
