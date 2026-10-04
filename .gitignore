@@ -37,3 +37,6 @@ src/main/resources/keys/
 *.pem
 AGENTS.md
 CODE_REVIEW_CHANGES.md
+# Git worktrees for isolated feature development
+.worktrees/
+.superpowers/
