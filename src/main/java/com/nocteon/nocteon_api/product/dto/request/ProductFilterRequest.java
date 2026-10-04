@@ -31,6 +31,15 @@ public class ProductFilterRequest extends BaseFilterRequest {
     private Boolean inStockOnly;
     private Boolean onSaleOnly;
 
+    /**
+     * Opt-in flag for vector-similarity ranking, bound from {@code ?semantic=true}.
+     *
+     * <p>Null and false mean the same thing: plain keyword search. No validation annotation,
+     * because the controller binds this object with {@code @ModelAttribute} and does not
+     * {@code @Valid} it.
+     */
+    private Boolean semantic;
+
     public Pageable toProductPageable() {
         return PageRequest.of(getPage(), getSize());
     }
