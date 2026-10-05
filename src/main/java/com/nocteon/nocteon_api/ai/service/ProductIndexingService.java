@@ -30,7 +30,9 @@ import lombok.extern.slf4j.Slf4j;
  * <ul>
  * <li>{@link #indexAll()} rebuilds the whole active catalog, re-embedding only the products
  * whose text actually changed.</li>
- * <li>{@link #upsert(Product)} re-embeds a single product.</li>
+ * <li>{@link #upsertById(Long)} re-embeds a single product — the entry point for callers that run
+ * after commit and therefore hold nothing but an id; {@link #upsert(Product)} is the same thing
+ * from a managed instance.</li>
  * </ul>
  * plus {@link #remove(String)} to drop a deleted product and {@link #stats()} to report drift.
  *
@@ -172,14 +174,39 @@ public class ProductIndexingService {
      */
     @Transactional
     public void upsert(Product product) {
-        if (product == null || product.getId() == null) {
+        if (product == null) {
+            log.warn("Skipping AI upsert for a null product");
+            return;
+        }
+
+        upsertById(product.getId());
+    }
+
+    /**
+     * Re-embeds a single product, identified by id alone.
+     *
+     * <p>The preferred entry point for a caller that fires its reindex after commit. Its entity is
+     * detached by then, so nothing may be read off it beyond the id — the lazy relations
+     * {@link ProductDocumentFactory} walks are closed by then — and this signature makes that
+     * structural rather than a convention: there is no entity in reach to depend on by accident.
+     *
+     * <p>Not {@code readOnly = true} — see {@link #indexAll()} for why writing to the vector store
+     * forbids it. Invoked from {@link #upsert(Product)} by self-call, so it runs inside that
+     * method's transaction; the proxy is bypassed, which is harmless because both definitions are
+     * scoped identically and the outer call always opens the transaction.
+     *
+     * @param productId the persisted id; ignored when null or when the product no longer exists
+     */
+    @Transactional
+    public void upsertById(Long productId) {
+        if (productId == null) {
             log.warn("Skipping AI upsert for a product without an id");
             return;
         }
 
-        Product managed = productRepository.findById(product.getId()).orElse(null);
+        Product managed = productRepository.findById(productId).orElse(null);
         if (managed == null) {
-            log.warn("Skipping AI upsert for product {}: no longer present in the catalog", product.getId());
+            log.warn("Skipping AI upsert for product {}: no longer present in the catalog", productId);
             return;
         }
 

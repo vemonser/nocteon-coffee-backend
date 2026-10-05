@@ -118,7 +118,12 @@ public enum Permission {
 
     // Cart & Wishlist
     CART_MANAGE("cart:manage"),
-    WISHLIST_MANAGE("wishlist:manage");
+    WISHLIST_MANAGE("wishlist:manage"),
+
+    // AI
+    // Rebuilding the vector index re-embeds the whole catalog, so it is not gated behind
+    // product:update — only an admin pays that cost.
+    AI_MANAGE("ai:manage");
 
     private final String permission;
 

@@ -468,6 +468,58 @@ class ProductIndexingServiceTest {
     }
 
     /**
+     * The id-only entry point. A caller that fires the reindex after commit has a detached entity
+     * it must not read anything else off, so being able to hand over nothing but the id is what
+     * makes that safe at the call site.
+     */
+    @Test
+    void upsertByIdIndexesTheProductFromNothingButTheId() {
+        Product a = product(1L, "a");
+        Document docA = document(1L, "a", "text a", "h1");
+
+        when(productRepository.findById(1L)).thenReturn(java.util.Optional.of(a));
+        when(documentFactory.toDocument(a)).thenReturn(docA);
+
+        service.upsertById(1L);
+
+        verify(vectorStore).add(List.of(docA));
+        verify(productRepository, never()).findAll();
+    }
+
+    @Test
+    void upsertByIdSkipsAProductThatNoLongerExists() {
+        when(productRepository.findById(1L)).thenReturn(java.util.Optional.empty());
+
+        service.upsertById(1L);
+
+        verify(vectorStore, never()).add(anyList());
+        verify(documentFactory, never()).toDocument(any(Product.class));
+    }
+
+    @Test
+    void upsertByIdSkipsAMissingId() {
+        service.upsertById(null);
+
+        verify(productRepository, never()).findById(anyLong());
+        verify(vectorStore, never()).add(anyList());
+    }
+
+    /** The entity overload is a convenience over the id one, not a second implementation. */
+    @Test
+    void upsertDelegatesToTheIdLookup() {
+        Product a = product(1L, "a");
+        Document docA = document(1L, "a", "text a", "h1");
+
+        when(productRepository.findById(1L)).thenReturn(java.util.Optional.of(a));
+        when(documentFactory.toDocument(a)).thenReturn(docA);
+
+        service.upsert(a);
+
+        verify(productRepository).findById(1L);
+        verify(vectorStore).add(List.of(docA));
+    }
+
+    /**
      * The one property of this class that a Mockito-based test cannot observe, so it is pinned
      * reflectively instead.
      *
@@ -482,6 +534,7 @@ class ProductIndexingServiceTest {
     void writingMethodsRunInAWritableTransaction() throws NoSuchMethodException {
         assertThat(transactionFor("indexAll")).isFalse();
         assertThat(transactionFor("upsert", Product.class)).isFalse();
+        assertThat(transactionFor("upsertById", Long.class)).isFalse();
         assertThat(transactionFor("stats")).isTrue();
     }
 
