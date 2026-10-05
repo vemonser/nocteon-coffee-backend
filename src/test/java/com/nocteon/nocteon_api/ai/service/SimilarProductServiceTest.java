@@ -112,7 +112,7 @@ class SimilarProductServiceTest {
 
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(false);
-        when(productRepository.findAll()).thenReturn(List.of(source, other));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(source, other));
         when(fallback.rank(source, List.of(source, other))).thenReturn(Map.of(2L, 0.4));
         when(fallback.reason(source, other, 0.4, "en")).thenReturn("Similar origin: Ethiopia");
         when(productResponseMapper.buildListResponse(other, "en")).thenReturn(card(2L));
@@ -135,7 +135,7 @@ class SimilarProductServiceTest {
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(true);
         lenient().when(documentFactory.buildText(source)).thenReturn("Name: Source");
-        when(productRepository.findAll()).thenReturn(List.of(source, other));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(source, other));
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenThrow(new RuntimeException("ollama down"));
         when(fallback.rank(source, List.of(source, other))).thenReturn(Map.of(2L, 0.4));
@@ -155,7 +155,7 @@ class SimilarProductServiceTest {
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(true);
         lenient().when(documentFactory.buildText(source)).thenReturn("Name: Source");
-        when(productRepository.findAll()).thenReturn(List.of(source, product(2L, "other")));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(source, product(2L, "other")));
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenThrow(new IllegalStateException("connection refused"));
         lenient().when(fallback.rank(any(), any())).thenReturn(Map.of(2L, 0.4));
@@ -178,7 +178,7 @@ class SimilarProductServiceTest {
         // Nothing indexed yet: the only hit is the source's own document.
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenReturn(List.of(hit(1L, 0.99)));
-        when(productRepository.findAll()).thenReturn(List.of(source, other));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(source, other));
         when(fallback.rank(source, List.of(source, other))).thenReturn(Map.of(2L, 0.4));
         lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("reason");
         when(productResponseMapper.buildListResponse(other, "en")).thenReturn(card(2L));
@@ -305,7 +305,7 @@ class SimilarProductServiceTest {
         LocaleContextHolder.setLocale(new Locale("ar"));
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(false);
-        lenient().when(productRepository.findAll()).thenReturn(List.of(source, other));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(source, other));
         lenient().when(fallback.rank(any(), any())).thenReturn(Map.of(2L, 0.4));
         when(fallback.reason(any(), any(), anyDouble(), eq("ar"))).thenReturn("");
         when(fallback.neutralReason("ar")).thenReturn("المزيد من مجموعتنا");
@@ -329,7 +329,7 @@ class SimilarProductServiceTest {
         LocaleContextHolder.setLocale(new Locale("ar"));
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(false);
-        lenient().when(productRepository.findAll()).thenReturn(List.of(source, other));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(source, other));
         lenient().when(fallback.rank(any(), any())).thenReturn(Map.of(2L, 0.4));
         when(fallback.reason(source, other, 0.4, "ar")).thenReturn("الأصل: إثيوبيا");
         lenient().when(productResponseMapper.buildListResponse(other, "ar")).thenReturn(card(2L));
@@ -373,7 +373,7 @@ class SimilarProductServiceTest {
 
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(false);
-        when(productRepository.findAll()).thenReturn(List.of(source));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(source));
         lenient().when(fallback.rank(any(), any())).thenReturn(Map.of());
         lenient().when(productResponseMapper.buildListResponse(any(), anyString()))
                 .thenReturn(ProductCardResponse.builder().build());
@@ -388,7 +388,7 @@ class SimilarProductServiceTest {
 
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(false);
-        when(productRepository.findAll()).thenReturn(List.of(source, other));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(source, other));
         when(fallback.rank(any(), any())).thenReturn(Map.of(2L, 0.4));
         lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("reason");
         lenient().when(productResponseMapper.buildListResponse(other, "en")).thenReturn(card(2L));
@@ -408,7 +408,7 @@ class SimilarProductServiceTest {
 
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(false);
-        when(productRepository.findAll()).thenReturn(catalogue);
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(catalogue);
         when(fallback.rank(any(), any())).thenReturn(scores);
         lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("reason");
         lenient().when(productResponseMapper.buildListResponse(any(), anyString()))
@@ -421,16 +421,24 @@ class SimilarProductServiceTest {
                 .containsExactly(0.5, 1.0 / 3, 1.0 / 4, 1.0 / 5, 1.0 / 6);
     }
 
-    /** A public storefront rail must never surface a product that is not on sale. */
+    /**
+ * The attribute path loads through {@code findAllActiveForAiProjection}, which is where the
+ * {@code isActive} filter now lives.
+ *
+     * <p>Active-only filtering moved out of the service and into the query, because that is the same
+     * query that fetch-joins the relations the weights and reason text read — keeping a
+     * {@code findAll()} here and filtering in memory would have meant keeping the N+1. This asserts
+     * the shape that replaced it: one projection query, and none of the methods that leave those
+     * relations lazy.
+     */
     @Test
-    void skipsInactiveCandidatesOnTheAttributePath() {
+    void theAttributePathLoadsThroughTheFetchJoiningProjectionQuery() {
         Product source = source();
-        Product inactive = Product.builder().id(2L).slug("other").isActive(false).build();
         Product active = product(3L, "third");
 
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(false);
-        when(productRepository.findAll()).thenReturn(List.of(source, inactive, active));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(source, active));
         when(fallback.rank(any(), eq(List.of(source, active)))).thenReturn(Map.of(3L, 0.4));
         lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("reason");
         lenient().when(productResponseMapper.buildListResponse(active, "en")).thenReturn(card(3L));
@@ -439,6 +447,9 @@ class SimilarProductServiceTest {
 
         assertThat(results).hasSize(1);
         assertThat(results.get(0).getProduct().getId()).isEqualTo(3L);
+        verify(productRepository).findAllActiveForAiProjection();
+        verify(productRepository, never()).findAll();
+        verify(productRepository, never()).findAllByIdInWithDetails(anyList());
     }
 
     @Test
@@ -494,7 +505,7 @@ class SimilarProductServiceTest {
         LocaleContextHolder.setLocale(new Locale("ar"));
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(false);
-        when(productRepository.findAll()).thenReturn(List.of(source, other));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(source, other));
         lenient().when(fallback.rank(any(), any())).thenReturn(Map.of(2L, 0.4));
         lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("reason");
         lenient().when(productResponseMapper.buildListResponse(other, "ar")).thenReturn(card(2L));
@@ -510,7 +521,7 @@ class SimilarProductServiceTest {
 
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(false);
-        when(productRepository.findAll()).thenReturn(List.of(source));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(source));
         when(fallback.rank(any(), any())).thenReturn(Map.of());
 
         assertThat(service.findSimilar("src", 8)).isEmpty();

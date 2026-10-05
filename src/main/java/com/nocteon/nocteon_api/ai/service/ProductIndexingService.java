@@ -25,6 +25,11 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Projects the product catalog into the vector store and keeps it in sync.
  *
+ * <p>Every product this class projects is loaded through a method that fetch-joins what
+ * {@link ProductDocumentFactory} reads: {@link ProductRepository#findAllActiveForAiProjection()}
+ * for the full catalog, {@link ProductRepository#findByIdForAiProjection(Long)} for a single
+ * product.
+ *
  * <p>Two entry points, both guarded so the nightly scheduler and the admin reindex
  * endpoint can never overlap:
  * <ul>
@@ -47,11 +52,13 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <h2>Why the methods are transactional</h2>
  * {@link ProductDocumentFactory} reads {@code category}, {@code origin}, {@code farm},
- * {@code coffeeDetails}, {@code tastingNotes} and {@code brewingMethods}, and only
- * {@code translations}, {@code media} and {@code variants} are join-fetched by
- * {@link ProductRepository#findAllByIdInWithDetails(List)}. The rest stay lazy, so the
- * projection must happen while the persistence context is still open — every public method
- * that touches an entity is therefore {@code @Transactional}, and
+ * {@code coffeeDetails}, {@code tastingNotes} and {@code brewingMethods}. Those are loaded by
+ * {@link ProductRepository#findAllActiveForAiProjection()} on the batch path and
+ * {@link ProductRepository#findByIdForAiProjection(Long)} on the single-product path, which
+ * join-fetch every to-one the projection touches and batch-load the remaining collections.
+ * The persistence context must still be open while the projection runs — {@code translations}
+ * and {@code tastingNotes} are batch-loaded lazily, not fetched — so every public method that
+ * touches an entity is {@code @Transactional}, and
  * {@link ProductDocumentFactory#buildText(Product)} is never called on a detached instance.
  * {@link #upsert(Product)} re-reads the product inside that transaction instead of trusting
  * the caller's copy, which is typically detached (callers fire it after commit).
@@ -204,7 +211,9 @@ public class ProductIndexingService {
             return;
         }
 
-        Product managed = productRepository.findById(productId).orElse(null);
+        // findByIdForAiProjection, not findById: the projection walks six relations, and a plain
+        // findById leaves every one of them lazy — six extra selects for a single product.
+        Product managed = productRepository.findByIdForAiProjection(productId).orElse(null);
         if (managed == null) {
             log.warn("Skipping AI upsert for product {}: no longer present in the catalog", productId);
             return;
@@ -263,19 +272,15 @@ public class ProductIndexingService {
     /**
      * Projects every active product into a document. Must run inside the caller's transaction:
      * the projection walks lazy relations that only load while the session is open.
+     *
+     * <p>One query for the whole catalog, via {@link ProductRepository#findAllActiveForAiProjection()},
+     * which join-fetches every to-one the projection reads and lets {@code translations} and
+     * {@code tastingNotes} load in {@code @BatchSize} batches. The previous shape — read every id,
+     * then {@code findAllByIdInWithDetails} — left six relations lazy and cost roughly six
+     * {@code SELECT}s per product.
      */
     private List<Document> loadActiveDocuments() {
-        List<Long> ids = productRepository.findAll().stream()
-                .filter(Product::isActive)
-                .map(Product::getId)
-                .toList();
-
-        if (ids.isEmpty()) {
-            // Guards the `id IN ()` query, which is not valid SQL.
-            return List.of();
-        }
-
-        return productRepository.findAllByIdInWithDetails(ids).stream()
+        return productRepository.findAllActiveForAiProjection().stream()
                 .filter(product -> StringUtils.hasText(product.getSlug()))
                 .map(documentFactory::toDocument)
                 .toList();

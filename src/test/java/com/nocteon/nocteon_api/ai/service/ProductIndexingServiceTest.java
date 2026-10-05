@@ -85,8 +85,7 @@ class ProductIndexingServiceTest {
         Document docA = document(1L, "a", "text a", "h1");
         Document docB = document(2L, "b", "text b", "h2");
 
-        when(productRepository.findAll()).thenReturn(List.of(a, b));
-        when(productRepository.findAllByIdInWithDetails(List.of(1L, 2L))).thenReturn(List.of(a, b));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(a, b));
         when(documentFactory.toDocument(a)).thenReturn(docA);
         when(documentFactory.toDocument(b)).thenReturn(docB);
 
@@ -104,8 +103,7 @@ class ProductIndexingServiceTest {
         Document fresh = document(1L, "a", "new", "same");
         Product a = product(1L, "a");
 
-        when(productRepository.findAll()).thenReturn(List.of(a));
-        when(productRepository.findAllByIdInWithDetails(List.of(1L))).thenReturn(List.of(a));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(a));
         when(documentFactory.toDocument(a)).thenReturn(fresh);
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(existing));
 
@@ -123,8 +121,7 @@ class ProductIndexingServiceTest {
         Product a = product(1L, "a");
         Document fresh = document(1L, "a", "fresh text", "h1");
 
-        when(productRepository.findAll()).thenReturn(List.of(a));
-        when(productRepository.findAllByIdInWithDetails(List.of(1L))).thenReturn(List.of(a));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(a));
         when(documentFactory.toDocument(a)).thenReturn(fresh);
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
 
@@ -144,8 +141,7 @@ class ProductIndexingServiceTest {
         Document fresh = document(1L, "a", "text a", "h1");
         Document somebodyElse = document(9L, "b", "text a", "h1");
 
-        when(productRepository.findAll()).thenReturn(List.of(a));
-        when(productRepository.findAllByIdInWithDetails(List.of(1L))).thenReturn(List.of(a));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(a));
         when(documentFactory.toDocument(a)).thenReturn(fresh);
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(somebodyElse));
 
@@ -163,8 +159,7 @@ class ProductIndexingServiceTest {
         Document fresh = document(1L, "a", "text a", "h1");
         Document unhashed = new Document("product:a", "text a", Map.of("slug", "a"));
 
-        when(productRepository.findAll()).thenReturn(List.of(a));
-        when(productRepository.findAllByIdInWithDetails(List.of(1L))).thenReturn(List.of(a));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(a));
         when(documentFactory.toDocument(a)).thenReturn(fresh);
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(unhashed));
 
@@ -182,8 +177,7 @@ class ProductIndexingServiceTest {
         inactive.setActive(false);
         Document docActive = document(1L, "a", "text a", "h1");
 
-        when(productRepository.findAll()).thenReturn(List.of(active, inactive));
-        when(productRepository.findAllByIdInWithDetails(List.of(1L))).thenReturn(List.of(active));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(active));
         when(documentFactory.toDocument(active)).thenReturn(docActive);
 
         AiReindexResponse result = service.indexAll();
@@ -193,16 +187,40 @@ class ProductIndexingServiceTest {
         verify(documentFactory, never()).toDocument(inactive);
     }
 
+    /**
+     * The batch path loads through {@code findAllActiveForAiProjection} and never through the
+     * general-purpose {@code findAll()} / {@code findAllByIdInWithDetails} pair.
+     *
+     * <p>This is the structural half of the N+1 fix. Those two methods join-fetch
+     * {@code translations}, {@code media} and {@code variants} but leave {@code category},
+     * {@code origin}, {@code farm}, {@code coffeeDetails}, {@code tastingNotes} and
+     * {@code brewingMethods} lazy, so reading them for every product in a batch costs roughly six
+     * extra {@code SELECT}s each. A test can only prove the service stopped calling the methods
+     * that leave those relations lazy — it cannot count queries without a database — so the
+     * assertion is that the fetch-joining method is the only one reached.
+     */
     @Test
-    void indexAllTouchesNeitherTheStoreNorTheDetailQueryWhenNoProductIsActive() {
-        // Guards the `id IN ()` query, which is invalid SQL.
-        when(productRepository.findAll()).thenReturn(List.of());
+    void theCatalogIsLoadedThroughTheFetchJoiningProjectionQuery() {
+        Product a = product(1L, "a");
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(a));
+        when(documentFactory.toDocument(a)).thenReturn(document(1L, "a", "text a", "h1"));
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
+
+        service.indexAll();
+
+        verify(productRepository).findAllActiveForAiProjection();
+        verify(productRepository, never()).findAll();
+        verify(productRepository, never()).findAllByIdInWithDetails(anyList());
+    }
+
+    @Test
+    void indexAllTouchesNeitherTheStoreNorAnyQueryWhenNoProductIsActive() {
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of());
 
         AiReindexResponse result = service.indexAll();
 
         assertThat(result.getIndexed()).isZero();
         assertThat(result.getSkipped()).isZero();
-        verify(productRepository, never()).findAllByIdInWithDetails(anyList());
         verify(vectorStore, never()).similaritySearch(any(SearchRequest.class));
         verify(vectorStore, never()).add(anyList());
     }
@@ -227,8 +245,7 @@ class ProductIndexingServiceTest {
         Document fresh = document(1L, "a", "text a", "h-new");
         Document stored = document(1L, "a", "text a", "h-old");
 
-        when(productRepository.findAll()).thenReturn(List.of(a));
-        when(productRepository.findAllByIdInWithDetails(List.of(1L))).thenReturn(List.of(a));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(a));
         when(documentFactory.toDocument(a)).thenReturn(fresh);
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(stored));
 
@@ -243,8 +260,7 @@ class ProductIndexingServiceTest {
     void statsCountsStaleWhenProductIsAbsentFromTheStore() {
         Product a = product(1L, "a");
 
-        when(productRepository.findAll()).thenReturn(List.of(a));
-        when(productRepository.findAllByIdInWithDetails(List.of(1L))).thenReturn(List.of(a));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(a));
         when(documentFactory.toDocument(a)).thenReturn(document(1L, "a", "text a", "h1"));
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
 
@@ -259,8 +275,7 @@ class ProductIndexingServiceTest {
     void statsCountsProductAsIndexedWhenStoredHashMatches() {
         Product a = product(1L, "a");
 
-        when(productRepository.findAll()).thenReturn(List.of(a));
-        when(productRepository.findAllByIdInWithDetails(List.of(1L))).thenReturn(List.of(a));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(a));
         when(documentFactory.toDocument(a)).thenReturn(document(1L, "a", "text a", "h1"));
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenReturn(List.of(document(1L, "a", "text a", "h1")));
@@ -280,8 +295,7 @@ class ProductIndexingServiceTest {
         Product a = product(1L, "a");
         Product b = product(2L, "b");
 
-        when(productRepository.findAll()).thenReturn(List.of(a, b));
-        when(productRepository.findAllByIdInWithDetails(List.of(1L, 2L))).thenReturn(List.of(a, b));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(a, b));
         when(documentFactory.toDocument(a)).thenReturn(document(1L, "a", "text a", "h-new"));
         when(documentFactory.toDocument(b)).thenReturn(document(2L, "b", "text b", "h-b"));
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenAnswer(invocation -> {
@@ -300,16 +314,14 @@ class ProductIndexingServiceTest {
 
     @Test
     void statsReportsNullLastRunAtBeforeAnyRun() {
-        when(productRepository.findAll()).thenReturn(List.of());
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of());
 
         assertThat(service.stats().getLastRunAt()).isNull();
     }
 
     @Test
     void statsReportsTheTimestampOfTheLastRun() {
-        when(productRepository.findAll()).thenReturn(List.of(product(1L, "a")));
-        when(productRepository.findAllByIdInWithDetails(List.of(1L)))
-                .thenReturn(List.of(product(1L, "a")));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(product(1L, "a")));
         when(documentFactory.toDocument(any(Product.class))).thenReturn(document(1L, "a", "text a", "h1"));
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
 
@@ -322,9 +334,7 @@ class ProductIndexingServiceTest {
 
     @Test
     void lastRunAtIsSetEvenWhenTheRunFails() {
-        when(productRepository.findAll()).thenReturn(List.of(product(1L, "a")));
-        when(productRepository.findAllByIdInWithDetails(List.of(1L)))
-                .thenReturn(List.of(product(1L, "a")));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(product(1L, "a")));
         when(documentFactory.toDocument(any(Product.class))).thenReturn(document(1L, "a", "text a", "h1"));
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
         org.mockito.Mockito.doThrow(new IllegalStateException("ollama down"))
@@ -339,9 +349,7 @@ class ProductIndexingServiceTest {
 
     @Test
     void aFailedRunDoesNotWedgeTheNextOne() {
-        when(productRepository.findAll()).thenReturn(List.of(product(1L, "a")));
-        when(productRepository.findAllByIdInWithDetails(List.of(1L)))
-                .thenReturn(List.of(product(1L, "a")));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(product(1L, "a")));
         when(documentFactory.toDocument(any(Product.class))).thenReturn(document(1L, "a", "text a", "h1"));
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
         org.mockito.Mockito.doThrow(new IllegalStateException("ollama down"))
@@ -361,9 +369,7 @@ class ProductIndexingServiceTest {
         AtomicReference<Throwable> firstRunFailure = new AtomicReference<>();
 
         Document docA = document(1L, "a", "text a", "h1");
-        when(productRepository.findAll()).thenReturn(List.of(product(1L, "a")));
-        when(productRepository.findAllByIdInWithDetails(List.of(1L)))
-                .thenReturn(List.of(product(1L, "a")));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(product(1L, "a")));
         when(documentFactory.toDocument(any(Product.class))).thenReturn(docA);
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenAnswer(invocation -> {
             insideFirstRun.countDown();
@@ -417,9 +423,7 @@ class ProductIndexingServiceTest {
         assertThat(secondDocument.getMetadata())
                 .containsEntry("contentHash", firstDocument.getMetadata().get("contentHash"));
 
-        when(productRepository.findAll()).thenReturn(List.of(readFirst), List.of(readSecond));
-        when(productRepository.findAllByIdInWithDetails(List.of(1L)))
-                .thenReturn(List.of(readFirst), List.of(readSecond));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(readFirst), List.of(readSecond));
         when(documentFactory.toDocument(any(Product.class))).thenReturn(firstDocument, secondDocument);
         // First run: nothing stored yet. Second run: the first run's document is in the store.
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
@@ -436,20 +440,19 @@ class ProductIndexingServiceTest {
         Product a = product(1L, "a");
         Document docA = document(1L, "a", "text a", "h1");
 
-        when(productRepository.findById(1L)).thenReturn(java.util.Optional.of(a));
+        when(productRepository.findByIdForAiProjection(1L)).thenReturn(java.util.Optional.of(a));
         when(documentFactory.toDocument(a)).thenReturn(docA);
 
         service.upsert(a);
 
         verify(vectorStore).add(List.of(docA));
-        verify(productRepository, never()).findAll();
-        verify(productRepository, never()).findAllByIdInWithDetails(anyList());
+        verify(productRepository, never()).findAllActiveForAiProjection();
     }
 
     @Test
     void upsertSkipsAProductThatNoLongerExists() {
         Product a = product(1L, "a");
-        when(productRepository.findById(1L)).thenReturn(java.util.Optional.empty());
+        when(productRepository.findByIdForAiProjection(1L)).thenReturn(java.util.Optional.empty());
 
         service.upsert(a);
 
@@ -463,7 +466,7 @@ class ProductIndexingServiceTest {
 
         service.upsert(unsaved);
 
-        verify(productRepository, never()).findById(anyLong());
+        verify(productRepository, never()).findByIdForAiProjection(anyLong());
         verify(vectorStore, never()).add(anyList());
     }
 
@@ -477,18 +480,18 @@ class ProductIndexingServiceTest {
         Product a = product(1L, "a");
         Document docA = document(1L, "a", "text a", "h1");
 
-        when(productRepository.findById(1L)).thenReturn(java.util.Optional.of(a));
+        when(productRepository.findByIdForAiProjection(1L)).thenReturn(java.util.Optional.of(a));
         when(documentFactory.toDocument(a)).thenReturn(docA);
 
         service.upsertById(1L);
 
         verify(vectorStore).add(List.of(docA));
-        verify(productRepository, never()).findAll();
+        verify(productRepository, never()).findAllActiveForAiProjection();
     }
 
     @Test
     void upsertByIdSkipsAProductThatNoLongerExists() {
-        when(productRepository.findById(1L)).thenReturn(java.util.Optional.empty());
+        when(productRepository.findByIdForAiProjection(1L)).thenReturn(java.util.Optional.empty());
 
         service.upsertById(1L);
 
@@ -500,7 +503,7 @@ class ProductIndexingServiceTest {
     void upsertByIdSkipsAMissingId() {
         service.upsertById(null);
 
-        verify(productRepository, never()).findById(anyLong());
+        verify(productRepository, never()).findByIdForAiProjection(anyLong());
         verify(vectorStore, never()).add(anyList());
     }
 
@@ -510,12 +513,13 @@ class ProductIndexingServiceTest {
         Product a = product(1L, "a");
         Document docA = document(1L, "a", "text a", "h1");
 
-        when(productRepository.findById(1L)).thenReturn(java.util.Optional.of(a));
+        when(productRepository.findByIdForAiProjection(1L)).thenReturn(java.util.Optional.of(a));
         when(documentFactory.toDocument(a)).thenReturn(docA);
 
         service.upsert(a);
 
-        verify(productRepository).findById(1L);
+        verify(productRepository).findByIdForAiProjection(1L);
+        verify(productRepository, never()).findById(anyLong());
         verify(vectorStore).add(List.of(docA));
     }
 
@@ -557,8 +561,7 @@ class ProductIndexingServiceTest {
         Product a = product(1L, "a");
         Document unhashed = new Document("product:a", "text a", Map.of("slug", "a"));
 
-        when(productRepository.findAll()).thenReturn(List.of(a));
-        when(productRepository.findAllByIdInWithDetails(List.of(1L))).thenReturn(List.of(a));
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(a));
         when(documentFactory.toDocument(a)).thenReturn(unhashed);
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(unhashed));
 

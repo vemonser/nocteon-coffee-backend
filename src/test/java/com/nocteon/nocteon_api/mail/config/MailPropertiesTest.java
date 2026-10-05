@@ -25,6 +25,20 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class MailPropertiesTest {
 
+    /**
+     * The shipped value, forced.
+     *
+     * <p>{@code application.yaml} writes {@code scheduling-enabled: ${MAIL_SCHEDULING_ENABLED:false}},
+     * and that placeholder resolves against the real environment. An exported
+     * {@code MAIL_SCHEDULING_ENABLED=true} — or a {@code .env} file, which
+     * {@code spring-dotenv} imports — would otherwise decide the outcome of a test whose entire
+     * claim is that the <em>shipped</em> default is closed. Setting the property explicitly here
+     * makes the test depend on {@code application.yaml} alone: it still fails if the
+     * {@code :false} fallback is deleted or flipped, and it no longer fails because of a shell the
+     * build happened to run in.
+     */
+    private static final String SHIPPED_DEFAULT = "nocteon.mail.scheduling-enabled=false";
+
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withInitializer(new ConfigDataApplicationContextInitializer())
             .withUserConfiguration(BindingOnly.class);
@@ -37,10 +51,36 @@ class MailPropertiesTest {
 
     @Test
     void theGateIsClosedWithTheShippedConfiguration() {
-        runner.run(context -> {
+        runner.withPropertyValues(SHIPPED_DEFAULT).run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context.getBean(MailProperties.class).isSchedulingEnabled()).isFalse();
         });
+    }
+
+    /**
+     * The point of the closed-gate test, isolated from the environment: the placeholder itself
+     * carries {@code :false}, so an unset variable binds {@code false} rather than failing.
+     *
+     * <p>Asserted on the raw placeholder rather than through a context runner, because a runner
+     * cannot distinguish "the default resolved to false" from "the environment said false" — which
+     * is exactly the distinction this file needs to make.
+     */
+    @Test
+    void theShippedPlaceholderFallsBackToFalse() {
+        String yaml = readClasspathResource("application.yaml");
+
+        assertThat(yaml)
+                .as("nocteon.mail.scheduling-enabled must resolve to false when MAIL_SCHEDULING_ENABLED is unset")
+                .contains("scheduling-enabled: ${MAIL_SCHEDULING_ENABLED:false}");
+    }
+
+    private static String readClasspathResource(String name) {
+        try (java.io.InputStream stream = MailPropertiesTest.class.getClassLoader().getResourceAsStream(name)) {
+            assertThat(stream).as("%s must be on the test classpath", name).isNotNull();
+            return new String(stream.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException e) {
+            throw new AssertionError("Unable to read " + name + " from the classpath", e);
+        }
     }
 
     /**
@@ -53,6 +93,24 @@ class MailPropertiesTest {
         runner.withPropertyValues("MAIL_SCHEDULING_ENABLED=true").run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context.getBean(MailProperties.class).isSchedulingEnabled()).isTrue();
+        });
+    }
+
+    /**
+     * Hermeticity in the other direction, and the reason the closed-gate test shadows the property
+     * rather than reading it: the explicit value has to win over whatever the environment holds.
+     *
+     * <p>With {@code MAIL_SCHEDULING_ENABLED=false} forced and the variable also set to
+     * {@code true}, the gate stays shut. Were the binding resolving from the OS environment instead
+     * of the shadowed property, this would come back open — and
+     * {@code theGateIsClosedWithTheShippedConfiguration} would then be at the mercy of the machine
+     * running the build.
+     */
+    @Test
+    void theShadowedDefaultBeatsTheEnvironmentVariable() {
+        runner.withPropertyValues(SHIPPED_DEFAULT, "MAIL_SCHEDULING_ENABLED=true").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(MailProperties.class).isSchedulingEnabled()).isFalse();
         });
     }
 }

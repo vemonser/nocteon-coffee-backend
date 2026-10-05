@@ -19,6 +19,13 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>The gate is the first statement, so a disabled deployment does not read the pending-email
  * table at all.
+ *
+ * <h2>Why this method carries no {@code @Transactional}</h2>
+ * Same reason as {@code AbandonedCartScheduler}: a {@code @Transactional} annotation here would be
+ * opened by the proxy before the gate ran, so a disabled deployment would take a pooled connection
+ * and commit an empty transaction on every one of its 60-second ticks. The transaction belongs on
+ * {@link TransactionalEmailService#retryPendingEmails()}, which is only reached once the gate has
+ * passed.
  */
 @Component
 @RequiredArgsConstructor

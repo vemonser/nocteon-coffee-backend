@@ -300,6 +300,35 @@ class AttributeSimilarityFallbackTest {
         assertThat(fallback.rank(source, List.of(manyNotes)).get(2L)).isEqualTo(0.3);
     }
 
+    /**
+     * The scoring path de-duplicates shared note slugs.
+     *
+     * <p>Unreachable from the database — {@code product_tasting_notes} has {@code PK (product_id,
+     * tasting_note_id)} and {@code tasting_notes.slug} is {@code UNIQUE} — but the list's size is
+     * the {@code 0.15} multiplier, so a repeated slug inflates a score. A scoring path should not
+     * lean on a constraint three tables away to stay correct, and the display path already applied
+     * {@code distinct()} while this one did not.
+     *
+     * <p>Three copies of one shared note must therefore score as one note ({@code 0.15}), not three
+     * ({@code 0.45}).
+     */
+    @Test
+    void aRepeatedSharedNoteSlugScoresAsOneNote() {
+        Product source = coffee(1L, "src", null, null, null, null, List.of("berry"));
+        Product repeated = coffee(2L, "repeated", null, null, null, null, List.of("berry", "berry", "berry"));
+
+        assertThat(fallback.rank(source, List.of(repeated)).get(2L)).isEqualTo(0.15);
+    }
+
+    /** The same de-duplication on both sides at once, for the same reason. */
+    @Test
+    void aRepeatedSlugOnEitherSideDoesNotDoubleCount() {
+        Product source = coffee(1L, "src", null, null, null, null, List.of("berry", "berry"));
+        Product candidate = coffee(2L, "candidate", null, null, null, null, List.of("berry"));
+
+        assertThat(fallback.rank(source, List.of(candidate)).get(2L)).isEqualTo(0.15);
+    }
+
     /** Below the cap the contribution is linear: one note 0.15, two notes 0.30. */
     @Test
     void scoresEachSharedNoteLinearlyBelowTheCap() {

@@ -63,10 +63,10 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <h2>Why the method is transactional</h2>
  * {@link ProductDocumentFactory} and the attribute weights both walk {@code category},
- * {@code origin}, {@code coffeeDetails} and {@code tastingNotes}, none of which
- * {@code findAllByIdInWithDetails} join-fetches. The projection has to happen while the
- * persistence context is still open. Read-only is safe here — unlike
- * {@link ProductIndexingService}, nothing on this path writes to the vector store.
+ * {@code origin}, {@code coffeeDetails} and {@code tastingNotes}. The to-ones among those are
+ * join-fetched by {@code findAllActiveForAiProjection}, and {@code tastingNotes} is batch-loaded,
+ * but the projection still has to happen while the persistence context is open. Read-only is safe
+ * here — unlike {@link ProductIndexingService}, nothing on this path writes to the vector store.
  */
 @Service
 @RequiredArgsConstructor
@@ -206,9 +206,11 @@ public class SimilarProductService {
      * the scored pair carries the entity rather than only its id.
      */
     private List<Scored> attributeRank(Product source, int limit) {
-        List<Product> candidates = productRepository.findAll().stream()
-                .filter(Product::isActive)
-                .toList();
+        // findAllActiveForAiProjection, not findAll: the attribute weights and the reason text read
+        // category, origin, coffeeDetails (and its roast/process lookups) and tastingNotes, and a
+        // bare findAll leaves all of them lazy — roughly six extra selects per candidate, over the
+        // whole catalog, on a storefront page.
+        List<Product> candidates = productRepository.findAllActiveForAiProjection();
 
         Map<Long, Product> byId = new HashMap<>();
         candidates.forEach(candidate -> byId.put(candidate.getId(), candidate));

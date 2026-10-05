@@ -415,10 +415,17 @@ public class AttributeSimilarityFallback {
      * <p>An absent list is treated as no notes rather than dereferenced: the column is on the
      * product and every product type uses it, so it is only ever null on an instance built by
      * hand.
+     *
+     * <p>{@code distinct()}, like the display path in {@link #sharedTastingNoteNames}: this list's
+     * size <em>is</em> the {@link #TASTING_NOTE_WEIGHT} multiplier, so a repeated slug would inflate
+     * the score. The {@code product_tasting_notes} primary key makes that unreachable from the
+     * database today, but a scoring path should not depend on a constraint three tables away to stay
+     * correct.
      */
     private List<String> sharedTastingNoteSlugs(Product source, Product candidate) {
         return sharedTastingNotes(source, candidate).stream()
                 .map(TastingNote::getSlug)
+                .distinct()
                 .toList();
     }
 
