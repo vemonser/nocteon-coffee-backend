@@ -94,9 +94,6 @@ public class SimilarProductService {
      */
     private static final double ACCEPT_ALL_SIMILARITY = 0.0;
 
-    /** Shown when the fallback produced nothing printable. */
-    private static final String NEUTRAL_REASON = "More from our collection";
-
     private final VectorStore vectorStore;
     private final AiSearchService aiSearchService;
     private final ProductDocumentFactory documentFactory;
@@ -247,7 +244,7 @@ public class SimilarProductService {
 
         return SimilarProductResponse.builder()
                 .product(productResponseMapper.buildListResponse(candidate, language))
-                .reason(reasonFor(source, candidate, scored.score()))
+                .reason(reasonFor(source, candidate, scored.score(), language))
                 .score(scored.score())
                 .build();
     }
@@ -255,10 +252,14 @@ public class SimilarProductService {
     /**
      * Guards the response contract: a blank reason renders as an empty chip that reads as a
      * bug, so it is replaced even though the fallback never returns one.
+     *
+     * <p>The substitute comes from {@link AttributeSimilarityFallback#neutralReason(String)}
+     * rather than a string of this class's own, so a reason can never be English-only on the
+     * Arabic storefront just because this guard fired.
      */
-    private String reasonFor(Product source, Product candidate, double score) {
-        String reason = fallback.reason(source, candidate, score);
-        return StringUtils.hasText(reason) ? reason : NEUTRAL_REASON;
+    private String reasonFor(Product source, Product candidate, double score, String language) {
+        String reason = fallback.reason(source, candidate, score, language);
+        return StringUtils.hasText(reason) ? reason : fallback.neutralReason(language);
     }
 
     private int clampLimit(int limit) {

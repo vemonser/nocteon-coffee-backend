@@ -114,7 +114,7 @@ class SimilarProductServiceTest {
         when(aiSearchService.isSearchEnabled()).thenReturn(false);
         when(productRepository.findAll()).thenReturn(List.of(source, other));
         when(fallback.rank(source, List.of(source, other))).thenReturn(Map.of(2L, 0.4));
-        when(fallback.reason(source, other, 0.4)).thenReturn("Similar origin: Ethiopia");
+        when(fallback.reason(source, other, 0.4, "en")).thenReturn("Similar origin: Ethiopia");
         when(productResponseMapper.buildListResponse(other, "en")).thenReturn(card(2L));
 
         List<SimilarProductResponse> results = service.findSimilar("src", 8);
@@ -139,7 +139,7 @@ class SimilarProductServiceTest {
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenThrow(new RuntimeException("ollama down"));
         when(fallback.rank(source, List.of(source, other))).thenReturn(Map.of(2L, 0.4));
-        lenient().when(fallback.reason(any(), any(), anyDouble())).thenReturn("Similar origin: Ethiopia");
+        lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("Similar origin: Ethiopia");
         when(productResponseMapper.buildListResponse(other, "en")).thenReturn(card(2L));
 
         List<SimilarProductResponse> results = service.findSimilar("src", 8);
@@ -159,7 +159,7 @@ class SimilarProductServiceTest {
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenThrow(new IllegalStateException("connection refused"));
         lenient().when(fallback.rank(any(), any())).thenReturn(Map.of(2L, 0.4));
-        lenient().when(fallback.reason(any(), any(), anyDouble())).thenReturn("reason");
+        lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("reason");
         lenient().when(productResponseMapper.buildListResponse(any(), anyString())).thenReturn(card(2L));
 
         assertThatCode(() -> service.findSimilar("src", 8)).doesNotThrowAnyException();
@@ -180,7 +180,7 @@ class SimilarProductServiceTest {
                 .thenReturn(List.of(hit(1L, 0.99)));
         when(productRepository.findAll()).thenReturn(List.of(source, other));
         when(fallback.rank(source, List.of(source, other))).thenReturn(Map.of(2L, 0.4));
-        lenient().when(fallback.reason(any(), any(), anyDouble())).thenReturn("reason");
+        lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("reason");
         when(productResponseMapper.buildListResponse(other, "en")).thenReturn(card(2L));
 
         List<SimilarProductResponse> results = service.findSimilar("src", 8);
@@ -208,7 +208,7 @@ class SimilarProductServiceTest {
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenReturn(List.of(hit(3L, 0.23), hit(2L, 0.91)));
         when(productRepository.findAllByIdInWithDetails(anyList())).thenReturn(List.of(best, worst));
-        lenient().when(fallback.reason(any(), any(), anyDouble())).thenReturn("reason");
+        lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("reason");
         when(productResponseMapper.buildListResponse(best, "en")).thenReturn(card(2L));
         lenient().when(productResponseMapper.buildListResponse(worst, "en")).thenReturn(card(3L));
 
@@ -234,7 +234,7 @@ class SimilarProductServiceTest {
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenReturn(List.of(hit(1L, 1.0), hit(2L, 0.5)));
         when(productRepository.findAllByIdInWithDetails(anyList())).thenReturn(List.of(other));
-        lenient().when(fallback.reason(any(), any(), anyDouble())).thenReturn("reason");
+        lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("reason");
         lenient().when(productResponseMapper.buildListResponse(other, "en")).thenReturn(card(2L));
 
         List<SimilarProductResponse> results = service.findSimilar("src", 8);
@@ -261,7 +261,7 @@ class SimilarProductServiceTest {
         when(documentFactory.buildText(source)).thenReturn("Name: Source\nOrigin: ethiopia");
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(hit(2L, 0.5)));
         lenient().when(productRepository.findAllByIdInWithDetails(anyList())).thenReturn(List.of(other));
-        lenient().when(fallback.reason(any(), any(), anyDouble())).thenReturn("reason");
+        lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("reason");
         lenient().when(productResponseMapper.buildListResponse(other, "en")).thenReturn(card(2L));
 
         service.findSimilar("src", 8);
@@ -282,12 +282,64 @@ class SimilarProductServiceTest {
         lenient().when(documentFactory.buildText(source)).thenReturn("text");
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(hit(2L, 0.5)));
         lenient().when(productRepository.findAllByIdInWithDetails(anyList())).thenReturn(List.of(other));
-        lenient().when(fallback.reason(any(), any(), anyDouble())).thenReturn("");
+        // A blank reason is the contract violation the service's own guard exists to catch, so
+        // the fallback's neutral phrase has to resolve to something real here.
+        lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("");
+        lenient().when(fallback.neutralReason(any())).thenReturn("More from our collection");
         lenient().when(productResponseMapper.buildListResponse(other, "en")).thenReturn(card(2L));
 
         assertThat(service.findSimilar("src", 8))
                 .isNotEmpty()
                 .allSatisfy(result -> assertThat(result.getReason()).isNotBlank());
+    }
+
+    /**
+     * The service's own guard must not reach for an English literal. It delegates to the
+     * fallback's neutral phrase in the request language, so the substitute is localized too.
+     */
+    @Test
+    void theBlankReasonGuardSubstitutesTheLocalizedNeutralPhrase() {
+        Product source = source();
+        Product other = product(2L, "other");
+
+        LocaleContextHolder.setLocale(new Locale("ar"));
+        when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
+        when(aiSearchService.isSearchEnabled()).thenReturn(false);
+        lenient().when(productRepository.findAll()).thenReturn(List.of(source, other));
+        lenient().when(fallback.rank(any(), any())).thenReturn(Map.of(2L, 0.4));
+        when(fallback.reason(any(), any(), anyDouble(), eq("ar"))).thenReturn("");
+        when(fallback.neutralReason("ar")).thenReturn("المزيد من مجموعتنا");
+        lenient().when(productResponseMapper.buildListResponse(other, "ar")).thenReturn(card(2L));
+
+        assertThat(service.findSimilar("src", 8))
+                .extracting(SimilarProductResponse::getReason)
+                .containsExactly("المزيد من مجموعتنا");
+    }
+
+    /**
+     * The language the card was built with is the language the reason is built with — one
+     * {@code LocaleContextHolder} read, threaded through both, so a chip cannot end up in a
+     * different language from the product name above it.
+     */
+    @Test
+    void theReasonIsRequestedInTheSameLanguageAsTheCard() {
+        Product source = source();
+        Product other = product(2L, "other");
+
+        LocaleContextHolder.setLocale(new Locale("ar"));
+        when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
+        when(aiSearchService.isSearchEnabled()).thenReturn(false);
+        lenient().when(productRepository.findAll()).thenReturn(List.of(source, other));
+        lenient().when(fallback.rank(any(), any())).thenReturn(Map.of(2L, 0.4));
+        when(fallback.reason(source, other, 0.4, "ar")).thenReturn("الأصل: إثيوبيا");
+        lenient().when(productResponseMapper.buildListResponse(other, "ar")).thenReturn(card(2L));
+
+        assertThat(service.findSimilar("src", 8))
+                .extracting(SimilarProductResponse::getReason)
+                .containsExactly("الأصل: إثيوبيا");
+
+        verify(fallback).reason(source, other, 0.4, "ar");
+        verify(productResponseMapper).buildListResponse(other, "ar");
     }
 
     @Test
@@ -304,7 +356,7 @@ class SimilarProductServiceTest {
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenReturn(List.of(noScore, badId, hit(2L, 0.5)));
         when(productRepository.findAllByIdInWithDetails(anyList())).thenReturn(List.of(other));
-        lenient().when(fallback.reason(any(), any(), anyDouble())).thenReturn("reason");
+        lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("reason");
         lenient().when(productResponseMapper.buildListResponse(other, "en")).thenReturn(card(2L));
 
         List<SimilarProductResponse> results = service.findSimilar("src", 8);
@@ -338,7 +390,7 @@ class SimilarProductServiceTest {
         when(aiSearchService.isSearchEnabled()).thenReturn(false);
         when(productRepository.findAll()).thenReturn(List.of(source, other));
         when(fallback.rank(any(), any())).thenReturn(Map.of(2L, 0.4));
-        lenient().when(fallback.reason(any(), any(), anyDouble())).thenReturn("reason");
+        lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("reason");
         lenient().when(productResponseMapper.buildListResponse(other, "en")).thenReturn(card(2L));
 
         assertThat(service.findSimilar("src", 0)).hasSize(1);
@@ -358,7 +410,7 @@ class SimilarProductServiceTest {
         when(aiSearchService.isSearchEnabled()).thenReturn(false);
         when(productRepository.findAll()).thenReturn(catalogue);
         when(fallback.rank(any(), any())).thenReturn(scores);
-        lenient().when(fallback.reason(any(), any(), anyDouble())).thenReturn("reason");
+        lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("reason");
         lenient().when(productResponseMapper.buildListResponse(any(), anyString()))
                 .thenAnswer(invocation -> card(invocation.getArgument(0, Product.class).getId()));
 
@@ -380,7 +432,7 @@ class SimilarProductServiceTest {
         when(aiSearchService.isSearchEnabled()).thenReturn(false);
         when(productRepository.findAll()).thenReturn(List.of(source, inactive, active));
         when(fallback.rank(any(), eq(List.of(source, active)))).thenReturn(Map.of(3L, 0.4));
-        lenient().when(fallback.reason(any(), any(), anyDouble())).thenReturn("reason");
+        lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("reason");
         lenient().when(productResponseMapper.buildListResponse(active, "en")).thenReturn(card(3L));
 
         List<SimilarProductResponse> results = service.findSimilar("src", 8);
@@ -402,7 +454,7 @@ class SimilarProductServiceTest {
         lenient().when(productRepository.findAllByIdInWithDetails(anyList()))
                 .thenReturn(List.of(inactive, product(3L, "third")));
         lenient().when(fallback.rank(any(), anyList())).thenReturn(Map.of());
-        lenient().when(fallback.reason(any(), any(), anyDouble())).thenReturn("reason");
+        lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("reason");
         lenient().when(productResponseMapper.buildListResponse(any(), anyString()))
                 .thenAnswer(invocation -> card(invocation.getArgument(0, Product.class).getId()));
 
@@ -444,7 +496,7 @@ class SimilarProductServiceTest {
         when(aiSearchService.isSearchEnabled()).thenReturn(false);
         when(productRepository.findAll()).thenReturn(List.of(source, other));
         lenient().when(fallback.rank(any(), any())).thenReturn(Map.of(2L, 0.4));
-        lenient().when(fallback.reason(any(), any(), anyDouble())).thenReturn("reason");
+        lenient().when(fallback.reason(any(), any(), anyDouble(), any())).thenReturn("reason");
         lenient().when(productResponseMapper.buildListResponse(other, "ar")).thenReturn(card(2L));
 
         service.findSimilar("src", 8);
