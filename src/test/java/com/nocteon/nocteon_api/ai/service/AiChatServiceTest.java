@@ -93,11 +93,10 @@ class AiChatServiceTest {
         });
 
         lenient().when(functions.newTurn()).thenReturn(new AiChatFunctions(
-                aiSearchService,
-                productRepository,
-                productResponseMapper,
-                brewingMethodRepository,
-                transactions));
+                new CatalogSearch(aiSearchService, productRepository),
+                new CoffeeFactSheet(productRepository, transactions),
+                new BrewingGuideLookup(brewingMethodRepository),
+                new ProductCardBuilder(productRepository, productResponseMapper, transactions)));
 
         service = new AiChatService(chatModel, sessionStore, functions, properties, messageSource);
     }

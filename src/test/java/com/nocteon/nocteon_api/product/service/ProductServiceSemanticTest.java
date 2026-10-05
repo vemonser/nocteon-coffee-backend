@@ -4,10 +4,10 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -18,6 +18,7 @@ import org.springframework.data.jpa.domain.Specification;
 
 import com.nocteon.nocteon_api.ai.service.AiSearchService;
 import com.nocteon.nocteon_api.ai.service.HybridRanker;
+import com.nocteon.nocteon_api.ai.service.SemanticProductSearch;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.product.dto.request.ProductFilterRequest;
 import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
@@ -86,8 +87,30 @@ class ProductServiceSemanticTest {
     @Mock
     private HybridRanker hybridRanker;
 
-    @InjectMocks
     private ProductService service;
+
+    /**
+     * Built explicitly rather than through {@code @InjectMocks}: the semantic path moved to
+     * {@code SemanticProductSearch}, and the point of these tests is that the AI collaborators are
+     * reachable through the real production wiring. A mock for the new collaborator would make
+     * every {@code verifyNoInteractions} below pass vacuously.
+     */
+    @BeforeEach
+    void setUp() {
+        service = new ProductService(
+                productRepository,
+                productVariantRepository,
+                productResponseMapper,
+                dashboardProductMapper,
+                productMutationService,
+                productOptionValueRepository,
+                new SemanticProductSearch(
+                        aiSearchService,
+                        hybridRanker,
+                        productRepository,
+                        productOptionValueRepository,
+                        productResponseMapper));
+    }
 
     /**
      * Cards carry the product id so ordering can be asserted on the response itself. Lenient
@@ -187,6 +210,25 @@ class ProductServiceSemanticTest {
 
         service.getAll(filter);
 
+        verifyNoInteractions(aiSearchService, hybridRanker);
+    }
+
+    /**
+     * The seam the extraction introduced: an ordinary browse must reach the keyword query with
+     * {@code SemanticProductSearch} still completely untouched. Before the split the flag check
+     * lived in this class; it now lives behind the collaborator, so this is the assertion that
+     * keeps the collaborator itself from becoming the thing that is always consulted.
+     */
+    @Test
+    void aRequestThatCannotBeAnsweredSemanticallyRunsExactlyOneQuery() {
+        ProductFilterRequest filter = new ProductFilterRequest();
+        filter.setSearch("yirgacheffe");
+        when(productRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        service.getAll(filter);
+
+        verify(productRepository, times(1)).findAll(any(Specification.class), any(Pageable.class));
         verifyNoInteractions(aiSearchService, hybridRanker);
     }
 

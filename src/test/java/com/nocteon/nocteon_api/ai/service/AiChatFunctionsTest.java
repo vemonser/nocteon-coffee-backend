@@ -82,12 +82,14 @@ class AiChatFunctionsTest {
         // path. `lenient` because most tests do not care and a strict stub would fail them.
         lenient().when(aiSearchService.isSearchEnabled()).thenReturn(true);
 
+        // The collaborators are the real ones over mocked repositories, so the three-state
+        // contract, the ranking and the card projection are exercised end to end rather than
+        // stubbed out. Only the database boundary is faked.
         functions = new AiChatFunctions(
-                aiSearchService,
-                productRepository,
-                productResponseMapper,
-                brewingMethodRepository,
-                transactions);
+                new CatalogSearch(aiSearchService, productRepository),
+                new CoffeeFactSheet(productRepository, transactions),
+                new BrewingGuideLookup(brewingMethodRepository),
+                new ProductCardBuilder(productRepository, productResponseMapper, transactions));
     }
 
     /** Similarities in the order the vector store returned them, which is not sorted. */
@@ -299,6 +301,33 @@ class AiChatFunctionsTest {
 
         assertThat(otherTurn.citedSlugs()).isEmpty();
         assertThat(functions.citedSlugs()).containsExactly("yirgacheffe");
+    }
+
+    /**
+     * The three collaborators {@code newTurn()} hands to the next turn are the same instances this
+     * one holds. They are stateless, and sharing them is what keeps the per-turn guarantee down to
+     * the slug collector — the only mutable state in the whole tool chain.
+     */
+    @Test
+    void aNewTurnInheritsTheStatelessCollaborators() {
+        when(aiSearchService.isSearchEnabled()).thenReturn(true);
+        when(aiSearchService.semanticCandidates(any(), any(Integer.class)))
+                .thenReturn(candidates(0.9));
+        when(productRepository.findAllByIdInWithDetails(anyList()))
+                .thenReturn(List.of(product(1L, "yirgacheffe")));
+        when(productRepository.findBySlugIn(List.of("yirgacheffe")))
+                .thenReturn(List.of(product(1L, "yirgacheffe")));
+        when(productResponseMapper.buildListResponse(any(), any()))
+                .thenReturn(ProductCardResponse.builder().slug("yirgacheffe").build());
+
+        AiChatFunctions otherTurn = functions.newTurn();
+        otherTurn.searchProducts("fruity", 3);
+
+        // The second turn reads through the same repository mock, so it can only resolve if it
+        // really did inherit the collaborators rather than losing them.
+        assertThat(otherTurn.citedSlugs()).containsExactly("yirgacheffe");
+        assertThat(functions.citedSlugs()).isEmpty();
+        assertThat(otherTurn.cardsFor(otherTurn.citedSlugs(), EN)).hasSize(1);
     }
 
     // --- get_product_details -------------------------------------------------------------------

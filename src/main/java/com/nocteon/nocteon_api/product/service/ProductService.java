@@ -6,7 +6,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
@@ -15,11 +14,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.nocteon.nocteon_api.ai.service.AiSearchService;
-import com.nocteon.nocteon_api.ai.service.HybridRanker;
+import com.nocteon.nocteon_api.ai.service.SemanticProductSearch;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductNotFoundException;
 import com.nocteon.nocteon_api.common.util.ProductSortResolver;
@@ -49,39 +46,32 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ProductService {
 
-    /**
-     * How many products to ask the vector store for on a semantic search.
-     *
-     * <p>Deliberately larger than a page so ranking has something to reorder, and small enough
-     * that the one facet-constrained query below stays cheap.
-     */
-    private static final int SEMANTIC_CANDIDATE_LIMIT = 50;
-
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
     private final ProductResponseMapper productResponseMapper;
     private final DashboardProductMapper dashboardProductMapper;
     private final ProductMutationService productMutationService;
     private final ProductOptionValueRepository productOptionValueRepository;
-    private final AiSearchService aiSearchService;
-    private final HybridRanker hybridRanker;
+    private final SemanticProductSearch semanticProductSearch;
 
     /**
      * The public catalog listing. Answers with vector-similarity ranking when the caller opts
      * in via {@code ?semantic=true} with real search text, and with the existing keyword query
      * otherwise — including whenever the semantic path cannot answer.
      *
+     * <p>The semantic branch is {@code SemanticProductSearch.rank}, which returns
+     * {@code Optional.empty()} rather than an empty page when the vector signal is unusable, so
+     * an unreachable store or an all-filtered-out candidate set degrades to the plain listing
+     * instead of claiming the catalog has nothing. {@code Optional.orElseGet} with
+     * {@link #keywordSearch} is what performs that fallback, and it is deliberately lazy: the
+     * keyword query is not issued on the semantic path.
+     *
      * @return the requested page of cards; the response shape is identical either way, only
      *         the ordering and the page membership differ
      */
     public PageResponse<ProductCardResponse> getAll(ProductFilterRequest filter) {
-        if (Boolean.TRUE.equals(filter.getSemantic())
-                && StringUtils.hasText(filter.getSearch())
-                && aiSearchService.isSearchEnabled()) {
-            return semanticSearch(filter);
-        }
-
-        return keywordSearch(filter);
+        return semanticProductSearch.rank(filter)
+                .orElseGet(() -> keywordSearch(filter));
     }
 
     private PageResponse<ProductCardResponse> keywordSearch(ProductFilterRequest filter) {
@@ -106,129 +96,13 @@ public class ProductService {
     }
 
     /**
-     * Ranks the catalog by vector similarity instead of by name matching.
-     *
-     * <p>Three steps, in this order: ask the vector store for candidates, re-apply the user's
-     * facets to them in SQL, then rank what survived in memory. Sorting by a blended score cannot
-     * be expressed in JPA, so the candidate query is deliberately unsorted and the page is cut
-     * from the ranked list here.
-     *
-     * <p>Degrades to {@link #keywordSearch(ProductFilterRequest)} whenever the semantic signal
-     * is unusable — the store is unreachable, nothing is indexed yet, or every candidate was
-     * excluded by a facet filter — because an empty page is a worse answer than the plain
-     * listing the client would have got anyway. {@link AiSearchService#semanticCandidates} never
-     * throws, so there is nothing to catch here.
-     */
-    private PageResponse<ProductCardResponse> semanticSearch(ProductFilterRequest filter) {
-        String language = LocaleContextHolder.getLocale().getLanguage();
-
-        Map<Long, Double> vectorScores = aiSearchService.semanticCandidates(
-                filter.getSearch(), SEMANTIC_CANDIDATE_LIMIT);
-
-        if (vectorScores.isEmpty()) {
-            return keywordSearch(filter);
-        }
-
-        List<Product> candidates = findSemanticCandidates(filter, language, vectorScores.keySet());
-
-        if (candidates.isEmpty()) {
-            return keywordSearch(filter);
-        }
-
-        // The keyword rank list is empty on this path: the candidate set was already narrowed to
-        // the vector hits and re-filtered in SQL, so a rank within it would measure nothing a
-        // customer can observe. HybridRanker still owns the weighting, so the vector signal keeps
-        // the same scale it has anywhere else.
-        Map<Long, Double> blendedScores = hybridRanker.blend(List.of(), vectorScores);
-
-        List<Product> ranked = candidates.stream()
-                .filter(p -> blendedScores.containsKey(p.getId()))
-                .sorted(Comparator
-                        .comparingDouble((Product p) -> blendedScores.get(p.getId())).reversed()
-                        // Equal scores are common once several products share a vector chunk, so
-                        // the id breaks the tie and keeps paging stable across requests.
-                        .thenComparing(Product::getId))
-                .toList();
-
-        List<Product> pageContent = slice(ranked, filter.getPage(), filter.getSize());
-
-        return PageResponse.<ProductCardResponse>builder()
-                .content(pageContent.stream()
-                        .map(p -> productResponseMapper.buildListResponse(p, language))
-                        .toList())
-                .page(filter.getPage())
-                .size(filter.getSize())
-                // The filtered candidate count, not the vector top-K: a page count the client
-                // cannot walk to is a contract break, and facet-excluded candidates were never
-                // on offer.
-                .totalElements(ranked.size())
-                .totalPages(totalPages(ranked.size(), filter.getSize()))
-                .first(filter.getPage() == 0)
-                .last(filter.getPage() + 1 >= totalPages(ranked.size(), filter.getSize()))
-                .build();
-    }
-
-    /**
-     * Loads the vector candidates that the user's own filters still allow.
-     *
-     * <p>Runs {@link ProductSpecifications#withFilters} unchanged and only adds
-     * {@code id in (candidates)} on top, so category, price, rating, stock, sale and
-     * option-value predicates keep constraining semantic results — semantic ranking changes the
-     * order, never the set the customer is allowed to see.
-     *
-     * <p>The search text is dropped from that filter on purpose. Its predicate is a
-     * {@code LIKE} against the product <em>name</em>, and re-applying it would throw away
-     * precisely the products semantic search exists to surface: a product described as "berry
-     * notes" must be findable by the word "fruity". Facet filters are the ones that describe
-     * what the customer is willing to buy, and those are all kept.
-     */
-    private List<Product> findSemanticCandidates(
-            ProductFilterRequest filter,
-            String language,
-            Set<Long> candidateIds) {
-
-        ProductFilterRequest facetFilter = copyWithoutSearch(filter);
-
-        Specification<Product> facets = ProductSpecifications.withFilters(
-                facetFilter, language, countDistinctOptions(facetFilter));
-
-        Specification<Product> spec = facets.and(
-                (root, query, cb) -> root.get("id").in(candidateIds));
-
-        return productRepository.findAll(spec, Sort.unsorted());
-    }
-
-    /**
-     * Copies every filter except the free-text search term.
-     *
-     * <p>Separate from {@link #copyWithoutOptionValueIds(ProductFilterRequest)}, which does the
-     * opposite for the option facets: these are what constrain a search, those are what get
-     * aggregated separately.
-     */
-    private ProductFilterRequest copyWithoutSearch(ProductFilterRequest filter) {
-        ProductFilterRequest copy = new ProductFilterRequest();
-        copy.setCategorySlug(filter.getCategorySlug());
-        copy.setOriginSlug(filter.getOriginSlug());
-        copy.setFarmSlug(filter.getFarmSlug());
-        copy.setMinRating(filter.getMinRating());
-        copy.setProductType(filter.getProductType());
-        copy.setFeatured(filter.getFeatured());
-        copy.setIsActive(filter.getIsActive());
-        copy.setMinPrice(filter.getMinPrice());
-        copy.setMaxPrice(filter.getMaxPrice());
-        copy.setBrewingMethodSlug(filter.getBrewingMethodSlug());
-        copy.setOptionValueIds(filter.getOptionValueIds());
-        copy.setInStockOnly(filter.getInStockOnly());
-        copy.setOnSaleOnly(filter.getOnSaleOnly());
-        copy.setSort(filter.getSort());
-        copy.setDirection(filter.getDirection());
-        return copy;
-    }
-
-    /**
      * How many distinct options the requested option values span, which
      * {@link ProductSpecifications} needs to require <em>all</em> of them. Zero when no option
      * filter was asked for.
+     *
+     * <p>Kept here rather than shared with {@code SemanticProductSearch}, which has its own copy:
+     * the two paths build different specifications for different purposes, and the value is four
+     * lines of a single conditional.
      */
     private long countDistinctOptions(ProductFilterRequest filter) {
         if (filter.getOptionValueIds() == null || filter.getOptionValueIds().isEmpty()) {
@@ -236,20 +110,6 @@ public class ProductService {
         }
         return productOptionValueRepository
                 .countDistinctOptionsByValueIds(filter.getOptionValueIds());
-    }
-
-    /** The requested window of an already-ranked list, clamped to what it actually holds. */
-    private static <T> List<T> slice(List<T> ranked, int page, int size) {
-        if (size <= 0) {
-            return List.of();
-        }
-        long from = Math.min((long) page * size, ranked.size());
-        int to = (int) Math.min(from + size, ranked.size());
-        return ranked.subList((int) from, to);
-    }
-
-    private static int totalPages(long totalElements, int size) {
-        return size <= 0 ? 0 : (int) Math.ceil((double) totalElements / size);
     }
 
     // في ProductService

@@ -1,46 +1,14 @@
 package com.nocteon.nocteon_api.ai.service;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.util.StringUtils;
 
-import com.nocteon.nocteon_api.brewingMethod.entity.BrewingMethod;
-import com.nocteon.nocteon_api.brewingMethod.entity.BrewingMethodTranslation;
-import com.nocteon.nocteon_api.brewingMethod.repository.BrewingMethodRepository;
-import com.nocteon.nocteon_api.coffeeVariety.entity.CoffeeVariety;
-import com.nocteon.nocteon_api.coffeeVariety.entity.CoffeeVarietyTranslation;
-import com.nocteon.nocteon_api.farm.entity.Farm;
-import com.nocteon.nocteon_api.farm.entity.FarmTranslation;
-import com.nocteon.nocteon_api.origin.entity.Origin;
-import com.nocteon.nocteon_api.origin.entity.OriginTranslation;
-import com.nocteon.nocteon_api.processingMethod.entity.ProcessingMethod;
-import com.nocteon.nocteon_api.processingMethod.entity.ProcessingMethodTranslation;
 import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
-import com.nocteon.nocteon_api.product.entity.CoffeeDetails;
-import com.nocteon.nocteon_api.product.entity.Product;
-import com.nocteon.nocteon_api.product.entity.ProductTranslation;
-import com.nocteon.nocteon_api.product.entity.ProductVariant;
-import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
-import com.nocteon.nocteon_api.product.repository.ProductRepository;
-import com.nocteon.nocteon_api.roastLevel.entity.RoastLevel;
-import com.nocteon.nocteon_api.roastLevel.entity.RoastLevelTranslation;
-import com.nocteon.nocteon_api.tastingNote.entity.TastingNote;
-import com.nocteon.nocteon_api.tastingNote.entity.TastingNoteTranslation;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,8 +20,8 @@ import lombok.extern.slf4j.Slf4j;
  * A language model will happily produce a plausible origin, a plausible tasting note and a
  * plausible price for a coffee that does not exist. No system prompt reliably prevents that;
  * what prevents it is that there is <em>nowhere else for facts to come from</em>. Every name,
- * number and availability flag below is read from the database and handed to the model as a
- * finished fact, so a wrong price cannot be written into a reply — the model can only fail to
+ * number and availability flag the tools return is read from the database and handed to the model
+ * as a finished fact, so a wrong price cannot be written into a reply — the model can only fail to
  * mention one.
  *
  * <p>It is also why there are no cart, order or wishlist tools. There is no way to ask about them,
@@ -64,7 +32,8 @@ import lombok.extern.slf4j.Slf4j;
  * unwinds through the advisor chain and out of {@code POST /api/ai/chat} as a 500, killing a turn
  * that was already in progress. So every method here catches everything and returns an empty or
  * short value instead. "I found nothing" is a state the assistant can talk its way out of; "the
- * endpoint 500'd" is not.
+ * endpoint 500'd" is not. The collaborators below are allowed to throw — the translation from
+ * failure to instruction happens here, because only this class knows what the instruction is.
  *
  * <h2>Why the fact strings are English</h2>
  * These strings are model input, not customer-facing copy — the assistant rewrites them into the
@@ -73,16 +42,19 @@ import lombok.extern.slf4j.Slf4j;
  * likely to paraphrase a number than to repeat it. The only strings a customer can see verbatim
  * are the degraded replies in {@code AiChatService}, and those are localized.
  *
- * <h2>Why the graph reads run through {@link TransactionOperations}</h2>
- * {@code getProductDetails} and {@link #cardsFor} walk {@code translations}, {@code variants},
- * {@code coffeeDetails}, {@code category} and {@code tastingNotes}, none of which
- * {@code findBySlug} join-fetches, so a persistence context has to be open while the facts are
- * assembled. It is opened <em>around the read only</em> — never around the model call, which can
- * take seconds and would pin a pooled connection for its whole duration.
+ * <h2>Why the reads run through {@code TransactionOperations} rather than {@code @Transactional}</h2>
+ * {@code getProductDetails} and {@link #cardsFor} walk lazy relations that their lookups do not
+ * fetch, so a persistence context has to be open while the facts are assembled. It is opened
+ * <em>around the read only</em> — never around the model call, which can take seconds and would
+ * pin a pooled connection for its whole duration.
  *
  * <p>A transaction callback rather than {@code @Transactional} because the tool methods are
  * invoked reflectively on the raw instance Spring AI was handed, not through a Spring proxy,
  * where an annotation on them would silently do nothing.
+ *
+ * <h2>Why each turn gets its own instance</h2>
+ * The cited-slug collector below is per-instance and never shared. Two concurrent visitors
+ * recommending different coffees would otherwise end up showing each other's product rail.
  */
 @Component
 @RequiredArgsConstructor
@@ -92,34 +64,10 @@ public class AiChatFunctions {
     /**
      * Ceiling on what one {@code search_products} call can return.
      *
-     * <p>Three to five coffees is already more than a short reply can justify, and the model is
-     * instructed to recommend two or three; the cap is what stops one enthusiastic query from
-     * pulling a rail-sized result set out of the vector store.
+     * <p>Delegated to {@link CatalogSearch#MAX_RESULTS}, which owns the ranking, so the ceiling
+     * cannot drift between the tool's description and the query it actually runs.
      */
-    public static final int MAX_RESULTS = 8;
-
-    /**
-     * How many coffees a tool call gets when the model does not say.
-     *
-     * <p>Two, not {@link #MAX_RESULTS}: a rail longer than a 120-word reply can justify is noise,
-     * and this is the value used most often precisely because it is the one the model omits.
-     */
-    private static final int DEFAULT_RESULTS = 2;
-
-    private static final int MIN_RESULTS = 1;
-
-    /** Ceiling on the product rail attached to a reply. */
-    private static final int MAX_CARDS = 8;
-
-    private static final String UNKNOWN_PRODUCT =
-            "No coffee in the catalog matches that. Report no match; do not suggest a coffee anyway.";
-
-    private static final String INACTIVE_PRODUCT =
-            "That coffee is not currently for sale. Report it as unavailable; do not describe it.";
-
-    private static final String UNKNOWN_BREWING_METHOD =
-            "No brewing guide is stored for that method. List the stored methods instead of "
-                    + "describing one from memory.";
+    public static final int MAX_RESULTS = CatalogSearch.MAX_RESULTS;
 
     /**
      * The answer when the catalog cannot be searched at all.
@@ -135,8 +83,8 @@ public class AiChatFunctions {
      * <p>So the two states are now separate answers. A refusal to answer is something the model
      * can obey; "I could not find anything" is an invitation.
      *
-     * <p>Same convention as {@link #UNKNOWN_PRODUCT}: say what happened, say what the model must
-     * do about it, and say what it must not do.
+     * <p>Same convention as {@link CoffeeFactSheet#UNKNOWN_PRODUCT}: say what happened, say what the
+     * model must do about it, and say what it must not do.
      *
      * <p>Package-private rather than private so {@code AiChatFunctionsTest} can assert the
      * error state returns <em>this</em> value rather than merely something non-empty — the
@@ -148,55 +96,30 @@ public class AiChatFunctions {
                     + "Do not name a coffee, an origin or a tasting note. Do not suggest "
                     + "something from memory.";
 
-    private static final String FACT_SEPARATOR = " | ";
-
-    private static final String LIST_SEPARATOR = ", ";
-
-    private static final String ENGLISH = "en";
-
-    /**
-     * Descending similarity, id ascending as the tie-break.
-     *
-     * <p>Written out rather than composed so the null-safety is visible: entries are filtered
-     * before sorting, and a score of {@code null} would otherwise become a {@code NullPointerException}
-     * inside the comparator — i.e. inside the model call, which is the one place this must never
-     * fail.
-     */
-    private static final Comparator<Map.Entry<Long, Double>> MOST_SIMILAR_FIRST = (left, right) -> {
-        int byScore = Double.compare(right.getValue(), left.getValue());
-        return byScore != 0 ? byScore : Long.compare(left.getKey(), right.getKey());
-    };
-
     /**
      * Slugs returned by {@code search_products} while serving the turn this instance was minted
      * for.
      *
      * <p>Per-instance and never shared: the Spring-managed bean exists only to mint per-turn
-     * instances through {@link #newTurn()}. A single shared list would let two concurrent visitors
-     * recommending different coffees end up showing each other's product rail.
+     * instances through {@link #newTurn()}.
      */
     private final List<String> citedSlugs = new ArrayList<>();
 
-    private final AiSearchService aiSearchService;
-    private final ProductRepository productRepository;
-    private final ProductResponseMapper productResponseMapper;
-    private final BrewingMethodRepository brewingMethodRepository;
-    private final TransactionOperations transactions;
+    private final CatalogSearch catalogSearch;
+    private final CoffeeFactSheet factSheet;
+    private final BrewingGuideLookup brewingGuides;
+    private final ProductCardBuilder cards;
 
     /**
      * Mints an instance for one conversation turn.
      *
      * <p>Called by {@code AiChatService} before it builds the {@code ChatClient}, so the tool
      * object handed to Spring AI — and therefore the slug collector the service reads afterwards —
-     * belongs to exactly one request.
+     * belongs to exactly one request. The collaborators are stateless and are shared; only the
+     * collector is per-turn.
      */
     public AiChatFunctions newTurn() {
-        return new AiChatFunctions(
-                aiSearchService,
-                productRepository,
-                productResponseMapper,
-                brewingMethodRepository,
-                transactions);
+        return new AiChatFunctions(catalogSearch, factSheet, brewingGuides, cards);
     }
 
     /**
@@ -282,22 +205,20 @@ public class AiChatFunctions {
             // Checked before the search rather than inferred from its result: a disabled flag
             // returns an empty map, and reporting that as "no matches" is the lie this
             // method's three-way contract exists to stop telling.
-            if (!aiSearchService.isSearchEnabled()) {
+            if (!catalogSearch.isSearchEnabled()) {
                 log.warn("Catalog search is disabled, telling the assistant it cannot search");
                 return unavailable();
             }
 
-            Map<Long, Double> candidates = aiSearchService.semanticCandidates(query, clampResults(limit));
-            if (candidates.isEmpty()) {
+            List<String> slugs = catalogSearch.slugsFor(query, CatalogSearch.clampResults(limit));
+            if (slugs.isEmpty()) {
                 return List.of();
             }
 
             // The store answered. If the slugs do not survive the catalog read, the honest
             // answer is still "nothing to show you" rather than "the search is broken" — a
             // pruned or delisted row is a normal outcome, not an outage.
-            List<String> slugs = loadSlugs(candidates);
-            slugs.forEach(citedSlugs::add);
-
+            citedSlugs.addAll(slugs);
             return List.copyOf(slugs);
         } catch (Exception e) {
             log.warn("Coffee catalog search unavailable: {}", e.getMessage());
@@ -338,13 +259,13 @@ public class AiChatFunctions {
 
         try {
             if (!StringUtils.hasText(slug)) {
-                return UNKNOWN_PRODUCT;
+                return CoffeeFactSheet.UNKNOWN_PRODUCT;
             }
 
-            return inTransaction(() -> lookupForFacts(slug.trim()));
+            return factSheet.factsFor(slug.trim());
         } catch (Exception e) {
             log.warn("Coffee facts unavailable for slug {}, reporting nothing: {}", slug, e.getMessage());
-            return UNKNOWN_PRODUCT;
+            return CoffeeFactSheet.UNKNOWN_PRODUCT;
         }
     }
 
@@ -374,21 +295,14 @@ public class AiChatFunctions {
 
         try {
             if (!StringUtils.hasText(method)) {
-                return UNKNOWN_BREWING_METHOD;
+                return BrewingGuideLookup.UNKNOWN_BREWING_METHOD;
             }
 
-            Optional<BrewingMethod> found = brewingMethodRepository
-                    .findBySlugWithTranslations(method.trim().toLowerCase(Locale.ROOT));
-            if (found.isEmpty()) {
-                return UNKNOWN_BREWING_METHOD;
-            }
-
-            String description = descriptionFor(found.get(), currentLanguage());
-            return StringUtils.hasText(description) ? description.trim() : UNKNOWN_BREWING_METHOD;
+            return brewingGuides.guideFor(BrewingGuideLookup.normalise(method));
         } catch (Exception e) {
             log.warn("Brewing guide unavailable for method {}, reporting nothing: {}",
                     method, e.getMessage());
-            return UNKNOWN_BREWING_METHOD;
+            return BrewingGuideLookup.UNKNOWN_BREWING_METHOD;
         }
     }
 
@@ -406,297 +320,9 @@ public class AiChatFunctions {
      *
      * @param slugs    slugs returned by {@link #searchProducts} during this turn
      * @param language the language the card names should be rendered in
-     * @return at most {@link #MAX_CARDS} cards; empty when there is nothing to show, never null
+     * @return the cards for those slugs; empty when there is nothing to show, never null
      */
     public List<ProductCardResponse> cardsFor(List<String> slugs, String language) {
-        try {
-            if (slugs == null || slugs.isEmpty()) {
-                return List.of();
-            }
-
-            List<String> wanted = slugs.stream()
-                    .filter(StringUtils::hasText)
-                    .map(slug -> slug.trim())
-                    .distinct()
-                    .limit(MAX_CARDS)
-                    .toList();
-            if (wanted.isEmpty()) {
-                return List.of();
-            }
-
-            Map<String, Product> bySlug = new LinkedHashMap<>();
-            inTransaction(() -> productRepository.findBySlugIn(wanted)).stream()
-                    .filter(Product::isActive)
-                    .filter(product -> StringUtils.hasText(product.getSlug()))
-                    .forEach(product -> bySlug.putIfAbsent(product.getSlug(), product));
-
-            List<ProductCardResponse> cards = new ArrayList<>();
-            for (String slug : wanted) {
-                Product product = bySlug.get(slug);
-                if (product == null) {
-                    continue;
-                }
-                // A card the mapper cannot project — a product whose category is missing from the
-                // catalog — is skipped rather than appended as a null the client would render as a
-                // broken tile.
-                ProductCardResponse card = productResponseMapper.buildListResponse(product, language);
-                if (card != null) {
-                    cards.add(card);
-                }
-            }
-            return cards;
-        } catch (Exception e) {
-            log.warn("Product cards unavailable, replying without them: {}", e.getMessage());
-            return List.of();
-        }
-    }
-
-    // --- catalog reads ----------------------------------------------------------------------
-
-    /**
-     * Fetches one product for the fact sheet, or the instruction to report nothing.
-     *
-     * <p>Must be called with a persistence context open: {@code findBySlug} join-fetches nothing.
-     */
-    private String lookupForFacts(String slug) {
-        Optional<Product> found = productRepository.findBySlug(slug);
-        if (found.isEmpty()) {
-            return UNKNOWN_PRODUCT;
-        }
-        if (!found.get().isActive()) {
-            return INACTIVE_PRODUCT;
-        }
-        return describe(found.get());
-    }
-
-    /**
-     * Turns the best-scoring ids into slugs, most similar first.
-     *
-     * <p>The score is used exactly as {@link AiSearchService} returned it — a similarity, higher
-     * better. Applying {@code 1 - score} here would invert the rail and promote the least similar
-     * coffee in the catalog.
-     */
-    private List<String> loadSlugs(Map<Long, Double> candidates) {
-        List<Long> ranked = candidates.entrySet().stream()
-                .filter(entry -> entry.getKey() != null && entry.getValue() != null)
-                .sorted(MOST_SIMILAR_FIRST)
-                .map(Map.Entry::getKey)
-                .limit(MAX_RESULTS)
-                .toList();
-        if (ranked.isEmpty()) {
-            return List.of();
-        }
-
-        // Ranked before the read, then joined by id: the repository returns rows in whatever order
-        // the database felt like, and preserving the similarity order is the entire point of the
-        // ranking. Re-sorting the loaded products by score is impossible — the score is not on the
-        // entity — so the order has to be reconstructed from the id ranking here.
-        Map<Long, Product> byId = new LinkedHashMap<>();
-        for (Product product : productRepository.findAllByIdInWithDetails(ranked)) {
-            if (product != null && product.getId() != null) {
-                byId.putIfAbsent(product.getId(), product);
-            }
-        }
-
-        return ranked.stream()
-                .map(byId::get)
-                // An indexed row can outlive the product being on sale, and a card for a delisted
-                // coffee is the one "recommendation" a shopper definitely cannot act on.
-                .filter(product -> product != null && product.isActive())
-                .filter(product -> StringUtils.hasText(product.getSlug()))
-                .map(Product::getSlug)
-                .distinct()
-                .toList();
-    }
-
-    // --- fact assembly ----------------------------------------------------------------------
-
-    private String describe(Product product) {
-        String language = currentLanguage();
-
-        StringBuilder facts = new StringBuilder(name(product, language))
-                .append(" (slug: ")
-                .append(product.getSlug())
-                .append(')');
-
-        String attributes = attributes(product, language);
-        if (!attributes.isEmpty()) {
-            facts.append('\n').append(attributes);
-        }
-
-        String notes = tastingNotes(product, language);
-        if (!notes.isEmpty()) {
-            facts.append("\nTasting notes: ").append(notes);
-        }
-
-        return facts.append('\n')
-                .append("Price: ").append(price(product))
-                .append(FACT_SEPARATOR)
-                .append("Availability: ").append(availability(product))
-                .toString();
-    }
-
-    private String attributes(Product product, String language) {
-        List<String> attributes = new ArrayList<>();
-
-        add(attributes, "Origin", product.getOrigin(), language,
-                Origin::getTranslations, OriginTranslation::getName);
-        add(attributes, "Farm", product.getFarm(), language,
-                Farm::getTranslations, FarmTranslation::getName);
-
-        CoffeeDetails details = product.getCoffeeDetails();
-        if (details != null) {
-            add(attributes, "Roast", details.getRoastLevel(), language,
-                    RoastLevel::getTranslations, RoastLevelTranslation::getName);
-            add(attributes, "Process", details.getProcessingMethod(), language,
-                    ProcessingMethod::getTranslations, ProcessingMethodTranslation::getName);
-            add(attributes, "Variety", details.getCoffeeVariety(), language,
-                    CoffeeVariety::getTranslations, CoffeeVarietyTranslation::getName);
-        }
-
-        return String.join(FACT_SEPARATOR, attributes);
-    }
-
-    /**
-     * Appends one {@code "Label: value"} attribute, skipping anything the catalog does not hold.
-     *
-     * <p>Omitted rather than filled with a placeholder: a line reading {@code "Variety: unknown"}
-     * is one the model is likely to complete with a variety that does exist.
-     */
-    private <R, T> void add(List<String> target, String label, R relation, String language,
-            Function<R, List<T>> translations, Function<T, String> nameOf) {
-
-        if (relation == null) {
-            return;
-        }
-        String translated = nameIn(translations.apply(relation), language, nameOf);
-        if (StringUtils.hasText(translated)) {
-            target.add(label + ": " + translated);
-        }
-    }
-
-    /**
-     * The name in the request language, then in English.
-     *
-     * <p>The request language first because the facts are what the assistant paraphrases into the
-     * visitor's language, and English second because it is the only translation guaranteed to
-     * exist. No slug fallback: a slug inside a fact sheet reads as a fact.
-     */
-    private <T> String nameIn(List<T> translations, String language, Function<T, String> nameOf) {
-        String match = pick(translations, language, nameOf);
-        return StringUtils.hasText(match) ? match : pick(translations, ENGLISH, nameOf);
-    }
-
-    private <T> String pick(List<T> translations, String language, Function<T, String> nameOf) {
-        if (translations == null) {
-            return null;
-        }
-        return translations.stream()
-                .filter(translation -> languageOf(translation).equals(language))
-                .map(nameOf)
-                .filter(StringUtils::hasText)
-                .findFirst()
-                .orElse(null);
-    }
-
-    /** The language column of any translatable row, without a shared interface to depend on. */
-    private static String languageOf(Object translation) {
-        return switch (translation) {
-            case ProductTranslation product -> product.getLanguage();
-            case OriginTranslation origin -> origin.getLanguage();
-            case FarmTranslation farm -> farm.getLanguage();
-            case RoastLevelTranslation roast -> roast.getLanguage();
-            case ProcessingMethodTranslation process -> process.getLanguage();
-            case CoffeeVarietyTranslation variety -> variety.getLanguage();
-            case TastingNoteTranslation note -> note.getLanguage();
-            case BrewingMethodTranslation brewing -> brewing.getLanguage();
-            default -> "";
-        };
-    }
-
-    private String name(Product product, String language) {
-        String translated = product.getTranslations().stream()
-                .filter(translation -> translation.getLanguage().equals(language))
-                .map(ProductTranslation::getName)
-                .filter(StringUtils::hasText)
-                .findFirst()
-                .orElseGet(() -> product.getTranslations().stream()
-                        .map(ProductTranslation::getName)
-                        .filter(StringUtils::hasText)
-                        .findFirst()
-                        .orElse(null));
-
-        return StringUtils.hasText(translated) ? translated : product.getSlug();
-    }
-
-    private String tastingNotes(Product product, String language) {
-        return product.getTastingNotes().stream()
-                .filter(note -> note.getTranslations() != null)
-                .map(note -> nameIn(note.getTranslations(), language, TastingNoteTranslation::getName))
-                .filter(StringUtils::hasText)
-                .distinct()
-                .collect(Collectors.joining(LIST_SEPARATOR));
-    }
-
-    /**
-     * The price range over variants that are actually buyable.
-     *
-     * @return a {@code min - max} range, a single figure when every active variant costs the
-     *         same, or {@code "unknown"} when nothing is on sale
-     */
-    private String price(Product product) {
-        List<BigDecimal> prices = product.getVariants().stream()
-                .filter(variant -> variant.isActive() && variant.getPrice() != null)
-                .map(ProductVariant::getPrice)
-                .toList();
-        if (prices.isEmpty()) {
-            return "unknown";
-        }
-
-        BigDecimal min = prices.stream().min(Comparator.naturalOrder()).orElseThrow();
-        BigDecimal max = prices.stream().max(Comparator.naturalOrder()).orElseThrow();
-
-        return min.compareTo(max) == 0
-                ? min.toPlainString()
-                : min.toPlainString() + " - " + max.toPlainString();
-    }
-
-    private String availability(Product product) {
-        boolean inStock = product.getVariants().stream()
-                .anyMatch(variant -> variant.isActive() && variant.getStockQuantity() > 0);
-        return inStock ? "in stock" : "currently unavailable";
-    }
-
-    private String descriptionFor(BrewingMethod method, String language) {
-        List<BrewingMethodTranslation> translations = method.getTranslations();
-        if (translations == null) {
-            return null;
-        }
-
-        String described = pick(translations, language, BrewingMethodTranslation::getDescription);
-        if (StringUtils.hasText(described)) {
-            return described;
-        }
-        return translations.stream()
-                .map(BrewingMethodTranslation::getDescription)
-                .filter(StringUtils::hasText)
-                .findFirst()
-                .orElse(null);
-    }
-
-    private static String currentLanguage() {
-        return LocaleContextHolder.getLocale().getLanguage();
-    }
-
-    private static int clampResults(Integer requested) {
-        if (requested == null) {
-            return DEFAULT_RESULTS;
-        }
-        return Math.min(Math.max(requested, MIN_RESULTS), MAX_RESULTS);
-    }
-
-    /** Runs a catalog read with a persistence context open, and nothing else. */
-    private <T> T inTransaction(Supplier<T> work) {
-        return transactions.execute(status -> work.get());
+        return cards.cardsFor(slugs, language);
     }
 }
