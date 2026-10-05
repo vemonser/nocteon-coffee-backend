@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A push and its PR run duplicate the whole build. The PR run is the one that
+# gates, so cancel the older push run rather than paying for both.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # JDK 21, pinned deliberately. `java.version` in pom.xml is 21 and Lombok
+      # 1.18.40 does not support the JDK 27 that is current on some developer
+      # machines — compiling there fails inside annotation processing. 21 is the
+      # newest JDK this build is known to work on.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # The same exclusion the project runs with locally (docs/ai-golden-queries.md):
+      #   NocteonApiApplicationTests.contextLoads  boots the whole context and
+      #     needs a migrated PostgreSQL *with pgvector* plus Redis. This job has
+      #     neither, so it is excluded rather than made to pass against a stub.
+      #   ShippingZoneServiceTest*  is excluded defensively, upstream of CI.
+      - name: Verify
+        run: ./mvnw -B verify -Dtest='!ShippingZoneServiceTest*,!NocteonApiApplicationTests'

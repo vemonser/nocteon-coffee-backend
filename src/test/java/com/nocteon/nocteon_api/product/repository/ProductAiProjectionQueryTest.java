@@ -177,4 +177,62 @@ class ProductAiProjectionQueryTest {
 
         assertThat(fetched).doesNotContain("p.media", "p.variants", "p.pairings", "p.journalPosts");
     }
+
+    // --- the chatbot card lookup -----------------------------------------------------------------
+
+    /**
+     * The card projection reads four relations per product, and only one of them is not already
+     * {@code @BatchSize}d — so this is the whole fix for the per-card {@code SELECT}s.
+     *
+     * <p>Asserted as a positive ("{@code category} is fetched") plus the batch assertion below,
+     * because either half alone is silently satisfiable: {@code category} could be fetch-joined
+     * while a collection it does not need joins with it, or the fetch could be dropped entirely
+     * while {@link #theCollectionsTheCardProjectionReadsAreBatched()} still passes.
+     */
+    @Test
+    void theCardLookupJoinFetchesTheCategoryTheCardPrints() {
+        assertThat(fetchJoinsIn(queryOf("findBySlugInWithCategory"))).contains("p.category");
+    }
+
+    /**
+     * The hazard, applied to the card lookup. It fetches <em>no</em> to-many, where the projection
+     * queries allow one: {@code buildListResponse} reads {@code translations}, {@code media} and
+     * {@code variants}, all batchable, so joining any of them would multiply rows to save
+     * statements the batches save anyway. Asserting {@code <= 1} here would pass on a query that
+     * had regressed into one collection fetch.
+     */
+    @Test
+    void theCardLookupFetchesNoCollectionAtAll() {
+        List<String> fetchedToMany = fetchJoinsIn(queryOf("findBySlugInWithCategory")).stream()
+                .filter(ALL_TO_MANY_ON_PRODUCT::contains)
+                .toList();
+
+        assertThat(fetchedToMany)
+                .as("the card lookup must fetch only the to-one — the three collections it reads are all @BatchSize'd")
+                .isEmpty();
+    }
+
+    /** The batched half of the card fix: without these, each is one {@code SELECT} per card. */
+    @Test
+    void theCollectionsTheCardProjectionReadsAreBatched() {
+        assertThat(batchSizeOf("translations")).isEqualTo(30);
+        assertThat(batchSizeOf("media")).isEqualTo(30);
+        assertThat(batchSizeOf("variants")).isEqualTo(30);
+    }
+
+    /**
+     * The lookup filters on slug only.
+     *
+     * <p>Pinned because reusing {@code findAllActiveForAiProjection} here would look right — it
+     * already join-fetches {@code category} — while silently dropping every inactive product from
+     * the rail before {@code ProductCardBuilder} can decide to drop it. The builder's own
+     * {@code isActive} filter stays the one that decides.
+     */
+    @Test
+    void theCardLookupDoesNotFilterOnActive() {
+        String query = queryOf("findBySlugInWithCategory");
+
+        assertThat(query).contains("p.slug IN :slugs");
+        assertThat(query).doesNotContain("isActive");
+    }
 }

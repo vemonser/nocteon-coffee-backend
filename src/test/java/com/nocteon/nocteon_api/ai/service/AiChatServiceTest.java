@@ -232,7 +232,7 @@ class AiChatServiceTest {
                 .thenReturn(Map.of(1L, 0.91));
         when(productRepository.findAllByIdInWithDetails(anyList()))
                 .thenReturn(List.of(product(1L, "yirgacheffe")));
-        when(productRepository.findBySlugIn(List.of("yirgacheffe")))
+        when(productRepository.findBySlugInWithCategory(List.of("yirgacheffe")))
                 .thenReturn(List.of(product(1L, "yirgacheffe")));
         when(productResponseMapper.buildListResponse(any(), eq(EN)))
                 .thenReturn(ProductCardResponse.builder().slug("yirgacheffe").build());
@@ -354,7 +354,7 @@ class AiChatServiceTest {
                 .thenReturn(Map.of(1L, 0.91));
         when(productRepository.findAllByIdInWithDetails(anyList()))
                 .thenReturn(List.of(product(1L, "yirgacheffe")));
-        when(productRepository.findBySlugIn(anyList()))
+        when(productRepository.findBySlugInWithCategory(anyList()))
                 .thenThrow(new RuntimeException("catalog read failed"));
 
         ChatResponse result = service.chat("fruity", "s1", EN);

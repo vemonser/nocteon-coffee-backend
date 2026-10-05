@@ -157,6 +157,40 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
                         """)
         List<Product> findAllByIdInWithDetails(@Param("ids") List<Long> ids);
 
+        /**
+         * Products by slug, with {@code category} already loaded — the card projection's lookup.
+         *
+         * <p>{@code ProductCardBuilder} renders up to eight cards beside a chat reply and
+         * {@code buildListResponse} reads four relations on each: {@code category}, {@code
+         * translations}, {@code media} and {@code variants}. The last three are
+         * {@code @BatchSize(30)} collections, so they arrive in three batched statements however
+         * many products are asked for. {@code category} is the exception — a {@code @ManyToOne}
+         * with no {@code @BatchSize}, which Hibernate therefore loads with one {@code SELECT} per
+         * card. Left lazy that is up to eight extra statements on every chat turn, for the same
+         * single column the card prints.
+         *
+         * <p>Only the to-one is fetch-joined, and that is the whole shape of the fix. Fetching
+         * {@code translations}, {@code media} and {@code variants} together would satisfy all four
+         * relations in one query and cross-multiply the rows by the product of the three
+         * collection sizes — {@code DISTINCT} de-duplicates the entities in memory but never
+         * un-multiplies what the database sent. One to-one join cannot multiply: every product
+         * matches at most one category row, so the row count stays equal to the number of slugs.
+         *
+         * <p>The AI projection queries above deliberately do not fit here. They filter to
+         * {@code isActive}, which would silently change which cards render, and they join five more
+         * relations the card never reads — including {@code brewingMethods}, a to-many whose fetch
+         * would multiply rows for data this projection throws away.
+         *
+         * @param slugs slugs to resolve; callers de-duplicate and bound the list first
+         * @return the matching products, each carrying {@code category}
+         */
+        @Query("""
+                            SELECT DISTINCT p FROM Product p
+                            LEFT JOIN FETCH p.category
+                            WHERE p.slug IN :slugs
+                        """)
+        List<Product> findBySlugInWithCategory(@Param("slugs") List<String> slugs);
+
         Optional<Product> findBySlug(String slug);
 
         List<Product> findBySlugIn(List<String> slugs);

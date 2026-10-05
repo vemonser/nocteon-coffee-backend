@@ -315,7 +315,7 @@ class AiChatFunctionsTest {
                 .thenReturn(candidates(0.9));
         when(productRepository.findAllByIdInWithDetails(anyList()))
                 .thenReturn(List.of(product(1L, "yirgacheffe")));
-        when(productRepository.findBySlugIn(List.of("yirgacheffe")))
+        when(productRepository.findBySlugInWithCategory(List.of("yirgacheffe")))
                 .thenReturn(List.of(product(1L, "yirgacheffe")));
         when(productResponseMapper.buildListResponse(any(), any()))
                 .thenReturn(ProductCardResponse.builder().slug("yirgacheffe").build());
@@ -464,7 +464,7 @@ class AiChatFunctionsTest {
     void cardsResolveInTheOrderTheToolsReturnedThem() {
         Product first = product(1L, "strong");
         Product second = product(2L, "middle");
-        when(productRepository.findBySlugIn(List.of("strong", "middle")))
+        when(productRepository.findBySlugInWithCategory(List.of("strong", "middle")))
                 .thenReturn(List.of(second, first));
         when(productResponseMapper.buildListResponse(first, EN))
                 .thenReturn(ProductCardResponse.builder().slug("strong").build());
@@ -479,7 +479,7 @@ class AiChatFunctionsTest {
     @Test
     void cardsDropASlugTheCatalogNoLongerHolds() {
         Product held = product(1L, "strong");
-        when(productRepository.findBySlugIn(List.of("strong", "gone")))
+        when(productRepository.findBySlugInWithCategory(List.of("strong", "gone")))
                 .thenReturn(List.of(held));
         when(productResponseMapper.buildListResponse(held, EN))
                 .thenReturn(ProductCardResponse.builder().slug("strong").build());
@@ -493,7 +493,7 @@ class AiChatFunctionsTest {
     void cardsAreEmptyWhenTheToolsFoundNothing() {
         assertThat(functions.cardsFor(List.of(), EN)).isEmpty();
 
-        verify(productRepository, never()).findBySlugIn(anyList());
+        verify(productRepository, never()).findBySlugInWithCategory(anyList());
     }
 
     @Test
@@ -503,7 +503,7 @@ class AiChatFunctionsTest {
 
     @Test
     void cardResolutionNeverThrowsWhenTheCatalogReadFails() {
-        when(productRepository.findBySlugIn(anyList()))
+        when(productRepository.findBySlugInWithCategory(anyList()))
                 .thenThrow(new RuntimeException("db down"));
 
         assertThat(functions.cardsFor(List.of("strong"), EN)).isEmpty();
@@ -512,7 +512,7 @@ class AiChatFunctionsTest {
     @Test
     void cardResolutionSkipsASlugTheMapperCannotProject() {
         Product product = product(1L, "strong");
-        when(productRepository.findBySlugIn(List.of("strong"))).thenReturn(List.of(product));
+        when(productRepository.findBySlugInWithCategory(List.of("strong"))).thenReturn(List.of(product));
         when(productResponseMapper.buildListResponse(any(), any())).thenReturn(null);
 
         assertThat(functions.cardsFor(List.of("strong"), EN)).isEmpty();

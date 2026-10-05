@@ -87,6 +87,60 @@ services:
         sync: false
       - key: GITHUB_CLIENT_SECRET
         sync: false
+
+      # ── AI feature flags ──────────────────────────────────────────────
+      # These are the deployment's AI posture, and it is deliberate rather than
+      # copy-pasted from .env.example: the master switch is on and both
+      # capabilities are off.
+      #
+      # AI_ENABLED is on because it is inert on its own — isSearchEnabled() is
+      # `enabled && searchEnabled` and the chatbot gate is
+      # `enabled && chatbotEnabled` — so turning it on changes no behaviour but
+      # removes the first step of the rollout. That ordering matters: the
+      # nightly reindex is gated on isSearchEnabled(), so with
+      # AI_SEARCH_ENABLED still false there is no index to maintain, and
+      # flipping search on before an index exists means every semantic query
+      # returns nothing and the storefront silently falls back to keyword
+      # search. The sequence is AI_ENABLED (this deploy) → POST
+      # /api/dashboard/ai/reindex → AI_SEARCH_ENABLED.
+      #
+      # Both capabilities stay off until an Ollama endpoint exists to embed
+      # with: `spring.ai.model.embedding` is pinned to ollama, so semantic
+      # search and reindexing need a reachable embedding model, and this free
+      # service does not run one. With OLLAMA_BASE_URL unreachable the flag
+      # would not fail loudly — semanticCandidates() catches and degrades to
+      # keyword ranking — which is exactly the silent fallback to avoid.
+      - key: AI_ENABLED
+        value: "true"
+      - key: AI_SEARCH_ENABLED
+        value: "false"
+      - key: AI_CHATBOT_ENABLED
+        value: "false"
+      # Set this to the deployed Ollama host before enabling AI_SEARCH_ENABLED.
+      - key: OLLAMA_BASE_URL
+        sync: false
+      # A secret, so no literal value here. Deliberately `sync: false` rather
+      # than `generateValue: true`: a generated value would be non-blank, and
+      # ChatProviderEnvironmentPostProcessor reads presence — not validity — so
+      # a random string would point the chat model at Groq and every reply would
+      # come back 401 instead of falling back to the local Ollama model. Set a
+      # real key in the Render dashboard to use Groq; leaving this unset keeps
+      # the zero-configuration local path.
+      - key: GROQ_API_KEY
+        sync: false
+
+      # ── Background mail jobs ──────────────────────────────────────────
+      # On. The two schedulers behind it are the abandoned-cart reminder
+      # (hourly) and the Brevo delivery retry (every 60s), and this is the
+      # production environment where both are the point of being deployed:
+      # leaving them off here means abandoned carts are never followed up and a
+      # Brevo send that fails is never retried, while transactional mail still
+      # goes out on the request path. Worth knowing: neither scheduler has ever
+      # executed in any environment, so watch the first few passes on this
+      # deploy rather than assuming the first run is clean.
+      - key: MAIL_SCHEDULING_ENABLED
+        value: "true"
+
       - key: FRONTEND_URL
         value: https://nocteon-coffee.onrender.com
       - key: CORS_ALLOWED_ORIGINS

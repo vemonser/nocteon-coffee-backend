@@ -37,13 +37,16 @@ import lombok.extern.slf4j.Slf4j;
  * from a tool method Spring AI invokes reflectively on a raw instance, not through a Spring proxy,
  * where an annotation would silently do nothing.
  *
- * <h2>A known N+1 on this path</h2>
- * {@code findBySlugIn} join-fetches nothing, and the card projection reads {@code translations},
- * {@code media}, {@code variants} and {@code category} on each of up to {@link #MAX_CARDS}
- * products — roughly four extra {@code SELECT}s per card, per chat turn. Fixing it needs a
- * {@code findBySlugIn} variant with fetch joins in {@code ProductRepository}, which this class
- * deliberately does not reach into; see the refactor report. It is bounded at eight products, so
- * it costs a few dozen statements rather than a runaway query.
+ * <h2>Why the lookup join-fetches {@code category} and nothing else</h2>
+ * {@code buildListResponse} reads four relations per product: {@code category},
+ * {@code translations}, {@code media} and {@code variants}. Three of them are
+ * {@code @BatchSize(30)} collections and batch-load in three statements however many products are
+ * asked for. {@code category} is a plain lazy {@code @ManyToOne}, so left lazy it cost one extra
+ * {@code SELECT} per card — up to {@link #MAX_CARDS} on every chat turn, for one slug column.
+ * {@code findBySlugInWithCategory} fetches it, and only it: adding the three collections to the
+ * same query would satisfy all four relations at once and cross-multiply the result by the product
+ * of their sizes. Fetching the collections' sibling to-one multiplies nothing, because each
+ * product matches at most one category.
  */
 @Component
 @RequiredArgsConstructor
@@ -84,7 +87,7 @@ public class ProductCardBuilder {
             }
 
             Map<String, Product> bySlug = new LinkedHashMap<>();
-            inTransaction(() -> productRepository.findBySlugIn(wanted)).stream()
+            inTransaction(() -> productRepository.findBySlugInWithCategory(wanted)).stream()
                     .filter(Product::isActive)
                     .filter(product -> StringUtils.hasText(product.getSlug()))
                     .forEach(product -> bySlug.putIfAbsent(product.getSlug(), product));
