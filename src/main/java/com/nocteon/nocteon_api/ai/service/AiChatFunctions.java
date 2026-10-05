@@ -98,6 +98,14 @@ public class AiChatFunctions {
      */
     public static final int MAX_RESULTS = 8;
 
+    /**
+     * How many coffees a tool call gets when the model does not say.
+     *
+     * <p>Two, not {@link #MAX_RESULTS}: a rail longer than a 120-word reply can justify is noise,
+     * and this is the value used most often precisely because it is the one the model omits.
+     */
+    private static final int DEFAULT_RESULTS = 2;
+
     private static final int MIN_RESULTS = 1;
 
     /** Ceiling on the product rail attached to a reply. */
@@ -186,8 +194,18 @@ public class AiChatFunctions {
      * yet, and when the embedding model is unreachable — all of which the assistant is told to
      * report as "no matches" rather than as a failure.
      *
+     * <p>{@code limit} is a boxed {@link Integer} rather than an {@code int} on purpose. A tool
+     * call is an untrusted JSON object produced by a small model, and {@code qwen2.5:3b-instruct}
+     * routinely omits {@code limit} while still emitting {@code query}. Spring AI's
+     * {@code MethodToolCallback} maps an absent key to {@code null} and reflectively invokes this
+     * method, so a primitive parameter would make the missing argument a
+     * {@code NullPointerException} on unboxing — and because that happens inside the tool loop it
+     * discards the whole turn rather than the one argument. Treating the omission as "no stated
+     * limit" costs a default; treating it as a failure costs the visitor their answer.
+     *
      * @param query the visitor's own words, e.g. {@code "fruity light roast for pour over"}
-     * @param limit how many coffees to consider, clamped to {@code [1, 8]}
+     * @param limit how many coffees to consider, or {@code null} when the model omitted it;
+     *              anything given is clamped to {@code [1, 8]}
      * @return up to {@code limit} slugs, most similar first; never null
      */
     @Tool(name = "search_products",
@@ -201,7 +219,7 @@ public class AiChatFunctions {
                     + "'fruity light roast for pour over'")
             String query,
             @ToolParam(description = "How many coffees to consider, 1 to 8")
-            int limit) {
+            Integer limit) {
 
         try {
             if (!StringUtils.hasText(query)) {
@@ -598,7 +616,10 @@ public class AiChatFunctions {
         return LocaleContextHolder.getLocale().getLanguage();
     }
 
-    private static int clampResults(int requested) {
+    private static int clampResults(Integer requested) {
+        if (requested == null) {
+            return DEFAULT_RESULTS;
+        }
         return Math.min(Math.max(requested, MIN_RESULTS), MAX_RESULTS);
     }
 

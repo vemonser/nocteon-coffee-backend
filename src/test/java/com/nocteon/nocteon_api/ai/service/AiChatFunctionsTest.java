@@ -148,6 +148,21 @@ class AiChatFunctionsTest {
     }
 
     /**
+     * {@code qwen2.5:3b-instruct} emits {@code {"query": "..."}} with no {@code limit} on most
+     * calls against this system prompt, and Spring AI hands the absent key to the method as
+     * {@code null}. A primitive {@code int} parameter would unbox that into an NPE inside the
+     * tool loop, which discards the whole turn — verified live against the model, not assumed.
+     */
+    @Test
+    void searchDefaultsWhenTheModelOmitsTheLimit() {
+        when(aiSearchService.semanticCandidates(any(), any(Integer.class))).thenReturn(Map.of());
+
+        assertThat(functions.searchProducts("anything", null)).isEmpty();
+
+        verify(aiSearchService).semanticCandidates("anything", 2);
+    }
+
+    /**
      * The score is a similarity — higher is better — and it is consumed as returned. Inverting it
      * here would promote the least similar coffee in the catalog, and a shopper would be the one
      * to notice.

@@ -13,7 +13,7 @@ import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.ListOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -49,7 +49,7 @@ class AiChatSessionStoreTest {
 
     @BeforeEach
     void setUp() {
-        store = new AiChatSessionStore(redisTemplate, new ObjectMapper());
+        store = new AiChatSessionStore(redisTemplate, JsonMapper.builder().build());
     }
 
     private void givenListOps() {
