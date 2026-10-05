@@ -358,6 +358,10 @@ of sequence costs you either a 503 or an empty index.
 | 3 | `AI_SEARCH_ENABLED=true` | Vector ranking on `GET /api/products?semantic=true`, and the vector path of `/products/{slug}/similar`. Useless before step 2 — the store is empty. |
 | 4 | `AI_CHATBOT_ENABLED=true` | `POST /api/ai/chat`. Last, because the assistant quotes slugs that come from step 3's ranking. |
 
+Step 3 is also what makes the assistant *useful* rather than merely honest: without it
+`search_products` cannot return anything, so it reports that the catalog is unavailable and
+names no coffee at all. That is the correct answer, but it is not a useful one.
+
 Down is the reverse and needs no ceremony — see [Rollback](#rollback).
 
 ```bash
@@ -369,25 +373,69 @@ AI_ENABLED=true AI_SEARCH_ENABLED=true AI_CHATBOT_ENABLED=true ./mvnw spring-boo
 | `AI_ENABLED` | `false` | Master switch for everything below. |
 | `AI_SEARCH_ENABLED` | `false` | `GET /api/products?semantic=true`, vector path of `/products/{slug}/similar` |
 | `AI_CHATBOT_ENABLED` | `false` | `POST /api/ai/chat`, `GET /api/ai/chat/history`, `DELETE /api/ai/chat/session` |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Point at a model host other than the compose service. |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Embeddings, and chat when no Groq key is set. |
 | `MAIL_SCHEDULING_ENABLED` | `false` | Unrelated to AI, but ships default-off for the same reason: enabling it starts sending real email. |
+
+Chat-model selection is by `GROQ_API_KEY`, not by a flag — see
+[choosing a chat provider](#choosing-a-chat-provider).
 
 ## Models and what they cost
 
 | Model | Size | Purpose |
 |---|---|---|
-| `nomic-embed-text` | 274 MB | Embeds product documents and queries. **768 dimensions**, which is what the `vector(768)` column is declared as — changing the model without changing `spring.ai.vectorstore.pgvector.dimensions` fails on the first insert. |
-| `qwen2.5:3b-instruct` | 1.9 GB (2.0 GB resident, Q4_K_M) | The shopping assistant. |
+| `nomic-embed-text` | 274 MB, local Ollama | Embeds product documents and queries. **768 dimensions**, which is what the `vector(768)` column is declared as — changing the model without changing `spring.ai.vectorstore.pgvector.dimensions` fails on the first insert. |
+| `openai/gpt-oss-20b` | hosted, Groq | The shopping assistant, when `GROQ_API_KEY` is set. |
+| `qwen2.5:3b-instruct` | 1.9 GB (2.0 GB resident, Q4_K_M), local Ollama | The shopping assistant's **fallback**, used when `GROQ_API_KEY` is blank. |
 
-Both are held in memory while Ollama has them loaded. About **2.3 GB of RAM** for the pair,
-more if both stay resident. VRAM, if a GPU is present: the same ~2.3 GB.
+**Only the chat model is hosted. Embeddings always run locally**, so semantic search has no
+external dependency and no quota — and no network call on the index path, which is where a
+per-document embedding would otherwise be paid.
 
-The embedding model is cheap — a few milliseconds per document on CPU, and it runs only at
-index time. **The chat model is the expensive one, and it runs per visitor message.** On a
-CPU-only host it does not meet a 3-second target at any realistic concurrency; measured p95
-was 49 seconds at 50 concurrent sessions on a 6-core Ryzen 5 4600H. The numbers and the
-hardware are in [docs/ai-golden-queries.md](docs/ai-golden-queries.md). Give Ollama a GPU
-before you put the assistant in front of real traffic.
+Both local models are held in memory while Ollama has them loaded: about **2.3 GB of RAM** for
+the pair, and the same again in VRAM if a GPU is present.
+
+### Why the chat model moved off the laptop
+
+Measured on a 6-core Ryzen 5 4600H with no GPU: `qwen2.5:3b-instruct` generates ~71 tokens/sec
+on a single request, so chat p95 was **49 seconds at 50 concurrent sessions** — 16× the 3 s
+target, and not fixable in application code, because 50 concurrent 3B inferences on 6 CPU
+cores queue behind each other. Full numbers in
+[docs/ai-golden-queries.md](docs/ai-golden-queries.md).
+
+Groq's free tier answers the same request in a fraction of that, which is why it is the
+configured default when a key is present. The local model stays configured and selectable so the
+project still runs end to end with **no API key, no account and no network** — which matters,
+because this is a portfolio project someone will clone and run.
+
+### Choosing a chat provider
+
+```bash
+# No key: local Ollama, nothing else needed
+./mvnw spring-boot:run
+
+# Key present: chat goes to Groq, embeddings stay local
+GROQ_API_KEY=gsk_... ./mvnw spring-boot:run
+
+# Force local even with a key in your environment
+GROQ_API_KEY=gsk_... AI_CHAT_PROVIDER=ollama ./mvnw spring-boot:run
+```
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `GROQ_API_KEY` | *(blank)* | Non-blank ⇒ chat model comes from Groq. Blank ⇒ local Ollama. |
+| `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | Must keep the `/v1`; Groq's OpenAI-compatible API lives under it. |
+| `GROQ_CHAT_MODEL` | `openai/gpt-oss-20b` | Any model Groq serves. |
+| `AI_LOCAL_CHAT_MODEL` | `qwen2.5:3b-instruct` | The local fallback. |
+| `AI_CHAT_PROVIDER` | *(derived)* | `ollama` or `openai`, overriding the derivation. |
+
+The switch is Spring AI's own `spring.ai.model.chat` selector, set by an
+`EnvironmentPostProcessor` rather than a `@Bean` — see
+`ChatProviderEnvironmentPostProcessor` for why a conditional cannot be expressed in YAML. The
+fallback is a property value, not a catch block: with no key the selector resolves to `ollama`
+and nothing anywhere notices Groq is absent.
+
+`AiChatService`, `AiChatFunctions`, `AiChatSessionStore`, `AiChatController` and their tests
+needed **no changes** for the provider swap. That is the Spring AI abstraction doing its job.
 
 ## Rollback
 
@@ -411,21 +459,29 @@ in Redis under `ai:chat:*` with a 30-minute TTL and expires on its own.
 
 ## Known limitations
 
-Recorded from a live verification run, not from intent:
+Recorded from live verification, not from intent:
 
-- **The 3B model invents coffees.** Told the catalog had no match, `qwen2.5:3b-instruct`
-  recommends coffees that do not exist — including, once, a fabricated product slug
-  (`slatka-9`) in a customer-facing reply. The prompt forbids it; on this model it does not
-  hold. Nothing in the response tells a client the name is invented. Do not ship the
-  assistant to real visitors without a larger model.
-- **Arabic chat does not function.** Ollama returns an empty completion for Arabic prompts
-  under the production system prompt; the endpoint returns its degraded apology. Arabic
-  *search* and Arabic *similar-product* reasons are fine.
-- **The semantic round trip was never integration-tested** against a live pgvector on the
-  machine this was verified on — the available Postgres has no `vector` extension. The
-  degradation path (vector store unreachable → keyword search, no 5xx) *is* verified. Run
-  the golden-query set in [docs/ai-golden-queries.md](docs/ai-golden-queries.md) against a
-  real pgvector host before trusting the ranking.
+- **The chatbot needs an indexed catalog to be useful.** `search_products` can only return
+  slugs from the vector store, so with `AI_SEARCH_ENABLED=false` it answers "the catalog
+  cannot be searched" — the honest answer, and the assistant then names no coffee. Turn
+  semantic search on and index first; the flag order above is the reason for it.
+- **The 3B fallback model is weak at tool calling.** On `qwen2.5:3b-instruct` the assistant
+  refuses correctly when the catalog is unavailable, but it answers in the wrong language
+  often enough to be unusable in production, and it degrades to the apology on some turns.
+  It is a zero-configuration demo path, not a production one. Set `GROQ_API_KEY` for real
+  use.
+- **Arabic chat needs the hosted model.** The 3B local model returns an empty completion for
+  Arabic prompts under the production system prompt. Arabic *search* and Arabic
+  *similar-product* reasons are unaffected — those are i18n, not inference.
+- **The semantic round trip has not been integration-tested** against a live pgvector — the
+  machine this was verified on had no `vector` extension. The degradation path (vector store
+  unreachable → keyword search, no 5xx) *is* verified. Run the golden-query set in
+  [docs/ai-golden-queries.md](docs/ai-golden-queries.md) against a real pgvector host before
+  trusting the ranking.
+- **The chatbot can only be honest about what its tools returned.** It cannot name a coffee
+  no tool gave it — that is the guardrail — but if a tool returns a slug, it will describe
+  that coffee without further verification. The catalogue is the trust boundary, so a wrong
+  product record produces a confidently wrong answer.
 
 ## Load check
 
@@ -445,7 +501,11 @@ run and don't, you will measure 429s rather than the endpoint.
 | Boot fails on `CREATE EXTENSION IF NOT EXISTS vector` | The database is not the `pgvector/pgvector` image, or `V103__enable_pgvector.sql` has not been applied. Needs superuser; it cannot be fixed from the application. |
 | `/products/{slug}/similar` returns the same rail for every product | Expected while `AI_SEARCH_ENABLED=false` — that is the attribute fallback. |
 | Search returns nothing with `semantic=true` | `AI_SEARCH_ENABLED` is on but the index is empty. Run `/api/dashboard/ai/reindex`. |
-| Chat answers in 0.4 s with "taking a short break" | The model returned an empty completion. Check `ollama ps`; the most common cause is a prompt the model cannot tool-call against. |
+| Chat answers in 0.4 s with "taking a short break" | The model returned an empty completion. Check `ollama ps`; the most common cause is a prompt the local 3B model cannot tool-call against. |
+| Chat says "the catalog cannot be searched" | `AI_SEARCH_ENABLED` is off, or the vector store is unreachable. Both are reported honestly rather than answered with an invented coffee — see the flag order above. |
+| Chat hits Groq but gets `404 Unknown request URL: POST /openai/chat/completions` | `GROQ_BASE_URL` lost its `/v1` suffix. Groq's OpenAI-compatible API is at `/openai/v1`. |
+| Startup fails with "At least one credential source must be specified" | `spring.ai.model.embedding` is not pinned to `ollama`. With the OpenAI starter on the classpath its embedding autoconfiguration claims the `EmbeddingModel` and needs a key that the no-API-key path does not have. Do not remove the pin. |
+| Two `ChatModel` beans / injection by type fails | `spring.ai.model.chat` is unset, so both providers' autoconfigurations activate. Set it explicitly with `AI_CHAT_PROVIDER`. |
 | Everything works but `/actuator/health` returns 401 | Expected — actuator is behind authentication. It is not a sign the app is down. |
 
 # 📬 API Documentation
