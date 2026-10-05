@@ -148,6 +148,17 @@ services:
       - key: JAVA_OPTS
         value: -Xmx384m -Xms256m
 
+# ── Database ───────────────────────────────────────────────────
+# Render's managed Postgres is standard PostgreSQL without pgvector,
+# so this database cannot serve semantic search. `AI_SEARCH_ENABLED`
+# above is therefore "false" by necessity, not just by preference:
+# there is no vector extension to search. Migration
+# V103__enable_pgvector.sql is written to warn rather than fail here,
+# so a missing pgvector costs vector search, not the deploy.
+# To enable vector search: provision a pgvector-capable database (the
+# pgvector/pgvector:pg16 image from docker-compose.yml locally and in
+# CI, or Neon/Supabase/Koyeb) and repoint the DATABASE_* envVars above
+# at it before flipping AI_SEARCH_ENABLED to "true".
 databases:
   - name: nocteon-db
     databaseName: nocteon_db
