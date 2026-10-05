@@ -112,6 +112,10 @@ nocteon:
   mail:
     from: ${MAIL_FROM:nocteoncoffee@gmail.com}
     from-name: Nocteon Coffee
+    # Gates the two background mail jobs (AbandonedCartScheduler, EmailRetryScheduler).
+    # Off by default: enabling it starts sending abandoned-cart reminders and retrying
+    # Brevo sends, so it must be a deliberate per-environment decision.
+    scheduling-enabled: ${MAIL_SCHEDULING_ENABLED:false}
 
 application:
   paymob:

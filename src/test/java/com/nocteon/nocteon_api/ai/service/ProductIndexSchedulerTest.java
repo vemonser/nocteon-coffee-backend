@@ -1,5 +1,8 @@
 package com.nocteon.nocteon_api.ai.service;
 
+import java.lang.reflect.Constructor;
+import java.util.Arrays;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
@@ -9,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.nocteon.nocteon_api.ai.dto.response.AiReindexResponse;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -119,5 +123,22 @@ class ProductIndexSchedulerTest {
         scheduler.nightlyReindex();
 
         verify(aiSearchService, times(2)).reindexAll();
+    }
+
+    /**
+     * The AI nightly reindex must not sit behind the mail scheduling gate.
+     *
+     * <p>Asserted structurally rather than behaviourally: a behavioural test could only show that
+     * the job still runs with the mail flag false, which is already true of every other test here
+     * and would keep passing if somebody later made the scheduler read the mail flag while the flag
+     * happened to be enabled in the test. The gate cannot reach this job because the mail flag is
+     * not among its collaborators at all.
+     */
+    @Test
+    void theNightlyReindexIsNotGatedByTheMailSchedulingFlag() {
+        assertThat(Arrays.stream(ProductIndexScheduler.class.getDeclaredConstructors())
+                .map(Constructor::getParameterTypes)
+                .flatMap(Arrays::stream))
+                .containsExactly(AiSearchService.class);
     }
 }
