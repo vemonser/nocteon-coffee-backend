@@ -121,6 +121,33 @@ public class AiChatFunctions {
             "No brewing guide is stored for that method. List the stored methods instead of "
                     + "describing one from memory.";
 
+    /**
+     * The answer when the catalog cannot be searched at all.
+     *
+     * <p>The most important string in this class. {@code search_products} used to answer an empty
+     * list for both "no coffee matches" and "the search backend is down", which collapsed two
+     * very different situations into one indistinguishable result. The model read that as "the
+     * catalog has nothing", said so correctly — and then, having nothing to offer, filled the
+     * gap from its own weights. Measured live against {@code qwen2.5:3b-instruct} with the
+     * vector store down: 5 of 12 turns named coffees that do not exist, including one fabricated
+     * product slug, and every one of them landed in the sentence after a correct refusal.
+     *
+     * <p>So the two states are now separate answers. A refusal to answer is something the model
+     * can obey; "I could not find anything" is an invitation.
+     *
+     * <p>Same convention as {@link #UNKNOWN_PRODUCT}: say what happened, say what the model must
+     * do about it, and say what it must not do.
+     *
+     * <p>Package-private rather than private so {@code AiChatFunctionsTest} can assert the
+     * error state returns <em>this</em> value rather than merely something non-empty — the
+     * wording is the contract, not an implementation detail.
+     */
+    static final String SEARCH_UNAVAILABLE =
+            "The coffee catalog cannot be searched right now, so you do not know what it contains. "
+                    + "Tell the visitor that search is unavailable and offer nothing else. "
+                    + "Do not name a coffee, an origin or a tasting note. Do not suggest "
+                    + "something from memory.";
+
     private static final String FACT_SEPARATOR = " | ";
 
     private static final String LIST_SEPARATOR = ", ";
@@ -190,12 +217,34 @@ public class AiChatFunctions {
      * resolve to a card and what the assistant must quote when it names a coffee, so a name the
      * model paraphrases cannot become an unresolvable recommendation.
      *
-     * <p>Never throws. An empty list is returned when search is disabled, when nothing is indexed
-     * yet, and when the embedding model is unreachable — all of which the assistant is told to
-     * report as "no matches" rather than as a failure.
+     * <h2>Three answers, not two</h2>
+     * The distinction this method exists to make is between <em>nothing matches</em> and
+     * <em>I could not look</em>. Both used to answer with an empty list, which told the model
+     * the same thing in two situations that call for opposite behaviour: "the catalog has
+     * nothing for you" invites it to fill the gap from memory, and it does — see
+     * {@link #SEARCH_UNAVAILABLE}. So:
+     *
+     * <ul>
+     * <li><strong>Matches</strong> — the slugs, best first.</li>
+     * <li><strong>Nothing matches</strong> — an empty list. The search worked. The model may
+     * report that honestly and stop.</li>
+     * <li><strong>The search could not run</strong> — the flag is off, or the vector store or
+     * the embedding model threw. A single-element list holding
+     * {@link #SEARCH_UNAVAILABLE}, which is an instruction rather than a result: the model
+     * knows it does not know, and must not compensate.</li>
+     * </ul>
+     *
+     * <p>Only the third is a single-element list, and only the second is empty. That is the
+     * whole contract.
+     *
+     * <p>A blank query is answered with an empty list because it is the model's own mistake,
+     * not the backend's: there is nothing to look up and nothing to report.
+     *
+     * <p>Never throws. Spring AI has no way to hand a model a failed tool call, so an exception
+     * out of here unwinds through the advisor chain and out of the endpoint as a 500.
      *
      * <p>{@code limit} is a boxed {@link Integer} rather than an {@code int} on purpose. A tool
-     * call is an untrusted JSON object produced by a small model, and {@code qwen2.5:3b-instruct}
+     * call is an untrusted JSON object produced by a model, and {@code qwen2.5:3b-instruct}
      * routinely omits {@code limit} while still emitting {@code query}. Spring AI's
      * {@code MethodToolCallback} maps an absent key to {@code null} and reflectively invokes this
      * method, so a primitive parameter would make the missing argument a
@@ -206,14 +255,18 @@ public class AiChatFunctions {
      * @param query the visitor's own words, e.g. {@code "fruity light roast for pour over"}
      * @param limit how many coffees to consider, or {@code null} when the model omitted it;
      *              anything given is clamped to {@code [1, 8]}
-     * @return up to {@code limit} slugs, most similar first; never null
+     * @return the matched slugs; an empty list when the search worked and matched nothing; a
+     *         single-element list holding {@link #SEARCH_UNAVAILABLE} when it could not run
      */
     @Tool(name = "search_products",
             description = """
                     Search the coffee catalog by taste, origin or brewing style and return product \
                     slugs, best match first. Call this whenever the visitor asks for a \
                     recommendation, names a taste they enjoy, or describes a drink they brew. \
-                    Slugs are the only valid way to refer to a coffee — quote them verbatim.""")
+                    Slugs are the only valid way to refer to a coffee — quote them verbatim. \
+                    An empty result means nothing in the catalog matches. If the result is a \
+                    sentence saying the catalog cannot be searched, the search itself is broken — \
+                    say so and name no coffee at all.""")
     public List<String> searchProducts(
             @ToolParam(description = "The visitor's request in their own words, e.g. "
                     + "'fruity light roast for pour over'")
@@ -226,19 +279,38 @@ public class AiChatFunctions {
                 return List.of();
             }
 
+            // Checked before the search rather than inferred from its result: a disabled flag
+            // returns an empty map, and reporting that as "no matches" is the lie this
+            // method's three-way contract exists to stop telling.
+            if (!aiSearchService.isSearchEnabled()) {
+                log.warn("Catalog search is disabled, telling the assistant it cannot search");
+                return unavailable();
+            }
+
             Map<Long, Double> candidates = aiSearchService.semanticCandidates(query, clampResults(limit));
             if (candidates.isEmpty()) {
                 return List.of();
             }
 
+            // The store answered. If the slugs do not survive the catalog read, the honest
+            // answer is still "nothing to show you" rather than "the search is broken" — a
+            // pruned or delisted row is a normal outcome, not an outage.
             List<String> slugs = loadSlugs(candidates);
             slugs.forEach(citedSlugs::add);
 
             return List.copyOf(slugs);
         } catch (Exception e) {
-            log.warn("Coffee catalog search unavailable, reporting no matches: {}", e.getMessage());
-            return List.of();
+            log.warn("Coffee catalog search unavailable: {}", e.getMessage());
+            return unavailable();
         }
+    }
+
+    /**
+     * The third answer: a one-element list, so it is structurally impossible to mistake for
+     * either of the other two states.
+     */
+    private static List<String> unavailable() {
+        return List.of(SEARCH_UNAVAILABLE);
     }
 
     /**

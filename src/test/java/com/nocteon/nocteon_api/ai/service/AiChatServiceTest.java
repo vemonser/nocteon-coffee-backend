@@ -228,6 +228,7 @@ class AiChatServiceTest {
                         .build()))
                 .thenReturn(modelReply(new AssistantMessage("Try yirgacheffe.")));
 
+        when(aiSearchService.isSearchEnabled()).thenReturn(true);
         when(aiSearchService.semanticCandidates(any(), any(Integer.class)))
                 .thenReturn(Map.of(1L, 0.91));
         when(productRepository.findAllByIdInWithDetails(anyList()))
@@ -349,6 +350,7 @@ class AiChatServiceTest {
                         .build()))
                 .thenReturn(modelReply(new AssistantMessage("Try yirgacheffe.")));
 
+        when(aiSearchService.isSearchEnabled()).thenReturn(true);
         when(aiSearchService.semanticCandidates(any(), any(Integer.class)))
                 .thenReturn(Map.of(1L, 0.91));
         when(productRepository.findAllByIdInWithDetails(anyList()))

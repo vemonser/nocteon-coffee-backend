@@ -1,0 +1,12 @@
+# Registers the AI chat-provider selector.
+#
+# ChatProviderEnvironmentPostProcessor decides whether the chat model comes from Groq or
+# from local Ollama, based on whether GROQ_API_KEY is set. It has to run as an environment
+# post-processor because Spring AI gates each provider's ChatModel autoconfiguration on
+# `spring.ai.model.chat`, and a YAML placeholder cannot express "use this one only when a
+# key is present".
+#
+# The key is org.springframework.boot.EnvironmentPostProcessor — the spring.factories entry
+# Spring Boot 4 itself uses for the built-in post-processors.
+org.springframework.boot.EnvironmentPostProcessor=\
+com.nocteon.nocteon_api.ai.config.ChatProviderEnvironmentPostProcessor

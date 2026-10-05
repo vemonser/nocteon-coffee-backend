@@ -172,6 +172,17 @@
 			<groupId>org.springframework.ai</groupId>
 			<artifactId>spring-ai-starter-model-ollama</artifactId>
 		</dependency>
+		<!--
+			Groq, through the OpenAI-compatible starter. Needed only for the chat model:
+			a hosted 20B is fast enough to answer inside a chat budget where a local 3B
+			is not. The *embedding* model deliberately stays on local Ollama (see
+			spring.ai.model.embedding in application.yaml), so semantic search keeps no
+			external dependency and no quota.
+		-->
+		<dependency>
+			<groupId>org.springframework.ai</groupId>
+			<artifactId>spring-ai-starter-model-openai</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.ai</groupId>
 			<artifactId>spring-ai-starter-vector-store-pgvector</artifactId>

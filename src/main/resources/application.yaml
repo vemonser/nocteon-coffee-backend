@@ -78,6 +78,31 @@ spring:
     cache: true
 
   ai:
+    # ── provider selectors ────────────────────────────────────────────────
+    # Spring AI 2.0.1 gates every provider's model autoconfiguration on one of
+    # these properties, each with `matchIfMissing = true`. With more than one
+    # starter on the classpath, an unset selector means two autoconfigurations
+    # both try to define the same bean type.
+    #
+    # `embedding` is pinned because BOTH starters are on the classpath and only one
+    # EmbeddingModel may exist: PgVectorStore is constructed with it, so an
+    # ambiguous one is a boot failure. The embedding model stays local on purpose —
+    # semantic search must not need an external service or a quota, and it runs on
+    # the index path where a network call would be paid on every reindex.
+    #
+    # `chat` is deliberately NOT set here. It is derived from whether GROQ_API_KEY
+    # is configured, by ChatProviderEnvironmentPostProcessor, because a YAML
+    # placeholder cannot be conditional. Set it directly to override that decision
+    # (e.g. `AI_CHAT_PROVIDER=ollama` to run against the local model on a machine
+    # that has a key in its environment).
+    model:
+      embedding: ollama
+      # No image or moderation model is used anywhere in this project, and the
+      # OpenAI starter would otherwise auto-configure both against a base URL and
+      # key that are only meant for chat.
+      image: none
+      moderation: none
+
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       init:
@@ -90,12 +115,32 @@ spring:
         # so with `never` Spring AI never pulls and never contacts Ollama at startup.
         pull-model-strategy: never
       chat:
+        # The local fallback model. Used whenever GROQ_API_KEY is unset, which is
+        # the zero-configuration path: no API key, no account, no network.
         options:
-          model: qwen2.5:3b-instruct
+          model: ${AI_LOCAL_CHAT_MODEL:qwen2.5:3b-instruct}
           temperature: 0.7
       embedding:
         options:
           model: nomic-embed-text
+
+    # Groq, over its OpenAI-compatible endpoint. Only read when
+    # `spring.ai.model.chat` resolves to `openai`, i.e. when GROQ_API_KEY is set.
+    #
+    # The `/openai/v1` suffix is required and not obvious: Groq's OpenAI-compatible API lives
+    # under `/openai/v1`, not `/openai`. Verified against the live endpoint — with
+    # `https://api.groq.com/openai` the client gets
+    #   404: Unknown request URL: POST /openai/chat/completions
+    # and with the `/v1` form it gets 401 for a bad key, which is the correct answer.
+    # Spring AI appends `/chat/completions` to this value, so it must be the API root.
+    openai:
+      base-url: ${GROQ_BASE_URL:https://api.groq.com/openai/v1}
+      api-key: ${GROQ_API_KEY:}
+      chat:
+        options:
+          model: ${GROQ_CHAT_MODEL:openai/gpt-oss-20b}
+          temperature: 0.7
+
     vectorstore:
       pgvector:
         initialize-schema: true

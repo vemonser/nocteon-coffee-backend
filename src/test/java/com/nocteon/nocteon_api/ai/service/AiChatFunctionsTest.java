@@ -78,6 +78,10 @@ class AiChatFunctionsTest {
             return callback.doInTransaction(null);
         });
 
+        // Search on by default, so a test only has to say so when it is exercising the disabled
+        // path. `lenient` because most tests do not care and a strict stub would fail them.
+        lenient().when(aiSearchService.isSearchEnabled()).thenReturn(true);
+
         functions = new AiChatFunctions(
                 aiSearchService,
                 productRepository,
@@ -95,31 +99,88 @@ class AiChatFunctionsTest {
         return candidates;
     }
 
-    // --- search_products ---------------------------------------------------------------------
+    // --- search_products: three answers, not two ---------------------------------------------
+    //
+    // matches | nothing matches | the search could not run.
+    //
+    // The third is the one that matters. Collapsing it into the second told the model the
+    // catalog was empty when in fact we could not look, and it filled the gap with invented
+    // coffees — measured live, 5 of 12 turns, one of them a fabricated product slug.
 
+    /** State 1: the search worked and something matched. */
     @Test
-    void searchReturnsNothingWhenSemanticSearchIsOff() {
+    void searchReturnsTheMatchedSlugs() {
+        when(aiSearchService.semanticCandidates("fruity", 3)).thenReturn(candidates(0.10, 0.95, 0.42));
+        when(productRepository.findAllByIdInWithDetails(anyList())).thenAnswer(call -> List.of(
+                product(1L, "weak"),
+                product(2L, "strong"),
+                product(3L, "middle")));
+
+        assertThat(functions.searchProducts("fruity", 3)).containsExactly("strong", "middle", "weak");
+    }
+
+    /**
+     * State 2: the search ran and matched nothing. An empty list, so the model can report a
+     * truthful "we don't have that" — and must not be tempted to fill the gap.
+     */
+    @Test
+    void searchReportsNoMatchesAsAnEmptyListWhenTheSearchWorked() {
         when(aiSearchService.semanticCandidates(any(), any(Integer.class))).thenReturn(Map.of());
 
         assertThat(functions.searchProducts("fruity light roast", 3)).isEmpty();
     }
 
+    /**
+     * State 3, part one: the feature flag is off, so the catalog cannot be searched at all.
+     *
+     * <p>This used to answer with an empty list, which is indistinguishable from state 2 — and
+     * the model's response to "the catalog has nothing for you" was to invent something.
+     */
     @Test
-    void searchNeverThrowsWhenTheEmbeddingModelIsUnreachable() {
+    void searchReportsUnavailableWhenSemanticSearchIsOff() {
+        when(aiSearchService.isSearchEnabled()).thenReturn(false);
+
+        List<String> result = functions.searchProducts("fruity light roast", 3);
+
+        assertThat(result).containsExactly(AiChatFunctions.SEARCH_UNAVAILABLE);
+        assertThat(result).isNotEmpty();
+        verify(aiSearchService, never()).semanticCandidates(any(), any(Integer.class));
+    }
+
+    /** State 3, part two: the search threw. Same answer, same reason to give it. */
+    @Test
+    void searchReportsUnavailableWhenTheEmbeddingModelIsUnreachable() {
         when(aiSearchService.semanticCandidates(any(), any(Integer.class)))
                 .thenThrow(new RuntimeException("ollama down"));
 
-        assertThat(functions.searchProducts("anything", 3)).isEmpty();
+        assertThat(functions.searchProducts("anything", 3))
+                .containsExactly(AiChatFunctions.SEARCH_UNAVAILABLE);
     }
 
+    /**
+     * A failed catalog read is state 3 too: we had candidates and could not resolve them, so we
+     * do not know what the catalog holds. The point of the assertion is only that it does not
+     * throw — an exception here would unwind through the advisor chain as a 500.
+     */
     @Test
     void searchNeverThrowsWhenTheCatalogReadFails() {
-        when(aiSearchService.semanticCandidates(any(), any(Integer.class)))
-                .thenReturn(Map.of(1L, 0.9));
+        when(aiSearchService.semanticCandidates(any(), any(Integer.class))).thenReturn(Map.of(1L, 0.9));
         when(productRepository.findAllByIdInWithDetails(anyList()))
                 .thenThrow(new RuntimeException("connection reset"));
 
-        assertThat(functions.searchProducts("anything", 3)).isEmpty();
+        assertThat(functions.searchProducts("anything", 3))
+                .containsExactly(AiChatFunctions.SEARCH_UNAVAILABLE);
+    }
+
+    /**
+     * The instruction must survive being read by a model: it has to say the search is
+     * unavailable and forbid naming a coffee, or it is no better than an empty list.
+     */
+    @Test
+    void theUnavailableInstructionForbidsNamingACoffee() {
+        assertThat(AiChatFunctions.SEARCH_UNAVAILABLE.toLowerCase())
+                .contains("cannot be searched")
+                .contains("do not name a coffee");
     }
 
     @Test
@@ -145,6 +206,21 @@ class AiChatFunctionsTest {
         functions.searchProducts("anything", 0);
 
         verify(aiSearchService).semanticCandidates("anything", 1);
+    }
+
+    /**
+     * The unavailable instruction must never reach the product rail. {@link #citedSlugs()} is what
+     * {@code AiChatService} renders cards from, and a card resolved from an English instruction
+     * sentence would be a broken tile in the storefront.
+     */
+    @Test
+    void anUnavailableSearchIsNotCitedAsACoffee() {
+        when(aiSearchService.isSearchEnabled()).thenReturn(false);
+
+        functions.searchProducts("fruity light roast", 3);
+
+        assertThat(functions.citedSlugs()).isEmpty();
+        assertThat(functions.cardsFor(functions.citedSlugs(), EN)).isEmpty();
     }
 
     /**
