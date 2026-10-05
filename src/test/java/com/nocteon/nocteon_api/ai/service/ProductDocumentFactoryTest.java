@@ -11,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.document.Document;
 
+import com.nocteon.nocteon_api.ai.config.EmbeddingModelFingerprint;
 import com.nocteon.nocteon_api.brewingMethod.entity.BrewingMethod;
 import com.nocteon.nocteon_api.category.entity.Category;
 import com.nocteon.nocteon_api.coffeeVariety.entity.CoffeeVariety;
@@ -32,7 +33,16 @@ class ProductDocumentFactoryTest {
 
     private static final String PRODUCT_SLUG = "yirgacheffe";
 
-    private final ProductDocumentFactory factory = new ProductDocumentFactory();
+    /**
+     * A fixed fingerprint, so these tests are about the projection rather than about whatever the
+     * ambient configuration happens to be. That the value participates in the hash is covered by
+     * {@link #contentHashChangesWhenTheEmbeddingModelChanges()} and by
+     * {@code EmbeddingModelFingerprintTest}.
+     */
+    private static final String FINGERPRINT = "google-genai:gemini-embedding-2:768";
+
+    private final ProductDocumentFactory factory =
+            new ProductDocumentFactory(new EmbeddingModelFingerprint("google-genai", "gemini-embedding-2", 768));
 
     private Product coffeeProduct(String enName, String arName) {
         Set<ProductTranslation> translations = new LinkedHashSet<>();
@@ -201,6 +211,77 @@ class ProductDocumentFactoryTest {
         Product p = coffeeProduct("Yirgacheffe", null);
         assertThat(factory.buildMetadata(p).get("contentHash"))
                 .isEqualTo(factory.buildMetadata(p).get("contentHash"));
+    }
+
+    /**
+     * The fingerprint is mixed into {@code contentHash} so the existing staleness comparison in
+     * {@code ProductIndexingService} re-embeds the whole catalog after a model change, with no
+     * change to that class's logic.
+     *
+     * <p>Without this, moving from {@code nomic-embed-text} to {@code gemini-embedding-2} would
+     * leave every stored vector looking current: both models emit 768 dimensions, so the schema
+     * still validates and the insert still succeeds, and the only symptom would be a storefront
+     * silently returning irrelevant products.
+     */
+    @Test
+    void contentHashChangesWhenTheEmbeddingModelChanges() {
+        Product p = coffeeProduct("Yirgacheffe", null);
+
+        Map<String, Object> otherModel = new ProductDocumentFactory(
+                new EmbeddingModelFingerprint("google-genai", "gemini-embedding-001", 768)).buildMetadata(p);
+
+        assertThat(otherModel.get("contentHash")).isNotEqualTo(factory.buildMetadata(p).get("contentHash"));
+    }
+
+    /**
+     * The fingerprint is also stored readably, so an operator inspecting a row can tell which model
+     * produced its vector without reverse-engineering a hash.
+     */
+    @Test
+    void metadataNamesTheEmbeddingModelTheVectorCameFrom() {
+        assertThat(factory.buildMetadata(coffeeProduct("Yirgacheffe", null)))
+                .containsEntry("embeddingModel", FINGERPRINT);
+    }
+
+    /**
+     * The document side of the asymmetric-retrieval pair.
+     *
+     * <p>{@code gemini-embedding-2} takes no {@code task_type}, so the intent is in the text, and
+     * the document form is {@code title: none | text: {content}}. This is asserted here and the
+     * query form is asserted in {@code AiSearchServiceTest} because the two halves are only
+     * meaningful together — a document indexed with the query prefix, or a query sent without one,
+     * degrades every score in the store rather than failing loudly.
+     */
+    @Test
+    void buildTextCarriesTheDocumentSideTaskPrefix() {
+        String text = factory.buildText(coffeeProduct("Yirgacheffe", null));
+
+        assertThat(text)
+                .startsWith(EmbeddingTaskPrefix.DOCUMENT)
+                .doesNotStartWith(EmbeddingTaskPrefix.QUERY)
+                .contains("Name (en): Yirgacheffe");
+    }
+
+    /**
+     * Every projected field still follows the prefix, unchanged. The prefix is a retrieval envelope
+     * in front of the projection, never a replacement for it.
+     */
+    @Test
+    void everyProjectedFieldSurvivesThePrefix() {
+        String text = factory.buildText(coffeeProduct("Yirgacheffe", "يرغاتشيف"));
+
+        assertThat(text)
+                .startsWith(EmbeddingTaskPrefix.DOCUMENT)
+                .contains("Yirgacheffe")
+                .contains("يرغاتشيف")
+                .contains("single-origin")
+                .contains("ethiopia")
+                .contains("kochere-farm")
+                .contains("light-roast")
+                .contains("washed")
+                .contains("heirloom")
+                .contains("bergamot")
+                .contains("pour-over:9");
     }
 
     @Test

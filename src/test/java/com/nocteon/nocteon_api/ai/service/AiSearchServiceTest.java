@@ -10,7 +10,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.embedding.EmbeddingRequest;
+import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.VectorStore;
 
 import com.nocteon.nocteon_api.ai.config.AiProperties;
@@ -226,8 +230,65 @@ class AiSearchServiceTest {
 
         ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
         verify(vectorStore).similaritySearch(captor.capture());
-        assertThat(captor.getValue().getQuery()).isEqualTo("fruity light roast");
+        assertThat(captor.getValue().getQuery())
+                .isEqualTo(EmbeddingTaskPrefix.QUERY + "fruity light roast");
         assertThat(captor.getValue().getTopK()).isEqualTo(17);
+    }
+
+    /**
+     * The query carries the query-side retrieval prefix, and the user's own words follow it
+     * unchanged.
+     *
+     * <p>{@code gemini-embedding-2} has no {@code task_type} parameter, so the retrieval intent
+     * has to be in the text. The prefix is what makes a query a query rather than a document, and
+     * {@code ProductDocumentFactoryTest} asserts the document side is prefixed differently — the two
+     * halves of one pair, asserted from both ends so they cannot drift apart.
+     */
+    @Test
+    void prefixesTheQueryWithTheRetrievalIntent() {
+        flags(true, true);
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
+
+        service.semanticCandidates("fruity light roast", 20);
+
+        ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
+        verify(vectorStore).similaritySearch(captor.capture());
+        assertThat(captor.getValue().getQuery())
+                .startsWith("task: search result | query: ")
+                .endsWith("fruity light roast")
+                .isNotEqualTo(EmbeddingTaskPrefix.DOCUMENT + "fruity light roast");
+    }
+
+    /**
+     * A Gemini outage, a rate limit, or a wrong key must degrade exactly like a downed Ollama:
+     * empty candidates, keyword ranking continues, no exception reaches the caller.
+     *
+     * <p>The exception is the one shape a hosted provider actually produces rather than a
+     * connection refusal, and it is thrown from the embedding call the vector store makes
+     * internally — which is why it has to be simulated by a store that embeds before searching.
+     * {@code @InjectMocks} builds the service with the mocked store, so this exercises the real
+     * {@code semanticCandidates} guard rather than a stand-in for it.
+     */
+    @Test
+    void degradesToKeywordRankingWhenTheHostedEmbeddingModelFails() {
+        flags(true, true);
+        VectorStore geminiBacked = SimpleVectorStore.builder(new EmbeddingModel() {
+            @Override
+            public EmbeddingResponse call(EmbeddingRequest request) {
+                throw new IllegalStateException("Gemini API 429 RESOURCE_EXHAUSTED");
+            }
+
+            @Override
+            public float[] embed(Document document) {
+                throw new IllegalStateException("Gemini API 429 RESOURCE_EXHAUSTED");
+            }
+        }).build();
+
+        AiSearchService hosted = new AiSearchService(geminiBacked, indexingService, properties);
+
+        assertThatCode(() -> hosted.semanticCandidates("fruity light roast", 20))
+                .doesNotThrowAnyException();
+        assertThat(hosted.semanticCandidates("fruity light roast", 20)).isEmpty();
     }
 
     /**

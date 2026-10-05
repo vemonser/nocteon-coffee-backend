@@ -414,7 +414,9 @@ class ProductIndexingServiceTest {
      */
     @Test
     void stalenessSurvivesUnstableTranslationSetOrder() {
-        ProductDocumentFactory realFactory = new ProductDocumentFactory();
+        ProductDocumentFactory realFactory = new ProductDocumentFactory(
+                new com.nocteon.nocteon_api.ai.config.EmbeddingModelFingerprint(
+                        "google-genai", "gemini-embedding-2", 768));
         Product readFirst = productWithTranslations(1L, "a", "ar", "en");
         Product readSecond = productWithTranslations(1L, "a", "en", "ar");
 

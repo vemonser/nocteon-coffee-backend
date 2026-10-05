@@ -175,13 +175,32 @@
 		<!--
 			Groq, through the OpenAI-compatible starter. Needed only for the chat model:
 			a hosted 20B is fast enough to answer inside a chat budget where a local 3B
-			is not. The *embedding* model deliberately stays on local Ollama (see
-			spring.ai.model.embedding in application.yaml), so semantic search keeps no
-			external dependency and no quota.
+			is not. The *embedding* model comes from Gemini instead (see
+			EmbeddingProviderEnvironmentPostProcessor), so nothing in the deployed app
+			needs a local model server.
 		-->
 		<dependency>
 			<groupId>org.springframework.ai</groupId>
 			<artifactId>spring-ai-starter-model-openai</artifactId>
+		</dependency>
+		<!--
+			Embeddings from Google's Gemini API, through the AI Studio (API key) path.
+
+			NOT `spring-ai-starter-model-vertex-ai-embedding`: that one authenticates
+			with Google Cloud credentials (service account / application default
+			credentials) and talks to a Vertex AI project, which needs a billing-enabled
+			Cloud project. `...-google-genai-embedding` takes a plain `GEMINI_API_KEY`
+			from AI Studio, which needs no credit card. Both are in the 2.0.1 BOM; they
+			are different products, not two spellings of one.
+
+			The `-embedding` slice is deliberate rather than the broader
+			`spring-ai-starter-model-google-genai`: this project needs embeddings only, and
+			the narrower starter does not put a Google *chat* model on the classpath, so it
+			cannot be picked up as a second `ChatModel`.
+		-->
+		<dependency>
+			<groupId>org.springframework.ai</groupId>
+			<artifactId>spring-ai-starter-model-google-genai-embedding</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.ai</groupId>

@@ -379,26 +379,90 @@ AI_ENABLED=true AI_SEARCH_ENABLED=true AI_CHATBOT_ENABLED=true ./mvnw spring-boo
 | `AI_ENABLED` | `false` | Master switch for everything below. |
 | `AI_SEARCH_ENABLED` | `false` | `GET /api/products?semantic=true`, vector path of `/products/{slug}/similar` |
 | `AI_CHATBOT_ENABLED` | `false` | `POST /api/ai/chat`, `GET /api/ai/chat/history`, `DELETE /api/ai/chat/session` |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Embeddings, and chat when no Groq key is set. |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Embeddings and chat, when their keys are blank. |
 | `MAIL_SCHEDULING_ENABLED` | `false` | Unrelated to AI, but ships default-off for the same reason: enabling it starts sending real email. |
 
 Chat-model selection is by `GROQ_API_KEY`, not by a flag — see
-[choosing a chat provider](#choosing-a-chat-provider).
+[choosing a chat provider](#choosing-a-chat-provider). Embedding-model selection is by
+`GEMINI_API_KEY` the same way — see [choosing an embedding provider](#choosing-an-embedding-provider).
+The two decisions are independent: a Groq key alone leaves embeddings on the local model.
 
 ## Models and what they cost
 
 | Model | Size | Purpose |
 |---|---|---|
-| `nomic-embed-text` | 274 MB, local Ollama | Embeds product documents and queries. **768 dimensions**, which is what the `vector(768)` column is declared as — changing the model without changing `spring.ai.vectorstore.pgvector.dimensions` fails on the first insert. |
+| `gemini-embedding-2` | hosted, Gemini | Embeds product documents and queries when `GEMINI_API_KEY` is set. Requested at **768 dimensions**, which is what the `vector(768)` column is declared as — no schema change, no table rebuild. |
 | `openai/gpt-oss-20b` | hosted, Groq | The shopping assistant, when `GROQ_API_KEY` is set. |
+| `nomic-embed-text` | 274 MB, local Ollama | Embeddings' **fallback**, used when `GEMINI_API_KEY` is blank. 768 dimensions. |
 | `qwen2.5:3b-instruct` | 1.9 GB (2.0 GB resident, Q4_K_M), local Ollama | The shopping assistant's **fallback**, used when `GROQ_API_KEY` is blank. |
 
-**Only the chat model is hosted. Embeddings always run locally**, so semantic search has no
-external dependency and no quota — and no network call on the index path, which is where a
-per-document embedding would otherwise be paid.
+**Nothing in the deployed app needs a local model.** With both keys set, chat runs on Groq and
+embeddings on Gemini, so the hosting target needs no GPU, no model volume and no Ollama container.
+Both local models remain configured and selectable so the project still runs end to end with
+**no API key, no account and no network** — which matters, because this is a portfolio project
+someone will clone and run.
+
+The cost of moving embeddings off the laptop is a network call per document on the index path.
+That is paid on reindex and on the nightly scheduler, not per visitor request, and it is bounded
+by the active catalog size.
 
 Both local models are held in memory while Ollama has them loaded: about **2.3 GB of RAM** for
 the pair, and the same again in VRAM if a GPU is present.
+
+### ⚠️ A full reindex is mandatory after this change
+
+Changing the embedding model **invalidates every stored vector**. `nomic-embed-text` and
+`gemini-embedding-2` produce vectors in different spaces with no meaningful relationship, and both
+are 768-dimensional — so the schema still validates, the insert still succeeds, and the search
+still returns results. Every one of them would be wrong, silently. Nothing throws, nothing alerts,
+and the symptom is a storefront quietly returning irrelevant products.
+
+```bash
+curl -X POST http://localhost:8080/api/dashboard/ai/reindex -H "Authorization: Bearer $ADMIN_TOKEN"
+curl -X GET  http://localhost:8080/api/dashboard/ai/stats  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+Expect `indexed` to equal the whole active catalog and `stale: 0`. Anything less means vectors from
+the previous model are still in the store.
+
+This is now enforced rather than documented: every indexed document records the embedding model
+that produced it in an `embeddingModel` metadata key, and that identity is mixed into the
+document's `contentHash`. `ProductIndexingService`'s existing staleness comparison therefore
+reports the entire catalog as stale the moment the configured model changes, and the next
+reindex re-embeds all of it. You do not have to remember the paragraph above; the code does.
+
+### Choosing an embedding provider
+
+```bash
+# No key: local Ollama embeddings, nothing else needed
+./mvnw spring-boot:run
+
+# Key present: embeddings go to Gemini
+GEMINI_API_KEY=... ./mvnw spring-boot:run
+
+# Force local even with a key in your environment
+GEMINI_API_KEY=... spring.ai.model.embedding.text=none ./mvnw spring-boot:run
+```
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `GEMINI_API_KEY` | *(blank)* | Non-blank ⇒ embeddings come from Gemini. Blank ⇒ local Ollama. |
+| `AI_CHAT_PROVIDER` | *(derived)* | `ollama` or `openai`, overriding the chat derivation. |
+| `spring.ai.model.embedding` | *(derived)* | `ollama` or `none`, overriding the derivation. |
+| `spring.ai.model.embedding.text` | *(derived)* | `google-genai` or `none`, overriding the derivation. |
+
+The two embedding selectors are separate properties because Spring AI's autoconfigurations test
+separate names — Ollama and OpenAI read `spring.ai.model.embedding`, Gemini reads
+`spring.ai.model.embedding.text`. Every one of them is `matchIfMissing = true`, so an unset
+selector means "this provider too" rather than "no provider"; the post-processor therefore switches
+the rejected providers off rather than merely switching one on.
+
+`EmbeddingProviderEnvironmentPostProcessor` does this the same way
+`ChatProviderEnvironmentPostProcessor` does for chat, for the same reason: a YAML placeholder cannot
+express "use this one only when a key is present". One extra step is needed — Gemini's connection
+autoconfiguration is not gated by any selector and asserts a project id when no API key is present,
+so it is excluded by name on the local path. Without that exclusion, merely adding the starter to
+the classpath would stop the application booting on a machine with no `GEMINI_API_KEY`.
 
 ### Why the chat model moved off the laptop
 
@@ -427,7 +491,7 @@ will clone and run.
 # No key: local Ollama, nothing else needed
 ./mvnw spring-boot:run
 
-# Key present: chat goes to Groq, embeddings stay local
+# Key present: chat goes to Groq
 GROQ_API_KEY=gsk_... ./mvnw spring-boot:run
 
 # Force local even with a key in your environment
@@ -533,8 +597,11 @@ run and don't, you will measure 429s rather than the endpoint.
 | Chat answers in 0.4 s with "taking a short break" | The model returned an empty completion. Check `ollama ps`; the most common cause is a prompt the local 3B model cannot tool-call against. |
 | Chat says "the catalog cannot be searched" | `AI_SEARCH_ENABLED` is off, or the vector store is unreachable. Both are reported honestly rather than answered with an invented coffee — see the flag order above. |
 | Chat hits Groq but gets `404 Unknown request URL: POST /openai/chat/completions` | `GROQ_BASE_URL` lost its `/v1` suffix. Groq's OpenAI-compatible API is at `/openai/v1`. |
-| Startup fails with "At least one credential source must be specified" | `spring.ai.model.embedding` is not pinned to `ollama`. With the OpenAI starter on the classpath its embedding autoconfiguration claims the `EmbeddingModel` and needs a key that the no-API-key path does not have. Do not remove the pin. |
+| Startup fails with "At least one credential source must be specified" | An embedding selector is unset, so the OpenAI starter's embedding autoconfiguration also claims the `EmbeddingModel` and needs a key the no-API-key path does not have. `EmbeddingProviderEnvironmentPostProcessor` writes both selectors; check it is still registered in `META-INF/spring.factories`. |
+| Startup fails with "Google GenAI project-id must be set!" | The Gemini connection autoconfiguration was not excluded on the local path. It is the one Gemini autoconfiguration no selector governs, so the post-processor excludes it by name whenever `GEMINI_API_KEY` is blank. |
+| Search returns results but none of them are relevant | Vectors from a previous embedding model are still in the store. This is the silent failure described above: `/api/dashboard/ai/stats` will report a stale count of 0 if the content hashes happen to match, so check the `embeddingModel` metadata before trusting it — a full reindex is the fix. |
 | Two `ChatModel` beans / injection by type fails | `spring.ai.model.chat` is unset, so both providers' autoconfigurations activate. Set it explicitly with `AI_CHAT_PROVIDER`. |
+| Two `EmbeddingModel` beans / injection by type fails | An embedding selector is unset. They are derived from `GEMINI_API_KEY`; set `spring.ai.model.embedding` or `spring.ai.model.embedding.text` explicitly to pin one. |
 | Everything works but `/actuator/health` returns 401 | Expected — actuator is behind authentication. It is not a sign the app is down. |
 
 # 📬 API Documentation

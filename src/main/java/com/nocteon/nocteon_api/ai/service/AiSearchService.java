@@ -27,11 +27,19 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <h2>Degradation is a feature, not an error path</h2>
  * {@link #semanticCandidates(String, int)} returns an empty map — never throws — when the
- * feature is off, when the query is blank, or when the embedding model is unreachable. A
- * downed Ollama must degrade the site to plain keyword search rather than turn every catalog
- * page into a 500, so the catch is deliberately broad and the log line is a {@code warn}
- * carrying only the message: a stack trace per request would flood the log precisely when
- * the failure is hardest to diagnose.
+ * feature is off, when the query is blank, or when the embedding model is unreachable. Whether
+ * that model is the local Ollama or the hosted Gemini API, the answer must be the same: the site
+ * degrades to plain keyword search rather than turning every catalog page into a 500. So the catch
+ * is deliberately broad — a downed Ollama surfaces as a connection error, a Gemini outage or a
+ * rate limit as an SDK exception, and both must degrade identically — and the log line is a
+ * {@code warn} carrying only the message: a stack trace per request would flood the log precisely
+ * when the failure is hardest to diagnose.
+ *
+ * <h2>Why the query is prefixed here</h2>
+ * This is the query half of the asymmetric-retrieval pair; {@link EmbeddingTaskPrefix} holds both
+ * halves and explains why the intent is in the text at all. The important consequence is that this
+ * remains the only path to the vector store for user input, so a hosted provider's failure is
+ * caught here no matter which provider is wired.
  *
  * <p>{@link #reindexAll()} and {@link #indexStats()} are thin delegates to
  * {@link ProductIndexingService} and are not flag-guarded. They are admin operations whose
@@ -93,16 +101,17 @@ public class AiSearchService {
             return Map.of();
         }
 
-        // Checked before any vector-store call: a blank string still reaches the embedding
-        // model, and nomic-embed-text returns garbage or errors on empty input. Embedding
-        // nothing to "find something" is both wasteful and actively harmful.
+        // Checked before any vector-store call: a blank string still reaches the embedding model,
+        // and an embedding model returns garbage or errors on empty input. Embedding nothing to
+        // "find something" is both wasteful and actively harmful. Checked on the raw query rather
+        // than the prefixed one so a prefix alone can never make a blank query look non-blank.
         if (!StringUtils.hasText(query)) {
             return Map.of();
         }
 
         try {
             List<Document> hits = vectorStore.similaritySearch(SearchRequest.builder()
-                    .query(query)
+                    .query(EmbeddingTaskPrefix.forQuery(query))
                     .topK(topK)
                     .similarityThreshold(ACCEPT_ALL_SIMILARITY)
                     .build());
@@ -114,10 +123,11 @@ public class AiSearchService {
             }
             return candidates;
         } catch (Exception e) {
-            // Broad on purpose: an unreachable Ollama surfaces as a connection error, a
-            // WebClient exception, or a wrapped runtime exception depending on the transport,
-            // and all of them must degrade the same way. Message only, no stack trace, so a
-            // persistent outage does not flood the log once per request.
+            // Broad on purpose: an unreachable Ollama surfaces as a connection error, a WebClient
+            // exception, or a wrapped runtime exception depending on the transport; Gemini
+            // surfaces an SDK exception for a bad key, a rate limit, or an outage. All of them must
+            // degrade the same way. Message only, no stack trace, so a persistent outage does not
+            // flood the log once per request.
             log.warn("Semantic search unavailable, falling back to keyword only: {}", e.getMessage());
             return Map.of();
         }

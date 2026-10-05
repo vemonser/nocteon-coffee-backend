@@ -8,6 +8,16 @@ Everything in this file is copied from a live run. Nothing is projected, modelle
 to fill a gap. Where something could not be run, it says **BLOCKED** or **NOT VERIFIED** and
 gives the reason.
 
+> ⚠️ **Every embedding figure in this document was measured with `nomic-embed-text` on local
+> Ollama.** The embedding model has since moved to Google's `gemini-embedding-2`, and the two
+> produce vectors in **different embedding spaces**. A reindex run on `nomic-embed-text` data does
+> not transfer: the stored vectors are meaningless to the new model, and because both models emit
+> 768 dimensions nothing will error — the schema validates, the inserts succeed, and every search
+> returns confidently wrong results. **A full reindex is mandatory before any figure below is
+> re-measured.** See [the reindex requirement](#the-reindex-requirement-after-the-gemini-move).
+> The Gemini path itself has been verified live for dimensions, normalization and retrieval
+> correctness; it has **not** been load-tested, and free-tier quota is unmeasured.
+
 ### The three things most likely to be misread
 
 1. **Only the degraded chatbot path was ever tested.** No pgvector was available, so
@@ -32,7 +42,7 @@ gives the reason.
 | Postgres | 18.6, native, **no `vector` extension and none available** |
 | Redis | 7, native, no password |
 | Chat model | `qwen2.5:3b-instruct`, Q4_K_M, 3.1B params, 2.0 GB resident |
-| Embed model | `nomic-embed-text`, 274 MB on disk |
+| Embed model | `nomic-embed-text`, 274 MB on disk — **superseded**, see [the reindex requirement](#the-reindex-requirement-after-the-gemini-move) |
 | App | `./mvnw spring-boot:run`, JDK 21.0.2 |
 | Catalog | **7 products** — 4 coffees, 3 non-coffee equipment items |
 
@@ -687,6 +697,54 @@ a Postgres with pgvector".
 The "343 baseline → 344" figures in earlier revisions were the same headline command at an
 earlier point in the work: 343 before Task 9's first fix round, 344 after it added one test, and
 360 now after the second fix round added 16. Nothing regressed; the numbers simply moved.
+
+### The reindex requirement after the Gemini move
+
+Recorded **2026-10-06**, embedding model moved from `nomic-embed-text` (local Ollama) to
+`gemini-embedding-2` (Google AI Studio).
+
+**The reindex is mandatory, not advisory.** The two models share an output width — 768 dimensions
+each — so a store built on one is structurally indistinguishable from a store built on the other:
+`vector(768)` still validates, `INSERT ... ON CONFLICT DO UPDATE` still succeeds, and search still
+returns rows. Nothing raises. The failure mode is a storefront quietly ranking products by
+meaningless cosine distances.
+
+Detection is now implemented rather than documented, so this cannot be forgotten silently: every
+indexed document records an `embeddingModel` metadata key holding the provider, model name and
+output width, and that string is mixed into the document's `contentHash`. `ProductIndexingService`'s
+pre-existing staleness comparison therefore reports the entire catalog as stale the instant the
+configured model changes, and the next `indexAll()` re-embeds all of it. No change was needed to
+the staleness algorithm itself, which is the reason the fix has only one code path to disagree
+with.
+
+**Verified live against the real Gemini API** (AI Studio key, `outputDimensionality: 768`):
+
+| Check | Result |
+|---|---|
+| Key works | Yes — `embedContent` returned vectors, no 403/401 |
+| Query vector width | **768**, L2 norm **1.000000** |
+| Document vector width | **768**, L2 norm **1.000000** |
+| `EmbeddingModel.dimensions()` | **768** — the value `PgVectorStore` sizes its column from, so no schema change is needed |
+| Response metadata model | `gemini-embedding-2` |
+| Prefixed-query retrieval | 3 of 3 queries returned the intended product |
+| Staleness self-lookup | A document's own text, searched for, returned that document — the invariant `ProductIndexingService` depends on |
+
+`gemini-embedding-2` auto-normalizes non-default output dimensions, which is why 768 comes back
+unit-length and is immediately usable for the `cosine_distance` the store is declared with.
+`gemini-embedding-001` at 768 returned norm **0.594**, which would need manual normalization; that is
+the reason the newer model was chosen.
+
+`gemini-embedding-2` does **not** accept a `task_type` parameter, so the retrieval intent is a text
+prefix instead: `title: none | text: {…}` on the document side, `task: search result | query: {…}`
+on the query side. Both constants live in `EmbeddingTaskPrefix` and are asserted from both
+directions in the tests. Verified live: mixing the two forms degrades scores measurably
+(e.g. 0.797 → 0.649 for the same query), which is why the pairing is enforced rather than left to
+each call site.
+
+**Not verified:** free-tier embedding quota. There are documented reports of it reading as zero for
+some projects, and this run consumed only a handful of requests, so nothing here supports a claim
+about sustained throughput on the free tier. **Not load-tested:** the index path now makes one
+network call per document, and the nightly scheduler's behaviour at catalog scale is unmeasured.
 
 ### The provider swap needed no chat logic changes
 

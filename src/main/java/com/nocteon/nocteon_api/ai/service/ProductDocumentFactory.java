@@ -14,6 +14,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import com.nocteon.nocteon_api.ai.config.EmbeddingModelFingerprint;
 import com.nocteon.nocteon_api.brewingMethod.entity.BrewingMethod;
 import com.nocteon.nocteon_api.category.entity.Category;
 import com.nocteon.nocteon_api.coffeeVariety.entity.CoffeeVariety;
@@ -31,8 +32,21 @@ import com.nocteon.nocteon_api.tastingNote.entity.TastingNote;
  * Projects a {@link Product} into the text and metadata that get embedded for
  * semantic search.
  *
- * <p>Pure projection with no collaborators and no I/O, so every branch is
+ * <p>Pure projection with no I/O and a single inert collaborator, so every branch is
  * unit-testable without a Spring context.
+ *
+ * <h2>Two things are layered on top of the projection</h2>
+ * <ul>
+ * <li>{@link EmbeddingTaskPrefix#DOCUMENT}, the document-side retrieval envelope. Applied in
+ * {@link #buildText(Product)} because that is the only side this class owns; the query side is
+ * {@link EmbeddingTaskPrefix#QUERY}, applied by {@code AiSearchService}.</li>
+ * <li>{@code embeddingModel}, the identity of the configured embedding model, mixed into
+ * {@code contentHash} so a model swap invalidates every stored vector instead of leaving a
+ * silently-wrong index behind.</li>
+ * </ul>
+ *
+ * <p>Neither changes what is projected: every field below is read and written exactly as it was
+ * before, which is why the per-field assertions are unchanged.
  *
  * <p>Two rules hold everywhere here:
  * <ul>
@@ -54,6 +68,20 @@ public class ProductDocumentFactory {
     /** Prefix that marks a vector-store document as belonging to a product. */
     private static final String DOCUMENT_ID_PREFIX = "product:";
 
+    /** Metadata key naming the embedding model this document's vector was produced by. */
+    private static final String EMBEDDING_MODEL_KEY = "embeddingModel";
+
+    private final EmbeddingModelFingerprint embeddingModel;
+
+    /**
+     * @param embeddingModel the configured embedding model's identity; mixed into
+     *                       {@code contentHash} so a model change forces a re-embed rather than
+     *                       leaving vectors from a different embedding space in the store
+     */
+    public ProductDocumentFactory(EmbeddingModelFingerprint embeddingModel) {
+        this.embeddingModel = embeddingModel;
+    }
+
     /**
      * Builds the vector-store document for a product.
      *
@@ -67,12 +95,36 @@ public class ProductDocumentFactory {
     }
 
     /**
-     * Builds the embeddable text: newline-separated sections, skipping anything absent.
+     * Builds the embeddable text: the document-side task prefix, then newline-separated sections,
+     * skipping anything absent.
+     *
+     * <p>The prefix is applied here, on the document side, because that is the only side this
+     * class owns. The query side is applied in {@code AiSearchService} via the same
+     * {@link EmbeddingTaskPrefix} constants, so the two cannot drift apart — see that class for
+     * why the intent lives in the text at all. Note that putting the prefix <em>inside</em> the
+     * built text rather than in {@link #toDocument(Product)} is what keeps
+     * {@code SimilarProductService} consistent for free: it passes this same text as its query, so
+     * it compares document-formatted against document-formatted instead of striding two regions
+     * of the embedding space.
+     *
+     * <p>What the prefix does <em>not</em> change is what is projected. Every field below is
+     * projected exactly as before; the prefix is a few tokens of retrieval envelope in front of
+     * them, which is why the existing per-field assertions still hold unchanged.
      *
      * @param product the product to project, never {@code null}
      * @return human-readable text, never {@code null}, possibly empty for a bare product
      */
     public String buildText(Product product) {
+        return EmbeddingTaskPrefix.forDocument(projectText(product));
+    }
+
+    /**
+     * The projected product text, without the document-side task prefix.
+     *
+     * <p>Kept separate from {@link #buildText(Product)} so the projection itself is testable and
+     * readable on its own, and so the prefix has exactly one call site.
+     */
+    private String projectText(Product product) {
         StringBuilder text = new StringBuilder();
         List<ProductTranslation> translations = sortedTranslations(product);
 
@@ -103,6 +155,12 @@ public class ProductDocumentFactory {
      * <p>{@code categorySlug} and {@code originSlug} are omitted when the corresponding
      * relation is absent, so callers filtering on them never match an unrelated document.
      *
+     * <p>{@code embeddingModel} is stored so the model that produced a stored vector is
+     * readable, and it is folded into {@code contentHash} so {@code ProductIndexingService}'s
+     * existing staleness comparison does the re-embed automatically when the model changes. Two
+     * models that both emit 768 dimensions are not interchangeable, and nothing else in the stored
+     * row would reveal the swap — see {@link EmbeddingModelFingerprint}.
+     *
      * @param product the product to project, never {@code null}
      * @return a mutable insertion-ordered map
      */
@@ -112,7 +170,8 @@ public class ProductDocumentFactory {
         metadata.put("slug", product.getSlug());
         putSlug(metadata, "categorySlug", product.getCategory(), Category::getSlug);
         putSlug(metadata, "originSlug", product.getOrigin(), Origin::getSlug);
-        metadata.put("contentHash", sha256Hex(buildText(product)));
+        metadata.put(EMBEDDING_MODEL_KEY, embeddingModel.value());
+        metadata.put("contentHash", sha256Hex(embeddingModel.value() + '\n' + buildText(product)));
         return metadata;
     }
 

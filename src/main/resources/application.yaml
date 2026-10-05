@@ -84,22 +84,28 @@ spring:
     # starter on the classpath, an unset selector means two autoconfigurations
     # both try to define the same bean type.
     #
-    # `embedding` is pinned because BOTH starters are on the classpath and only one
-    # EmbeddingModel may exist: PgVectorStore is constructed with it, so an
-    # ambiguous one is a boot failure. The embedding model stays local on purpose —
-    # semantic search must not need an external service or a quota, and it runs on
-    # the index path where a network call would be paid on every reindex.
+    # NONE of these are set here — not `chat`, and neither embedding selector.
+    # They are derived from whether the relevant API key is configured:
+    # ChatProviderEnvironmentPostProcessor from GROQ_API_KEY, and
+    # EmbeddingProviderEnvironmentPostProcessor from GEMINI_API_KEY. A YAML
+    # placeholder cannot be conditional ("use this only when a key is present"),
+    # and an environment post-processor runs before the context exists, which is
+    # the only point where the decision can still be made.
     #
-    # `chat` is deliberately NOT set here. It is derived from whether GROQ_API_KEY
-    # is configured, by ChatProviderEnvironmentPostProcessor, because a YAML
-    # placeholder cannot be conditional. Set it directly to override that decision
-    # (e.g. `AI_CHAT_PROVIDER=ollama` to run against the local model on a machine
-    # that has a key in its environment).
+    # Set either directly to override that decision — `AI_CHAT_PROVIDER=ollama`,
+    # or `spring.ai.model.embedding.text=google-genai` / `=none`.
+    #
+    # The embedding case needs BOTH selectors, and that is Spring AI's design
+    # rather than ours: Ollama and OpenAI test `spring.ai.model.embedding`, while
+    # the Gemini starter tests `spring.ai.model.embedding.text`. Verified against
+    # the 2.0.1 jars. Only one EmbeddingModel may exist — PgVectorStore is
+    # constructed with it, so an ambiguous one is a boot failure — so the
+    # post-processor switches the rejected providers off rather than leaving their
+    # selectors unset.
     model:
-      embedding: ollama
       # No image or moderation model is used anywhere in this project, and the
-      # OpenAI starter would otherwise auto-configure both against a base URL and
-      # key that are only meant for chat.
+      # OpenAI and Google starters would otherwise auto-configure both against a
+      # base URL and key that are only meant for embeddings.
       image: none
       moderation: none
 
@@ -122,7 +128,35 @@ spring:
           temperature: 0.7
       embedding:
         options:
+          # Only read when the embedding selector resolves to ollama, i.e. when
+          # GEMINI_API_KEY is unset. That is the zero-configuration path: no API
+          # key, no account, no network.
           model: nomic-embed-text
+
+    # Gemini embeddings, through the AI Studio API (a plain `GEMINI_API_KEY`).
+    # NOT the Vertex AI path, which authenticates with Google Cloud credentials
+    # and needs a billing-enabled Cloud project; the starter for that is a
+    # different artifact (`spring-ai-starter-model-vertex-ai-embedding`).
+    #
+    # Only read when the embedding selector resolves to google-genai. With a blank
+    # key the post-processor selects Ollama instead and none of this is consulted.
+    google:
+      genai:
+        embedding:
+          # Blank by default, never a committed value: an unset variable must
+          # leave the project on the local path rather than half-configured.
+          api-key: ${GEMINI_API_KEY:}
+          text:
+            # `gemini-embedding-2` rather than `gemini-embedding-001`: it
+            # auto-normalizes non-default output dimensions, so 768 comes back
+            # unit-length and ready for the cosine distance below.
+            model: gemini-embedding-2
+            # Matryoshka (MRL) truncation. 768 is the vector column width of
+            # `vector_store` and one of the three dimensions Google recommends,
+            # so this is why the model swap needs no schema change and no table
+            # rebuild. Verified live against the real API: 768 in, 768 out,
+            # L2 norm 1.000000.
+            dimensions: 768
 
     # Groq, over its OpenAI-compatible endpoint. Only read when
     # `spring.ai.model.chat` resolves to `openai`, i.e. when GROQ_API_KEY is set.
