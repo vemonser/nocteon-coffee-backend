@@ -9,14 +9,19 @@ import { Trend, Rate } from 'k6/metrics';
 //   k6 run --scenario chat   docs/ai-load.js     # 50 VUs for 2 minutes
 //   k6 run docs/ai-load.js                       # both, sequentially
 //
-// Targets, from spec §13:
+// Targets, from spec §13. These are the project's targets, not results:
 //   search  p95 < 200 ms
 //   chat    p95 time-to-reply < 3 s, 5xx under 1%
 //
-// Read the numbers against the hardware you ran them on. A CPU-only Ollama host does
-// not meet the chat target at any concurrency — docs/ai-golden-queries.md records the
-// measured latency on an AMD Ryzen 5 4600H so you know what to expect before you
-// spend two minutes finding out.
+// The chat target has NOT been met on anything measured so far. On local
+// qwen2.5:3b-instruct (AMD Ryzen 5 4600H) it was 48,958 ms p95 at 50 concurrent —
+// 16x over. See docs/ai-golden-queries.md for the full numbers and the hardware.
+//
+// Which model this measures depends entirely on your environment: with GROQ_API_KEY set
+// it hits Groq, without it hits local Ollama. State which one when you report a result —
+// the difference between them is two orders of magnitude. The Groq path has never been
+// successfully exercised, so treat its first run as the measurement rather than a
+// regression check.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BASE = __ENV.BASE_URL || 'http://localhost:8080';

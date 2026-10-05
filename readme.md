@@ -326,6 +326,12 @@ Semantic product search, a "similar products" rail, and a bilingual coffee shopp
 assistant. **All of it is off by default** — an existing deployment that sets nothing new
 behaves exactly as it did before.
 
+> **Status of the chatbot.** The two local models are pulled and wired, but the assistant has
+> **only ever been exercised with an unreachable catalog** — the verification host had no
+> pgvector, so the search tool always reported the catalog as unsearchable. The path where it
+> returns real products and describes them is untested. Read
+> [known limitations](#known-limitations) before building on it.
+
 ## Quickstart
 
 ```bash
@@ -396,16 +402,24 @@ the pair, and the same again in VRAM if a GPU is present.
 
 ### Why the chat model moved off the laptop
 
-Measured on a 6-core Ryzen 5 4600H with no GPU: `qwen2.5:3b-instruct` generates ~71 tokens/sec
-on a single request, so chat p95 was **49 seconds at 50 concurrent sessions** — 16× the 3 s
-target, and not fixable in application code, because 50 concurrent 3B inferences on 6 CPU
-cores queue behind each other. Full numbers in
+Measured on `qwen2.5:3b-instruct`, on a 6-core Ryzen 5 4600H:
+
+* **71 tokens/sec** on a single request (laptop GPU)
+* chat p95 **48.9 s at 50 concurrent users** — 16× the 3 s target
+
+That is queueing, not application code: 50 concurrent 3B inferences on six CPU cores cannot
+reach 3 s. Full numbers, including the 10-VU comparison, in
 [docs/ai-golden-queries.md](docs/ai-golden-queries.md).
 
-Groq's free tier answers the same request in a fraction of that, which is why it is the
-configured default when a key is present. The local model stays configured and selectable so the
-project still runs end to end with **no API key, no account and no network** — which matters,
-because this is a portfolio project someone will clone and run.
+**This is the reason for moving chat to Groq — it is not evidence that Groq is fast enough.**
+No valid Groq API key was available during verification, so no Groq request has completed: the
+hosted path is *configured and reachable* (the request reaches Groq and returns `401` for a bad
+key), but it is **unbenchmarked**, and Groq's free-tier rate limits and daily quota are
+**unmeasured**. Run the load script before relying on it.
+
+The local model stays configured and selectable so the project still runs end to end with **no
+API key, no account and no network** — which matters, because this is a portfolio project someone
+will clone and run.
 
 ### Choosing a chat provider
 
@@ -461,27 +475,37 @@ in Redis under `ai:chat:*` with a 30-minute TTL and expires on its own.
 
 Recorded from live verification, not from intent:
 
-- **The chatbot needs an indexed catalog to be useful.** `search_products` can only return
-  slugs from the vector store, so with `AI_SEARCH_ENABLED=false` it answers "the catalog
-  cannot be searched" — the honest answer, and the assistant then names no coffee. Turn
+- **The chatbot describing real products has never been tested against a live model.** The
+  verification host had no pgvector, so `search_products` answered "the catalog cannot be
+  searched" on *every* call, and that degraded path is the only one exercised. The path where
+  the tool returns real slugs and the model describes them — the path production actually runs
+  on, and where hallucination risk really lives — is **unverified**. Nothing below about product
+  descriptions should be read as tested.
+- **The chatbot needs an indexed catalog to be useful.** With `AI_SEARCH_ENABLED=false` the tool
+  can only report the catalog as unsearchable, so the assistant names no coffee at all. Turn
   semantic search on and index first; the flag order above is the reason for it.
-- **The 3B fallback model is weak at tool calling.** On `qwen2.5:3b-instruct` the assistant
-  refuses correctly when the catalog is unavailable, but it answers in the wrong language
-  often enough to be unusable in production, and it degrades to the apology on some turns.
-  It is a zero-configuration demo path, not a production one. Set `GROQ_API_KEY` for real
-  use.
-- **Arabic chat needs the hosted model.** The 3B local model returns an empty completion for
-  Arabic prompts under the production system prompt. Arabic *search* and Arabic
-  *similar-product* reasons are unaffected — those are i18n, not inference.
-- **The semantic round trip has not been integration-tested** against a live pgvector — the
-  machine this was verified on had no `vector` extension. The degradation path (vector store
-  unreachable → keyword search, no 5xx) *is* verified. Run the golden-query set in
-  [docs/ai-golden-queries.md](docs/ai-golden-queries.md) against a real pgvector host before
-  trusting the ranking.
-- **The chatbot can only be honest about what its tools returned.** It cannot name a coffee
-  no tool gave it — that is the guardrail — but if a tool returns a slug, it will describe
-  that coffee without further verification. The catalogue is the trust boundary, so a wrong
-  product record produces a confidently wrong answer.
+- **The hallucination fix is verified on a 7-turn sample, and only on the degraded path.**
+  Before the fix, 5 of 12 usable turns named coffees that did not exist; after, 0 of 7 did. Those
+  are different sample sizes from different runs, so the comparison is directional. And every
+  turn in both runs was a turn where the catalog was unsearchable — see the first bullet.
+- **The 3B fallback is a demo path, not a production one.** On `qwen2.5:3b-instruct` the
+  assistant answered in the wrong language on 3 of 16 turns before the prompt was tightened, and
+  degrades to the apology on some turns even after. Set `GROQ_API_KEY` for real use.
+- **Arabic chat fails on the local 3B model** — it returns empty completions, 4 of 4 attempts. A
+  larger model is expected to handle it, but **that has not been verified**: no Groq request has
+  completed. Arabic *search* and Arabic *similar-product* reasons are unaffected — those are i18n,
+  not inference, and they are verified.
+- **The hosted chat model is unbenchmarked.** Reachable and correctly wired, but no successful
+  request has been made and its quota is unmeasured. The 3-second chat target has **not** been
+  demonstrated on any model. Run `docs/ai-load.js` before relying on it.
+- **The semantic round trip has not been integration-tested** against a live pgvector. The
+  degradation path (vector store unreachable → keyword search, no 5xx) *is* verified. Run the
+  golden-query set in [docs/ai-golden-queries.md](docs/ai-golden-queries.md) against a real
+  pgvector host before trusting the ranking.
+- **The chatbot can only be honest about what its tools returned.** It cannot name a coffee no
+  tool gave it — that is the guardrail — but if a tool returns a slug it will describe that coffee
+  without further verification. The catalogue is the trust boundary, so a wrong product record
+  produces a confidently wrong answer.
 
 ## Load check
 
@@ -489,6 +513,11 @@ Recorded from live verification, not from intent:
 k6 run --scenario search docs/ai-load.js    # 200 requests @ 10 VUs
 k6 run --scenario chat   docs/ai-load.js    # 50 VUs for 2 minutes
 ```
+
+Which model these measure depends on your environment — with `GROQ_API_KEY` set they hit Groq,
+without it local Ollama. **State which one when you report a result.** For reference, the local
+`qwen2.5:3b-instruct` measured 48 958 ms p95 at 50 VUs; the Groq path is unbenchmarked, so its
+first run is a measurement, not a regression check.
 
 `RateLimitFilter` caps anonymous traffic at 200 requests/minute **per IP**, and it reads
 `X-Real-IP` when present. The script varies that header per VU; if you write your own load

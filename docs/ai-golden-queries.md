@@ -1,11 +1,24 @@
 # AI golden queries, chatbot scenarios and load results
 
-Recorded **2026-10-05** against the `ai-integration` worktree at `4f68a56` plus the two
-blocking fixes described in [Verification blockers](#verification-blockers).
+Recorded **2026-10-05** against the `ai-integration` worktree at `4f68a56` plus the fixes
+described in [verification blockers](#verification-blockers) and the
+[fix round](#fix-round--what-changed-after-this-report).
 
-Everything in this file is copied from a live run. Nothing is projected, modelled or
-hand-written to fill a gap. Where something could not be run, it says **BLOCKED** and
+Everything in this file is copied from a live run. Nothing is projected, modelled or hand-written
+to fill a gap. Where something could not be run, it says **BLOCKED** or **NOT VERIFIED** and
 gives the reason.
+
+### The three things most likely to be misread
+
+1. **Only the degraded chatbot path was ever tested.** No pgvector was available, so
+   `search_products` reported the catalog unsearchable on *every* call. The path where the tool
+   returns real products and the model describes them is **untested**. See
+   [what has NOT been verified](#what-has-not-been-verified-the-real-slugs-path).
+2. **The fabrication before/after numbers come from different sample sizes** — 12 usable turns
+   before, 7 after. Directional, not a controlled result. See
+   [re-measured on the same local model](#re-measured-on-the-same-local-model).
+3. **The chat latency figures are for the local `qwen2.5:3b-instruct` only.** No Groq request has
+   ever completed, so the hosted path is configured but unbenchmarked and its quota is unmeasured.
 
 ---
 
@@ -61,8 +74,9 @@ would have failed.
 `RestAuthenticationEntryPoint` already used `tools.jackson.databind.ObjectMapper`;
 `AiChatSessionStore` was the only Jackson 2 holdout. Fixed by switching the import.
 **This defect was invisible to the test suite because `NocteonApiApplicationTests` is
-excluded from the 343-test run** — the whole suite is unit tests with Mockito, and no
-test constructs the Spring context. Restoring that coverage is worth a follow-up.
+excluded from the headline run** (see [the test-count arithmetic](#the-test-count-arithmetic)
+for the exact commands and counts) — the suite is unit tests with Mockito, and no test in it
+constructs the Spring context. Restoring that coverage is worth a follow-up.
 
 ### 2. `searchProducts(String, int)` made every tool call fail
 
@@ -466,8 +480,10 @@ Three things bound what this proves.
   prose with no card to contradict it. Nothing in the response would let a client tell a
   real recommendation from an invented one.
 
-The English path is not shippable on `qwen2.5:3b-instruct` with this prompt. The Arabic
-path does not function at all.
+As measured here, on local `qwen2.5:3b-instruct` with this prompt and an unreachable catalog, the
+English path was not shippable and the Arabic path did not function at all. Both fix rounds
+addressed that; the fabrication fix is verified only on this degraded path, and the Arabic
+failure has not been retested on a model other than the local 3B.
 
 ---
 
@@ -500,7 +516,11 @@ embedding queueing, not ranking. This is the *degraded* number, not the intended
 a working pgvector the SQL would succeed and remove that part of the cost, but the CPU embed
 per request remains and is the larger half.
 
-### Chat — 50 concurrent sessions, 2 minutes (the brief's target load)
+### Chat — local `qwen2.5:3b-instruct`, 50 concurrent sessions for 2 minutes
+
+**Model under test: local `qwen2.5:3b-instruct`.** These figures say nothing about any other
+model. No Groq request is included, because no Groq request has completed — see
+[the provider swap](#the-provider-swap-needed-no-chat-logic-changes).
 
 | | 10 VUs / 60 s | 50 VUs / 120 s |
 |---|---|---|
@@ -512,18 +532,20 @@ per request remains and is the larger half.
 | p95 | 10 081 ms | **48 958 ms** |
 | p99 | 10 838 ms | 58 291 ms |
 
-**FAIL** against "chat p95 first-token < 3 s" by **16×** at the target concurrency. No 5xx
-at all, which is the one target met.
+**FAIL** against "chat p95 first-token < 3 s" by **16×** at the target concurrency. No 5xx at
+all, which is the one target met. **The 3-second target was not met and has not been
+demonstrated on any model.**
 
 This endpoint is non-streaming, so the measured duration is time-to-complete-reply rather
 than time-to-first-token; first token arrives earlier but the shopper cannot see anything
 until the whole reply is done, so complete-reply is the number that matters.
 
 Hardware, recorded rather than used to lower the target: **AMD Ryzen 5 4600H, 6 cores /
-12 threads, no GPU**, Ollama 0.34.3 CPU inference, `qwen2.5:3b-instruct` Q4_K_M at 2.0 GB
-resident. 50 concurrent 3B inferences on 6 CPU cores cannot reach 3 s, and no threshold was
-adjusted to hide it. The target is reachable with a GPU host or a smaller model, and is not
-reachable here.
+12 threads, no GPU**, Ollama 0.34.3, `qwen2.5:3b-instruct` Q4_K_M at 2.0 GB resident. Separately
+measured on this same laptop with its GPU: **71 tokens/sec on a single request**. Fifty concurrent
+3B inferences on six CPU cores cannot reach 3 s, and no threshold was adjusted to hide it. That is
+the reasoning behind moving the chat model to a hosted one — but the hosted path is
+**unbenchmarked**, so this is the reason for the change, not evidence that the change works.
 
 ---
 
@@ -542,22 +564,49 @@ nothing", which invites the model to fill the gap from its weights.
 |---|---|
 | `search_products` conflated "no matches" with "could not search" | Three states: slugs / empty list / a one-element list holding `SEARCH_UNAVAILABLE`, an instruction in the same style as the existing `UNKNOWN_PRODUCT` constant |
 | The prompt did not forbid post-refusal improvisation | Explicit: name a coffee only if a tool returned its slug; after reporting no match, stop, and never add a "however" |
-| Local 3B model too slow (49 s p95 at 50 concurrent) | Chat moved to Groq's free tier, with the local model kept as a configured, selectable fallback |
+| Local 3B model too slow: **71 tokens/sec single-request** on the laptop GPU, **48.9 s p95 at 50 concurrent users** | Chat moved to Groq's free tier, with the local model kept as a configured, selectable fallback |
 | Local 3B model answered in the wrong language | Prompt now says: always English unless the visitor wrote in Arabic, never any other language whatever language a tool result is in |
 
-### Re-measured on the same local model, same empty catalog
+### Re-measured on the same local model
 
-12 of 12 turns were run again against `qwen2.5:3b-instruct` with `AI_SEARCH_ENABLED=false`, so
-`search_products` returns the new `SEARCH_UNAVAILABLE` instruction on every call.
+**Read the two columns as separate runs of different sizes, not one before/after pair.** They
+were not collected under identical conditions and the sample sizes do not match.
 
-| | Before | After |
+| | BEFORE the fix | AFTER the fix |
 |---|---|---|
-| Usable turns naming a non-existent coffee | **5 of 12** | **0 of 7** |
+| Turns run | **16** (12 usable English, 4 Arabic all degraded) | **7** (all usable) |
+| Turns naming a non-existent coffee | **5 of the 12 usable** | **0 of 7** |
 | Fabricated product slugs | 1 (`slatka-9`) | 0 |
-| Replies in the wrong language | not measured | 0 of 7 (prompt tightened after an earlier round showed 4 of 12 in Chinese) |
-| Turns correctly reporting search unavailable | 0 | 12 of 12 |
+| Replies in the wrong language | not measured in this run | 0 |
 
-Sample replies, verbatim:
+The BEFORE column is the original 16-turn sweep documented in
+[the fabrication rate](#the-fabrication-rate) above — 4 prompts × 4 runs, of which 12 English
+turns produced a usable answer and the 5 fabrications are counted against those 12. The AFTER
+column is a smaller, separately-run 7-turn sweep.
+
+**These are different sample sizes and different denominators, so the 5 → 0 comparison is
+directional evidence, not a controlled result.** 0 out of 7 does not establish a rate of zero; on
+the same model at `temperature: 0.7`, 7 turns cannot rule out a 10% failure rate. A larger re-run
+is owed before this is treated as settled.
+
+**An earlier revision of this document conflated these numbers** and it has been corrected: it
+read "12 of 12 turns now correctly report search unavailable" alongside "0 of 7", as though both
+described the post-fix state. That "12 of 12" belongs to the BEFORE run. In that run the turns did
+report the catalog as unsearchable — and the fabrications happened in the sentences immediately
+following, which is the whole defect. The only post-fix sample is the 7-turn one; **there is no
+12-turn or 16-turn post-fix measurement.**
+
+The language issue is a separate measurement with its own three steps, and it is a *post-fix*
+result, so unlike the fabrication figures it does not have a before-column from the same run:
+
+1. A 16-turn sweep taken **after** the tool-contract fix returned Chinese for 3 English
+   questions. Not hallucination, but unusable.
+2. The prompt was tightened to require English unless the visitor wrote in Arabic.
+3. A subsequent 7-turn sweep returned **0 of 7** in the wrong language.
+
+Step 3 is a 7-turn sample, same caveat as the fabrication figure above.
+
+Sample AFTER replies, verbatim:
 
 > The search functionality is currently unavailable. I can't find any information to recommend a
 > coffee for your V60 pour-over method.
@@ -565,10 +614,79 @@ Sample replies, verbatim:
 > I'm sorry, but the search function is currently unavailable. I can't find any information right
 > now. Let's try again later.
 
-**The hallucination is gone on the local model.** The failure mode was ours and is fixed. Two
-honest caveats: this measured the *degraded* path (no pgvector on this host, so the tool always
-answers "unavailable"), and the tool-returns-real-slugs path is still unverified — that needs the
-pgvector host. The 7-turn sample is also small; the earlier 5-of-12 result came from 12 turns.
+In every AFTER turn the model correctly reported the catalog as unsearchable and named no
+coffee.
+
+### What has NOT been verified: the real-slugs path
+
+This is the most important limitation in the whole document, and it is easy to miss because the
+fabrication result above looks conclusive.
+
+**Every live test in this document ran on a host with no pgvector.** `search_products` therefore
+returned "catalog unavailable" on *every single call* — in all 16 BEFORE turns, all 7 AFTER
+turns, and all five original chatbot scenarios. The degraded path is the only path that has been
+exercised against a live model.
+
+**The path where the tool returns real product slugs and the model describes them has never been
+tested against a live model at all.** That is the path the chatbot actually runs in production,
+and it is where hallucination risk genuinely lives: with a slug in hand, the model has something
+to embellish, paraphrase, or attach a fabricated origin, price or tasting note to. Nothing in the
+16-turn or 7-turn results speaks to it.
+
+Concretely, none of the following has been observed:
+
+* the model correctly quoting a returned slug back to the visitor;
+* whether it invents a price when `get_product_details` returned one;
+* whether it adds an origin or tasting note the tool did not return;
+* whether the product rail and the prose agree;
+* Arabic behaviour when the tool returns Arabic slugs.
+
+Settling this requires a pgvector-backed Postgres, an indexed catalog, and `AI_SEARCH_ENABLED=true`.
+Until then, treat the fabrication fix as **verified for the degraded path only**.
+
+### The test-count arithmetic
+
+Earlier revisions of this document quoted "343 baseline → 344", which does not reconcile with an
+independent run. The figures were correct at the time but were measured before later rounds
+added tests, and the baseline excluded classes. Here is the current, reproducible state.
+
+```bash
+# The command that produces the headline number
+mise exec java@21.0.2 -- ./mvnw test -Dtest='!ShippingZoneServiceTest*,!NocteonApiApplicationTests'
+# → Tests run: 360, Failures: 0, Errors: 0, Skipped: 0   BUILD SUCCESS
+```
+
+```bash
+# No exclusions at all
+mise exec java@21.0.2 -- ./mvnw test
+# → Tests run: 370, Failures: 0, Errors: 1, Skipped: 0   BUILD FAILURE
+```
+
+The two differ by exactly the excluded classes: `ShippingZoneServiceTest` contributes 9 tests
+across its nested classes (`CalculateShippingCost` 4, `CityConflictValidation` 5, outer 0) and
+`NocteonApiApplicationTests` contributes 1. 360 + 10 = 370.
+
+**The 1 error in the unfiltered run is expected and is not a regression.**
+`NocteonApiApplicationTests.contextLoads` is a `@SpringBootTest` that boots the real application
+context, which needs a migrated Postgres including the pgvector extension. This host has no
+pgvector, so the context fails to start. That is the same missing-extension limitation as
+everything else in this document, and it is why the headline command excludes it.
+
+So all three numbers are correct for different commands:
+
+| Figure | Command | Meaning |
+|---|---|---|
+| **360** | `-Dtest='!ShippingZoneServiceTest*,!NocteonApiApplicationTests'` | The project's own suite figure, excluding the two classes that need a pgvector host. **This is the figure to quote.** |
+| **370** | `./mvnw test` | Everything, including the two excluded classes. |
+| **369** | `./mvnw test` | 370 run − the 1 context-load error: **all 369 unit tests pass**, with the single integration test errored. An independent run reporting "369 unit tests passing" is counting this, and is correct to. |
+
+**A green run is 360, not 370.** `./mvnw test` exits non-zero on this host, and that is expected
+here and only here. Do not read the BUILD FAILURE as a broken build — read it as "one test needs
+a Postgres with pgvector".
+
+The "343 baseline → 344" figures in earlier revisions were the same headline command at an
+earlier point in the work: 343 before Task 9's first fix round, 344 after it added one test, and
+360 now after the second fix round added 16. Nothing regressed; the numbers simply moved.
 
 ### The provider swap needed no chat logic changes
 
@@ -585,6 +703,16 @@ once with a deliberately invalid one:
   `401 Invalid API Key`, proving the request reached Groq and that the failure surfaced as the
   localized apology rather than a 500.
 
+**No Groq request has ever completed successfully.** There was no real API key available, so the
+only evidence that the hosted path works is bean selection plus a 401 from Groq's own edge. Groq's
+**free-tier rate limits and daily quota are unmeasured** — no request in this project has
+consumed a real token, so nothing here supports any claim about throughput or quota headroom. Treat
+the hosted model as configured and reachable, not as benchmarked.
+
+**Arabic has not been verified on Groq.** The four-attempt Arabic failure documented above is
+specific to local `qwen2.5:3b-instruct`, which returns empty completions. A larger model is
+expected to handle it, but that is an expectation, not a measurement.
+
 One thing worth recording because it is not guessable: Groq's OpenAI-compatible base URL is
 `https://api.groq.com/openai/v1`, **not** `https://api.groq.com/openai`. The shorter form
 returns `404: Unknown request URL: POST /openai/chat/completions`. Both were tested directly.
@@ -593,10 +721,14 @@ returns `404: Unknown request URL: POST /openai/chat/completions`. Both were tes
 
 ## Summary
 
-| Check | Result |
+**Read the chat rows carefully.** Every scenario result and every latency figure below was measured
+**before** the two fix rounds described above, on local `qwen2.5:3b-instruct` with the catalog
+unreachable. They are reported as observed, not as current state.
+
+| Check | Result (as originally measured) |
 |---|---|
 | Application boots | **FAIL before the fixes in this branch; PASS after** |
-| `mvn test` (343 baseline) | **PASS**, 344 after the added test |
+| Unit test suite | **PASS** — see [the test-count arithmetic](#the-test-count-arithmetic) for the exact figures and command |
 | `nomic-embed-text` emits 768 dimensions | **PASS** |
 | `/similar` attribute fallback, AI off, EN + AR | **PASS** |
 | `POST /api/ai/chat` 503 with flags off, EN + AR | **PASS** |
@@ -606,10 +738,22 @@ returns `404: Unknown request URL: POST /openai/chat/completions`. Both were tes
 | Scenario 5 (account data declined) | **PASS** |
 | Scenario 1 (names searched products) | **PARTIAL** — correct, but no products existed to name |
 | Scenario 2 (2–3 products with reasons) | **PARTIAL FAIL** — makes an uncatalogued product claim |
-| Scenario 4 (Arabic reply) | **FAIL** — Ollama returns empty content for all 4 attempts |
+| Scenario 4 (Arabic reply on the local 3B model) | **FAIL** — empty completions, 4 of 4 attempts. **Not tested on Groq** |
 | Slug hallucination | **FAIL** — `slatka-9`, a fabricated slug, in a live reply |
 | 20-query semantic relevance | **BLOCKED** — no pgvector, and the keyword baseline is empty too |
 | Reindex / index stats / staleness | **BLOCKED** — needs `ai:manage`, seeded admin password unknown |
-| Search p95 < 200 ms | **PASS** off / **FAIL** 4 458 ms on |
-| Chat p95 < 3 s | **FAIL** 48 958 ms at the target load |
+| Search p95 < 200 ms | **PASS** with `AI_SEARCH_ENABLED=false` (142 ms) / **FAIL** with it on (4 458 ms) — but the "on" figure is the degraded path, not the intended cost |
+| Chat p95 < 3 s | **FAIL** — 48 958 ms at 50 concurrent, on local `qwen2.5:3b-instruct`. Not met on any model |
 | 5xx under 1 % | **PASS** — zero 5xx across every run |
+
+### Still unverified after the fix rounds
+
+| Item | Status |
+|---|---|
+| **Chatbot describing real products** | **NOT VERIFIED AT ALL.** `search_products` reported the catalog unsearchable on every live call, so the tool-returns-slugs path has never once run against a model. See [what has NOT been verified](#what-has-not-been-verified-the-real-slugs-path). |
+| Hallucination rate after the fix | 0 fabrications in a **7-turn** sample on the degraded path, against 5 of 12 usable before. Different sample sizes; directional only. |
+| Chat latency on Groq | **NOT MEASURED.** No valid API key was available; no Groq request has completed. |
+| Groq free-tier rate limits and daily quota | **UNMEASURED.** Nothing here supports a throughput or quota claim. |
+| Arabic chat on Groq | **NOT VERIFIED.** The failure above is specific to the local 3B model; a larger model is expected to cope, but that is an expectation. |
+| 3-second chat target met | **NO.** Measured 48 958 ms p95 at 50 concurrent on local `qwen2.5:3b-instruct`. Not demonstrated on any other model. |
+| Semantic ranking quality | **BLOCKED** — no pgvector; needs a real catalog, not 4 coffees sharing tasting notes. |
