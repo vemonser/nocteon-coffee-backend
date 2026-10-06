@@ -1,5 +1,6 @@
 package com.nocteon.nocteon_api.ai.config;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
@@ -27,6 +28,15 @@ import org.springframework.stereotype.Component;
  * No network call and no probe of the live model. The point is to detect a <em>configured</em>
  * change; a model silently swapped underneath a fixed configuration is not a failure mode this
  * project can observe, and paying an API call per document to look for it would be absurd.
+ *
+ * <h2>Why the environment constructor is annotated</h2>
+ * There are two constructors: this one and the direct one below, which exists for callers that
+ * are not a Spring context. Spring does not infer between them. With more than one declared
+ * constructor and none of them annotated, it declines to choose and falls back to looking for a
+ * no-arg constructor, which this class does not have — so the application refuses to boot with
+ * "No default constructor found", while every unit test passes because they all call
+ * {@code new} directly and never ask Spring to build the bean. {@code @Autowired} says which one
+ * the container must use, and that is the whole reason it is here.
  */
 @Component
 public class EmbeddingModelFingerprint {
@@ -43,6 +53,7 @@ public class EmbeddingModelFingerprint {
      *
      * @param environment the resolved application environment
      */
+    @Autowired
     public EmbeddingModelFingerprint(Environment environment) {
         String provider = EmbeddingProviderEnvironmentPostProcessor.GOOGLE_GENAI_PROVIDER.equals(
                 environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY))

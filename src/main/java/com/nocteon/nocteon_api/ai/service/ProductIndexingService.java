@@ -84,9 +84,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ProductIndexingService {
 
-    /** Prefix that marks a vector-store document as belonging to a product. */
-    private static final String DOCUMENT_ID_PREFIX = "product:";
-
     /** Metadata key holding the hash of the document's own text. */
     private static final String CONTENT_HASH_KEY = "contentHash";
 
@@ -229,6 +226,9 @@ public class ProductIndexingService {
      * <p>Uses the id overload deliberately: in Spring AI 2.0.1 {@code delete(String)} parses its
      * argument as a <em>filter expression</em> and deletes by predicate, not by document id.
      *
+     * <p>The id comes from {@link ProductDocumentIds}, the same mapping the write path uses. Building
+     * it independently here is precisely what would make a delete miss the row an upsert wrote.
+     *
      * @param slug the product slug; a blank slug is ignored rather than deleting a junk id
      */
     public void remove(String slug) {
@@ -237,7 +237,7 @@ public class ProductIndexingService {
             return;
         }
 
-        vectorStore.delete(List.of(DOCUMENT_ID_PREFIX + slug));
+        vectorStore.delete(List.of(ProductDocumentIds.forSlug(slug)));
         log.debug("AI removed document for product {}", slug);
     }
 

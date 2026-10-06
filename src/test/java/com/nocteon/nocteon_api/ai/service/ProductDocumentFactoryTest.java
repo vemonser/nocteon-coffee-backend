@@ -5,6 +5,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -285,14 +286,97 @@ class ProductDocumentFactoryTest {
     }
 
     @Test
-    void toDocumentComposesSlugPrefixedIdTextAndMetadata() {
+    void toDocumentComposesDerivedIdTextAndMetadata() {
         Product p = coffeeProduct("Yirgacheffe", "يرغاتشيف");
 
         Document document = factory.toDocument(p);
 
-        assertThat(document.getId()).isEqualTo("product:" + PRODUCT_SLUG);
+        assertThat(document.getId()).isEqualTo(ProductDocumentIds.forSlug(PRODUCT_SLUG));
         assertThat(document.getText()).isEqualTo(factory.buildText(p));
         assertThat(document.getMetadata()).isEqualTo(factory.buildMetadata(p));
+    }
+
+    /**
+     * The contract the real store imposes, pinned where a mock cannot hide it.
+     *
+     * <p>Spring AI 2.0.1's {@code PgVectorStore.doAdd} calls {@link java.util.UUID#fromString(String)}
+     * on every document id, because {@code vector_store}'s primary key is a {@code uuid}. A
+     * human-readable id like {@code product:ethiopia-yirgacheffe} therefore made the first real
+     * write throw {@code IllegalArgumentException: Invalid UUID string} — while all 479 unit tests
+     * stayed green, because every vector-store interaction was mocked.
+     *
+     * <p>The slugs are deliberately awkward: punctuation a slug column would never really hold, a
+     * non-ASCII slug, and one long enough to exceed any sane manual id. {@code UUID.fromString}
+     * accepts exactly the 36-character {@code 8-4-4-4-12} form, so any slug at all has to be
+     * hashed before it can be an id.
+     */
+    @Test
+    void everySlugProducesAnIdTheRealStoreWouldAccept() {
+        List<String> slugs = List.of(
+                "ethiopia-yirgacheffe",
+                "hario-v60",
+                "beans.with.dots-and_underscores",
+                "قهوة-إثيوبية",
+                "Ünïcödé-Çafé-Ø",
+                "a".repeat(512));
+
+        for (String slug : slugs) {
+            String id = factory.toDocument(productWithSlug(slug)).getId();
+
+            // The store's own parse: if this throws, PgVectorStore would too.
+            assertThat(UUID.fromString(id)).as("slug %s", slug).isNotNull();
+            assertThat(id).as("slug %s", slug).doesNotContain(slug);
+        }
+    }
+
+    /**
+     * The same slug must always produce the same id — in this process, in the next one, and for both
+     * {@code indexAll} and {@code upsert}. A random UUID per call would satisfy the store's parse
+     * while breaking overwrite and delete, which is the subtler half of this bug.
+     */
+    @Test
+    void theIdIsDeterministicForTheSameSlug() {
+        String first = factory.toDocument(productWithSlug("ethiopia-yirgacheffe")).getId();
+        String second = factory.toDocument(productWithSlug("ethiopia-yirgacheffe")).getId();
+
+        // A fresh factory too: nothing may be cached on an instance that a restart would lose.
+        ProductDocumentFactory other = new ProductDocumentFactory(
+                new EmbeddingModelFingerprint("google-genai", "gemini-embedding-2", 768));
+        String afterRestart = other.toDocument(productWithSlug("ethiopia-yirgacheffe")).getId();
+
+        assertThat(second).isEqualTo(first);
+        assertThat(afterRestart).isEqualTo(first);
+
+        // Stable is not enough: the value must also still be an id the store accepts.
+        assertThat(UUID.fromString(first)).isNotNull();
+    }
+
+    /** Two products must never collide onto one row, or one silently overwrites the other. */
+    @Test
+    void distinctSlugsProduceDistinctIds() {
+        List<String> slugs = List.of(
+                "ethiopia-yirgacheffe",
+                "colombia-huila",
+                "kenya-nyeri",
+                "ethiopia-yirgacheffe-2",
+                "Ethiopia-Yirgacheffe");
+
+        Set<String> ids = slugs.stream()
+                .map(slug -> factory.toDocument(productWithSlug(slug)).getId())
+                .collect(java.util.stream.Collectors.toSet());
+
+        assertThat(ids).hasSameSizeAs(slugs);
+    }
+
+    private static Product productWithSlug(String slug) {
+        return Product.builder()
+                .id(7L)
+                .slug(slug)
+                .productType(ProductType.COFFEE)
+                .translations(Set.of(ProductTranslation.builder()
+                        .language("en").name("Name").build()))
+                .tastingNotes(new ArrayList<>())
+                .build();
     }
 
     @Test
@@ -306,7 +390,7 @@ class ProductDocumentFactoryTest {
 
         Document document = factory.toDocument(p);
 
-        assertThat(document.getId()).isEqualTo("product:steel-tamper");
+        assertThat(document.getId()).isEqualTo(ProductDocumentIds.forSlug("steel-tamper"));
         assertThat(document.getText()).contains("Steel Tamper");
     }
 }

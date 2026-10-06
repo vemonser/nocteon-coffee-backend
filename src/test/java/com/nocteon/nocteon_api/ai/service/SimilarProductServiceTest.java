@@ -88,7 +88,7 @@ class SimilarProductServiceTest {
     /** A hit as Spring AI 2.0.1 returns one: {@code getScore()} already holds {@code 1 - distance}. */
     private static Document hit(long productId, double similarity) {
         return Document.builder()
-                .id("product:p" + productId)
+                .id(ProductDocumentIds.forSlug("p" + productId))
                 .text("Yirgacheffe")
                 .metadata(Map.of("productId", productId, "slug", "p" + productId))
                 .score(similarity)
@@ -346,8 +346,8 @@ class SimilarProductServiceTest {
     void skipsHitsWithoutAScoreOrANumericProductId() {
         Product source = source();
         Product other = product(2L, "other");
-        Document noScore = Document.builder().id("product:x").text("t").metadata(Map.of("productId", 3L)).build();
-        Document badId = Document.builder().id("product:y").text("t")
+        Document noScore = Document.builder().id(ProductDocumentIds.forSlug("x")).text("t").metadata(Map.of("productId", 3L)).build();
+        Document badId = Document.builder().id(ProductDocumentIds.forSlug("y")).text("t")
                 .metadata(Map.of("productId", "nope")).score(0.9).build();
 
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));

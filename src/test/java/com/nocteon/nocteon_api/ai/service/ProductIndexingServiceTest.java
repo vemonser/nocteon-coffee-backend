@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,7 +56,7 @@ class ProductIndexingServiceTest {
     }
 
     private static Document document(long id, String slug, String text, String contentHash) {
-        return new Document("product:" + slug, text,
+        return new Document(ProductDocumentIds.forSlug(slug), text,
                 Map.of("productId", id, "slug", slug, "contentHash", contentHash));
     }
 
@@ -157,7 +158,7 @@ class ProductIndexingServiceTest {
         // Two absent hashes must not compare as equal, or every unhashed row looks current.
         Product a = product(1L, "a");
         Document fresh = document(1L, "a", "text a", "h1");
-        Document unhashed = new Document("product:a", "text a", Map.of("slug", "a"));
+        Document unhashed = new Document(ProductDocumentIds.forSlug("a"), "text a", Map.of("slug", "a"));
 
         when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(a));
         when(documentFactory.toDocument(a)).thenReturn(fresh);
@@ -229,7 +230,42 @@ class ProductIndexingServiceTest {
     void removeDeletesByStableDocumentId() {
         service.remove("a");
 
-        verify(vectorStore).delete(List.of("product:a"));
+        verify(vectorStore).delete(List.of(ProductDocumentIds.forSlug("a")));
+    }
+
+    /**
+     * The coupling that silently broke: {@code remove} used to build {@code "product:" + slug}
+     * itself, so nothing checked that the id it deleted matched the id {@code upsert} wrote.
+     *
+     * <p>The id is now an opaque UUID — {@code PgVectorStore} parses document ids with
+     * {@link java.util.UUID#fromString(String)}, so the old human-readable scheme made every real
+     * write fail — and the delete path could easily have kept the old scheme while the write path
+     * moved. This asserts both ends of one slug produce the identical id, which is the only thing
+     * that makes a delete actually delete.
+     */
+    @Test
+    void upsertAndRemoveAgreeOnTheDocumentIdForTheSameSlug() {
+        ProductDocumentFactory realFactory = new ProductDocumentFactory(
+                new com.nocteon.nocteon_api.ai.config.EmbeddingModelFingerprint(
+                        "google-genai", "gemini-embedding-2", 768));
+        Product a = product(1L, "ethiopia-yirgacheffe");
+
+        when(productRepository.findByIdForAiProjection(1L)).thenReturn(java.util.Optional.of(a));
+        // The real factory, so the captured id is the id production actually writes.
+        when(documentFactory.toDocument(a)).thenReturn(realFactory.toDocument(a));
+
+        service.upsert(a);
+        service.remove("ethiopia-yirgacheffe");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Document>> added = ArgumentCaptor.forClass(List.class);
+        verify(vectorStore).add(added.capture());
+        verify(vectorStore).delete(List.of(added.getValue().get(0).getId()));
+
+        // The id the real factory produced, not a mock's, and parseable by the real store.
+        assertThat(UUID.fromString(added.getValue().get(0).getId())).isNotNull();
+        assertThat(added.getValue().get(0).getId())
+                .isEqualTo(realFactory.toDocument(a).getId());
     }
 
     @Test
@@ -561,7 +597,7 @@ class ProductIndexingServiceTest {
         // Mirror of the stored-side case: a fresh document with no hash must count as "not
         // indexed" rather than dereferencing null and failing the whole run.
         Product a = product(1L, "a");
-        Document unhashed = new Document("product:a", "text a", Map.of("slug", "a"));
+        Document unhashed = new Document(ProductDocumentIds.forSlug("a"), "text a", Map.of("slug", "a"));
 
         when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(a));
         when(documentFactory.toDocument(a)).thenReturn(unhashed);

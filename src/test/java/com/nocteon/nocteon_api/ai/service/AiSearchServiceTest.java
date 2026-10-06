@@ -61,7 +61,7 @@ class AiSearchServiceTest {
      */
     private static Document hit(long productId, double similarity) {
         return Document.builder()
-                .id("product:p" + productId)
+                .id(ProductDocumentIds.forSlug("p" + productId))
                 .text("Yirgacheffe")
                 .metadata(Map.of("productId", productId, "slug", "p" + productId))
                 .score(similarity)
@@ -172,7 +172,7 @@ class AiSearchServiceTest {
     @Test
     void skipsHitsWithoutAProductId() {
         flags(true, true);
-        Document noId = Document.builder().id("product:x").text("t").score(0.9).build();
+        Document noId = Document.builder().id(ProductDocumentIds.forSlug("x")).text("t").score(0.9).build();
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenReturn(List.of(noId, hit(7L, 0.5)));
 
@@ -185,7 +185,7 @@ class AiSearchServiceTest {
     void skipsHitsWhoseProductIdIsNotANumber() {
         flags(true, true);
         Document badId = Document.builder()
-                .id("product:x").text("t")
+                .id(ProductDocumentIds.forSlug("x")).text("t")
                 .metadata(Map.of("productId", "not-a-number"))
                 .score(0.9).build();
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
@@ -198,7 +198,7 @@ class AiSearchServiceTest {
     void skipsHitsWithNoScore() {
         flags(true, true);
         Document noScore = Document.builder()
-                .id("product:x").text("t")
+                .id(ProductDocumentIds.forSlug("x")).text("t")
                 .metadata(Map.of("productId", 5L))
                 .build();
         when(vectorStore.similaritySearch(any(SearchRequest.class)))

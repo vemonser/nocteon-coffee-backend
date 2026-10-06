@@ -65,9 +65,6 @@ import com.nocteon.nocteon_api.tastingNote.entity.TastingNote;
 @Component
 public class ProductDocumentFactory {
 
-    /** Prefix that marks a vector-store document as belonging to a product. */
-    private static final String DOCUMENT_ID_PREFIX = "product:";
-
     /** Metadata key naming the embedding model this document's vector was produced by. */
     private static final String EMBEDDING_MODEL_KEY = "embeddingModel";
 
@@ -85,11 +82,16 @@ public class ProductDocumentFactory {
     /**
      * Builds the vector-store document for a product.
      *
+     * <p>The id is a deterministic UUID, not {@code "product:<slug>"}: Spring AI 2.0.1's
+     * {@code PgVectorStore} parses document ids with {@link java.util.UUID#fromString(String)}
+     * before writing them, so a human-readable id is rejected on the first write. The slug lives in
+     * the metadata instead, and {@link ProductDocumentIds} owns the mapping.
+     *
      * @param product the product to project, never {@code null}
-     * @return a document id'd {@code product:<slug>} with the built text and metadata
+     * @return a document carrying the built text and metadata, id'd {@link ProductDocumentIds#forSlug(String)}
      */
     public Document toDocument(Product product) {
-        return new Document(DOCUMENT_ID_PREFIX + product.getSlug(),
+        return new Document(ProductDocumentIds.forSlug(product.getSlug()),
                 buildText(product),
                 buildMetadata(product));
     }
@@ -151,6 +153,9 @@ public class ProductDocumentFactory {
 
     /**
      * Builds the vector-store metadata for a product.
+     *
+     * <p>{@code productId} and {@code slug} are the document's only route back to the product, now
+     * that the id is an opaque UUID — every consumer resolves identity from here, never from the id.
      *
      * <p>{@code categorySlug} and {@code originSlug} are omitted when the corresponding
      * relation is absent, so callers filtering on them never match an unrelated document.
