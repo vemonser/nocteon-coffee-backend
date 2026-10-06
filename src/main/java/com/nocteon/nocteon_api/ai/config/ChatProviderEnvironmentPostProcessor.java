@@ -68,6 +68,26 @@ public class ChatProviderEnvironmentPostProcessor implements EnvironmentPostProc
 
     private static final String GROQ_API_KEY = "GROQ_API_KEY";
 
+    private static final String GROQ_CHAT_MODEL = "GROQ_CHAT_MODEL";
+
+    /**
+     * Model-id fragment marking a reasoning model.
+     *
+     * <p>Reasoning models return {@code reasoning_content} on every assistant turn. Spring AI's
+     * tool-calling loop replays that assistant message verbatim in the follow-up request and Groq
+     * rejects it with {@code 400 ... property 'reasoning_content' is unsupported}. The symptom is
+     * deceptive: questions that reach a catalog tool answer with the failure apology while
+     * questions that do not answer normally, so it presents as an intermittent provider outage
+     * rather than a configuration error.
+     *
+     * <p>It cannot be suppressed from configuration — Spring AI 2.0.1 builds the request with the
+     * openai-java client's {@code ChatCompletionCreateParams}, which has no reasoning field, and
+     * nothing in {@code spring-ai-openai-2.0.1} serialises {@code reasoning_effort}. Rejecting the
+     * model at startup converts a silent, revenue-affecting runtime failure into a startup failure
+     * nobody can miss.
+     */
+    private static final String REASONING_MODEL_MARKER = "gpt-oss";
+
     /**
      * {@code LOWEST_PRECEDENCE} so this runs after
      * {@code ConfigDataEnvironmentPostProcessor}, which is what makes {@code application.yaml}
@@ -86,10 +106,39 @@ public class ChatProviderEnvironmentPostProcessor implements EnvironmentPostProc
             return;
         }
 
-        String provider = hasGroqApiKey(environment) ? OPENAI_PROVIDER : OLLAMA_PROVIDER;
+        if (!hasGroqApiKey(environment)) {
+            environment.getPropertySources().addFirst(new MapPropertySource(
+                    PROPERTY_SOURCE_NAME, Map.of(CHAT_SELECTOR_PROPERTY, OLLAMA_PROVIDER)));
+            return;
+        }
+
+        rejectReasoningModel(environment);
 
         environment.getPropertySources().addFirst(new MapPropertySource(
-                PROPERTY_SOURCE_NAME, Map.of(CHAT_SELECTOR_PROPERTY, provider)));
+                PROPERTY_SOURCE_NAME, Map.of(CHAT_SELECTOR_PROPERTY, OPENAI_PROVIDER)));
+    }
+
+    /**
+     * Fails startup when a reasoning model is pinned for the hosted chat model.
+     *
+     * <p>Only enforced when the model is actually coming from {@code GROQ_CHAT_MODEL}, because an
+     * unset variable is resolved later by {@code application.yaml} and is therefore invisible here.
+     * The shipped default in that file is a non-reasoning model, so this only fires on an
+     * explicit override — which is exactly the case worth catching.
+     */
+    private static void rejectReasoningModel(ConfigurableEnvironment environment) {
+        String model = environment.getProperty(GROQ_CHAT_MODEL);
+        if (model != null && model.toLowerCase(java.util.Locale.ROOT).contains(REASONING_MODEL_MARKER)) {
+            throw new IllegalStateException(
+                    GROQ_CHAT_MODEL + " is set to '" + model + "', which is a reasoning model. "
+                            + "Reasoning models return reasoning_content on every assistant turn; "
+                            + "Spring AI replays that turn inside the tool-calling loop and Groq "
+                            + "rejects it with 400 \"property 'reasoning_content' is unsupported\", "
+                            + "so every question that reaches a catalog tool returns the failure "
+                            + "apology instead of a recommendation. Spring AI 2.0.1 cannot suppress "
+                            + "the field, so the model itself has to be non-reasoning — on Groq's "
+                            + "free tier that means qwen/qwen3.8-27b.");
+        }
     }
 
     /**

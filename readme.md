@@ -392,12 +392,29 @@ The two decisions are independent: a Groq key alone leaves embeddings on the loc
 | Model | Size | Purpose |
 |---|---|---|
 | `gemini-embedding-2` | hosted, Gemini | Embeds product documents and queries when `GEMINI_API_KEY` is set. Requested at **768 dimensions**, which is what the `vector(768)` column is declared as — no schema change, no table rebuild. |
-| `openai/gpt-oss-20b` | hosted, Groq | The shopping assistant, when `GROQ_API_KEY` is set. |
+| `qwen/qwen3.8-27b` | hosted, Groq | The shopping assistant, when `GROQ_API_KEY` is set. Must be a **non-reasoning** model — see the note below. |
 | `nomic-embed-text` | 274 MB, local Ollama | Embeddings' **fallback**, used when `GEMINI_API_KEY` is blank. 768 dimensions. |
 | `qwen2.5:3b-instruct` | 1.9 GB (2.0 GB resident, Q4_K_M), local Ollama | The shopping assistant's **fallback**, used when `GROQ_API_KEY` is blank. |
 
 **Nothing in the deployed app needs a local model.** With both keys set, chat runs on Groq and
 embeddings on Gemini, so the hosting target needs no GPU, no model volume and no Ollama container.
+
+> **The chat model must not be a reasoning model.** `openai/gpt-oss-20b` and `gpt-oss-120b` return
+> a `reasoning_content` field on every assistant turn. Spring AI's tool-calling loop replays that
+> assistant message verbatim in the follow-up request, and Groq rejects it with
+> `400 ... property 'reasoning_content' is unsupported`. The symptom is deceptive: any question
+> that reaches a catalog tool answers with the "guide is taking a short break" apology, while a
+> question that happens not to call a tool answers normally, so it looks intermittent rather than
+> broken.
+>
+> This cannot be configured away in Spring AI 2.0.1 — the request body is built by the openai-java
+> client's `ChatCompletionCreateParams`, which has no reasoning parameter, and nothing in
+> `spring-ai-openai-2.0.1` serialises `reasoning_effort`. A `reasoning-effort: low` property is
+> therefore silently dead config. The only correct answer is the model choice itself.
+>
+> On Groq's free tier, `qwen/qwen3.8-27b` is the only option: `llama-3.1-8b-instant` and
+> `llama-3.3-70b-versatile` are Enterprise-gated (they return "does not exist or you do not have
+> access"), and both `gpt-oss` models are reasoning models.
 Both local models remain configured and selectable so the project still runs end to end with
 **no API key, no account and no network** — which matters, because this is a portfolio project
 someone will clone and run.
@@ -502,7 +519,7 @@ GROQ_API_KEY=gsk_... AI_CHAT_PROVIDER=ollama ./mvnw spring-boot:run
 |---|---|---|
 | `GROQ_API_KEY` | *(blank)* | Non-blank ⇒ chat model comes from Groq. Blank ⇒ local Ollama. |
 | `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | Must keep the `/v1`; Groq's OpenAI-compatible API lives under it. |
-| `GROQ_CHAT_MODEL` | `openai/gpt-oss-20b` | Any model Groq serves. |
+| `GROQ_CHAT_MODEL` | `qwen/qwen3.8-27b` | Must be a **non-reasoning** model Groq serves. Do not use a `gpt-oss-*` model — see the note below. |
 | `AI_LOCAL_CHAT_MODEL` | `qwen2.5:3b-instruct` | The local fallback. |
 | `AI_CHAT_PROVIDER` | *(derived)* | `ollama` or `openai`, overriding the derivation. |
 

@@ -84,6 +84,11 @@ class AiChatServiceTest {
     void setUp() {
         messageSource = bundleMessageSource();
 
+        // Stubbed for every test here rather than per-test: AiChatService.client() reads the
+        // model's default options on every request, so a test that forgets to stub them fails for
+        // a reason unrelated to what it asserts.
+        givenModelOptions();
+
         // The real transactional boundary, stubbed to run the work inline — these tests are about
         // what the assistant is shown, not about how the catalog read is wrapped.
         lenient().when(transactions.execute(any())).thenAnswer(invocation -> {
@@ -124,11 +129,33 @@ class AiChatServiceTest {
      * service — the production {@code OllamaChatModel} rejects a null options in its constructor.
      */
     private void modelAnswers(String text) {
-        givenModelOptions();
         when(chatModel.call(any(Prompt.class))).thenReturn(
                 modelReply(new AssistantMessage(text)));
     }
 
+    /**
+     * Both accessors are stubbed, not just one.
+     *
+     * <p>{@code AiChatService.client()} calls {@code getDefaultOptions().mutate()}, because
+     * {@code ChatClient} does not inherit the model's default options on its own — without it
+     * every {@code spring.ai.openai.chat.options} setting is silently dropped, which is what made
+     * the reasoning-model defect surface only as a chatbot that apologises instead of answering.
+     * Older Spring AI versions expose the same value through {@code getOptions()}, so both are
+     * stubbed; a bare mock returns null from either, which would fail every request here for a
+     * reason unrelated to the service.
+     */
+    /**
+     * Spring AI's tool-calling machinery reads {@code getOptions().mutate()} while building the
+     * request. A bare mock returns null there, which would fail every request in this file for a
+     * reason unrelated to the service — the production {@code OllamaChatModel} rejects a null
+     * options in its constructor.
+     *
+     * <p>Note the type divergence: this returns {@code DefaultToolCallingChatOptions} whereas
+     * production returns the provider's own options class ({@code OpenAiChatOptions} or
+     * {@code OllamaChatOptions}). That is fine for a mocked unit test and is the closest thing to
+     * a neutral options object, but it does mean a provider-specific option field cannot be
+     * exercised here.
+     */
     private void givenModelOptions() {
         lenient().when(chatModel.getOptions())
                 .thenReturn(DefaultToolCallingChatOptions.builder().build());
@@ -216,7 +243,6 @@ class AiChatServiceTest {
     @Test
     void aSearchToolCallBecomesTheProductRail() {
         flags(true, true);
-        givenModelOptions();
         when(chatModel.call(any(Prompt.class)))
                 .thenReturn(modelReply(AssistantMessage.builder()
                         .toolCalls(List.of(new AssistantMessage.ToolCall(
@@ -277,7 +303,6 @@ class AiChatServiceTest {
     @Test
     void modelFailureDegradesToLocalizedEnglishMessage() {
         flags(true, true);
-        givenModelOptions();
         when(chatModel.call(any(Prompt.class))).thenThrow(new RuntimeException("ollama down"));
 
         ChatResponse result = service.chat("hi", "s1", EN);
@@ -296,7 +321,6 @@ class AiChatServiceTest {
     @Test
     void modelFailureDegradesToLocalizedArabicMessage() {
         flags(true, true);
-        givenModelOptions();
         when(chatModel.call(any(Prompt.class))).thenThrow(new RuntimeException("ollama down"));
 
         ChatResponse result = service.chat("مرحبا", "s1", AR);
@@ -338,7 +362,6 @@ class AiChatServiceTest {
     @Test
     void failedCardResolutionStillReturnsTheReply() {
         flags(true, true);
-        givenModelOptions();
         when(chatModel.call(any(Prompt.class)))
                 .thenReturn(modelReply(AssistantMessage.builder()
                         .toolCalls(List.of(new AssistantMessage.ToolCall(

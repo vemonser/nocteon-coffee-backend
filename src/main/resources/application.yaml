@@ -172,7 +172,30 @@ spring:
       api-key: ${GROQ_API_KEY:}
       chat:
         options:
-          model: ${GROQ_CHAT_MODEL:openai/gpt-oss-20b}
+          # A NON-reasoning model is required, not a preference.
+          #
+          # openai/gpt-oss-20b is a reasoning model: it returns a `reasoning_content` field on
+          # every assistant turn. Spring AI's tool-calling loop replays that assistant message
+          # verbatim in the follow-up request, and Groq rejects it —
+          #   400 'messages.2' : for 'role:assistant' the following must be satisfied
+          #        [('messages.2' : property 'reasoning_content' is unsupported)]
+          # — so any question that reaches a catalog tool answers with the failure apology
+          # instead of a recommendation, while a question that happens not to call a tool works
+          # fine. That asymmetry is what made it look intermittent rather than broken.
+          #
+          # This cannot be configured away in Spring AI 2.0.1: the request is built by the
+          # openai-java client's ChatCompletionCreateParams, which has no reasoning field, and
+          # nothing in spring-ai-openai-2.0.1 emits `reasoning_effort` (checked at the bytecode
+          # level). OpenAiChatOptions.getReasoningEffort() exists and is readable but is never
+          # written into the body, so `reasoning-effort: low` is silently dead config.
+          #
+          # The free tier offers exactly three chat models with access on this account
+          # (llama-3.1-8b-instant and llama-3.3-70b-versatile are Enterprise-gated and return
+          # "does not exist or you do not have access"), and both gpt-oss models are reasoning
+          # models, so qwen/qwen3.8-27b is the only free-tier model whose tool loop completes.
+          # Verified live: a full two-step tool round trip returns
+          # "The **Brazil Mogiana** coffee costs **$240**." with no reasoning field on the wire.
+          model: ${GROQ_CHAT_MODEL:qwen/qwen3.8-27b}
           temperature: 0.7
 
     vectorstore:
