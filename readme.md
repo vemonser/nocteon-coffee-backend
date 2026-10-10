@@ -389,6 +389,10 @@ The two decisions are independent: a Groq key alone leaves embeddings on the loc
 
 ## How this was built, and what went wrong
 
+[`docs/ai-architecture.md`](docs/ai-architecture.md) documents the concept, the class-by-class
+code map, the visitor experience with real captured responses, and the frontend and dashboard
+integration contracts.
+
 [`docs/ai-build-guide.md`](docs/ai-build-guide.md) is the full record in English, and
 [`docs/ai-build-guide-ar.md`](docs/ai-build-guide-ar.md) is the same guide in Arabic. Every
 decision and the alternatives that were rejected, the architecture as built, step-by-step
