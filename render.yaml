@@ -89,34 +89,43 @@ services:
         sync: false
 
       # ── AI feature flags ──────────────────────────────────────────────
-      # These are the deployment's AI posture, and it is deliberate rather than
-      # copy-pasted from .env.example: the master switch is on and both
-      # capabilities are off.
+      # All three on. Neither capability needs a local model any more:
+      # embeddings go to the Gemini API and chat goes to Groq, so a free
+      # Render service with no GPU and no Ollama container is enough.
       #
-      # AI_ENABLED is on because it is inert on its own — isSearchEnabled() is
-      # `enabled && searchEnabled` and the chatbot gate is
-      # `enabled && chatbotEnabled` — so turning it on changes no behaviour but
-      # removes the first step of the rollout. That ordering matters: the
-      # nightly reindex is gated on isSearchEnabled(), so with
-      # AI_SEARCH_ENABLED still false there is no index to maintain, and
-      # flipping search on before an index exists means every semantic query
-      # returns nothing and the storefront silently falls back to keyword
-      # search. The sequence is AI_ENABLED (this deploy) → POST
-      # /api/dashboard/ai/reindex → AI_SEARCH_ENABLED.
+      # An earlier version of this file kept search and chat switched off
+      # because embeddings were served by a local Ollama that a free
+      # service cannot run. That stopped being true when embeddings moved
+      # to Gemini — this comment was left behind and the flags with it.
       #
-      # Both capabilities stay off until an Ollama endpoint exists to embed
-      # with: `spring.ai.model.embedding` is pinned to ollama, so semantic
-      # search and reindexing need a reachable embedding model, and this free
-      # service does not run one. With OLLAMA_BASE_URL unreachable the flag
-      # would not fail loudly — semanticCandidates() catches and degrades to
-      # keyword ranking — which is exactly the silent fallback to avoid.
+      # It also claimed Render managed Postgres cannot provide pgvector.
+      # That was wrong: Render supports pgvector on PostgreSQL 13 and later
+      # (https://render.com/docs/postgresql-extensions), and V103 enables
+      # it on startup.
+      #
+      # Turning search on with no index used to be a silent trap — every
+      # semantic query returned nothing and the storefront quietly fell
+      # back to keyword ranking. It is no longer a trap: ProductIndexBootstrap
+      # builds the index on ApplicationReadyEvent when it is empty or stale,
+      # so a fresh database indexes itself on first boot.
+      #
+      # If GEMINI_API_KEY is unset, search degrades to keyword-only rather
+      # than failing: semanticCandidates() catches and the hybrid ranker
+      # keeps working.
       - key: AI_ENABLED
         value: "true"
       - key: AI_SEARCH_ENABLED
-        value: "false"
+        value: "true"
       - key: AI_CHATBOT_ENABLED
-        value: "false"
-      # Set this to the deployed Ollama host before enabling AI_SEARCH_ENABLED.
+        value: "true"
+      # Required for embeddings. Left `sync: false` — a secret, and no
+      # literal value may live in this file. Without it the deployment
+      # still boots and search falls back to local Ollama, which does not
+      # exist here, so it degrades to keyword-only.
+      - key: GEMINI_API_KEY
+        sync: false
+      # Only consulted when GEMINI_API_KEY is blank. A free Render service
+      # runs no Ollama, so this is left unset on purpose.
       - key: OLLAMA_BASE_URL
         sync: false
       # A secret, so no literal value here. Deliberately `sync: false` rather
@@ -149,18 +158,28 @@ services:
         value: -Xmx384m -Xms256m
 
 # ── Database ───────────────────────────────────────────────────
-# Render's managed Postgres is standard PostgreSQL without pgvector,
-# so this database cannot serve semantic search. `AI_SEARCH_ENABLED`
-# above is therefore "false" by necessity, not just by preference:
-# there is no vector extension to search. Migration
-# V103__enable_pgvector.sql is written to warn rather than fail here,
-# so a missing pgvector costs vector search, not the deploy.
-# To enable vector search: provision a pgvector-capable database (the
-# pgvector/pgvector:pg16 image from docker-compose.yml locally and in
-# CI, or Neon/Supabase/Koyeb) and repoint the DATABASE_* envVars above
-# at it before flipping AI_SEARCH_ENABLED to "true".
+# This database CAN serve semantic search. An earlier version of this
+# file said otherwise — that Render Postgres is standard PostgreSQL
+# without pgvector, and that AI_SEARCH_ENABLED had to stay false
+# because there was "no vector extension to search". Both statements
+# were wrong: Render supports pgvector on PostgreSQL 13 and later
+# (https://render.com/docs/postgresql-extensions) and V103 creates the
+# extension on startup.
+#
+# Keep this block on PostgreSQL 13 or later — that is the floor for the
+# pgvector extension. If you pin an older version, V103 warns instead of
+# failing, and the deployment loses vector search but still boots.
+#
+# If pgvector is ever missing, provision a pgvector-capable database
+# (the pgvector/pgvector:pg16 image from docker-compose.yml, or any
+# managed provider that ships the extension) and repoint the DATABASE_*
+# envVars above at it.
 databases:
   - name: nocteon-db
     databaseName: nocteon_db
     plan: free
     region: oregon
+    # Pinned explicitly because it is a hard requirement, not a preference:
+    # pgvector is only available on Render's PostgreSQL 13 and later.
+    # https://render.com/docs/postgresql-extensions
+    postgresMajorVersion: "16"
