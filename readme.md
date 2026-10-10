@@ -389,9 +389,11 @@ The two decisions are independent: a Groq key alone leaves embeddings on the loc
 
 ## How this was built, and what went wrong
 
-[`docs/ai-build-guide.md`](docs/ai-build-guide.md) is the full record: every decision and the
-alternatives that were rejected, the architecture as built, step-by-step instructions to run it
-from an empty database, and the eight defects that shipped with a green test suite.
+[`docs/ai-build-guide.md`](docs/ai-build-guide.md) is the full record in English, and
+[`docs/ai-build-guide-ar.md`](docs/ai-build-guide-ar.md) is the same guide in Arabic. Every
+decision and the alternatives that were rejected, the architecture as built, step-by-step
+instructions to run it from an empty database, and the eight defects that shipped with a green test
+suite.
 
 Worth knowing before reading further: **the tests did not catch these.** The application once
 failed to start, keyword search returned 500 for every caller, and the chatbot apologised instead of
