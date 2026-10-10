@@ -283,12 +283,19 @@ class ProductSearchPredicateTest {
     void tastingNotesRoastProcessAndVarietyAreReachable() {
         Recorded recorded = search("chocolatey");
 
-        assertThat(recorded.subqueryJoins).contains("tastingNotes");
-        assertThat(recorded.subqueryEntities).contains(
-                "Product", "TastingNoteTranslation",
-                "CoffeeDetails", "RoastLevel", "RoastLevelTranslation",
-                "ProcessingMethod", "ProcessingMethodTranslation",
-                "CoffeeVariety", "CoffeeVarietyTranslation");
+        // Asserted by attribute path rather than by entity class, because that is what the
+        // predicate must use: on Hibernate 7 (Spring Boot 4) `join(RoastLevel.class, JoinType.LEFT)`
+        // compiles, passes every test in this file, and then throws
+        //   SemanticException: Entity join did not specify a join condition
+        // at runtime — taking GET /api/products?search=... to HTTP 500 for every caller. The
+        // attribute form resolves the same relations; the class form does not run.
+        assertThat(recorded.subqueryEntities)
+                .as("the subquery still starts from Product and CoffeeDetails")
+                .contains("Product", "CoffeeDetails");
+        assertThat(recorded.subqueryJoins)
+                .as("tasting notes, the three coffee lookups and their translations are all reached")
+                .contains("tastingNotes", "roastLevel", "processingMethod", "coffeeVariety",
+                        "translations");
     }
 
     /** Design goal 3: a brew method, by slug and by translated name. */
@@ -296,8 +303,11 @@ class ProductSearchPredicateTest {
     void brewingMethodsAreReachable() {
         Recorded recorded = search("espresso");
 
-        assertThat(recorded.subqueryJoins).contains("brewingMethods", "brewingMethod");
-        assertThat(recorded.subqueryEntities).contains("Product", "BrewingMethodTranslation");
+        assertThat(recorded.subqueryEntities).contains("Product");
+        assertThat(recorded.subqueryJoins)
+                .as("the brew method is reached through the link entity and its translations, "
+                        + "by attribute path for the Hibernate 7 reason above")
+                .contains("brewingMethods", "brewingMethod", "translations");
     }
 
     /** Origin, farm and category names are matched translated, which is the locale-aware half. */

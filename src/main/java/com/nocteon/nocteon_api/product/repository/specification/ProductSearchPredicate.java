@@ -369,11 +369,23 @@ final class ProductSearchPredicate {
         Subquery<Long> subquery = query.subquery(Long.class);
         Root<CoffeeDetails> details = subquery.from(CoffeeDetails.class);
 
-        Join<CoffeeDetails, RoastLevel> roastLevel = details.join(RoastLevel.class, JoinType.LEFT);
+        // Joined by attribute path, NOT by entity class.
+        //
+        // details.join(RoastLevel.class, JoinType.LEFT) compiles and passes every unit test,
+        // then throws at runtime on Hibernate 7 (Spring Boot 4):
+        //   SemanticException: Entity join did not specify a join condition
+        //     [SqmEntityJoin(RoastLevel(var_5_1))]
+        // — Hibernate 7 dropped the implicit-FK form of the class-based overload for entity
+        // joins. This is a plain keyword search path with no AI involved, so it broke
+        // GET /api/products?search=... returning HTTP 500 for every caller.
+        //
+        // Verified live: the class-based form 500s on both an indexed and an empty database,
+        // while GET /api/products?semantic=true (which never reaches this predicate) works.
+        Join<CoffeeDetails, RoastLevel> roastLevel = details.join("roastLevel", JoinType.LEFT);
         Join<CoffeeDetails, ProcessingMethod> processingMethod =
-                details.join(ProcessingMethod.class, JoinType.LEFT);
+                details.join("processingMethod", JoinType.LEFT);
         Join<CoffeeDetails, CoffeeVariety> coffeeVariety =
-                details.join(CoffeeVariety.class, JoinType.LEFT);
+                details.join("coffeeVariety", JoinType.LEFT);
 
         subquery.select(details.<Long>get("id"));
         subquery.where(
@@ -382,12 +394,12 @@ final class ProductSearchPredicate {
                         anyLike(cb, roastLevel.<String>get("slug"), patterns),
                         anyLike(cb, processingMethod.<String>get("slug"), patterns),
                         anyLike(cb, coffeeVariety.<String>get("slug"), patterns),
-                        translatedNameMatches(cb, roastLevel.join(RoastLevelTranslation.class, JoinType.LEFT),
+                        translatedNameMatches(cb, roastLevel.join("translations", JoinType.LEFT),
                                 language, patterns),
                         translatedNameMatches(cb,
-                                processingMethod.join(ProcessingMethodTranslation.class, JoinType.LEFT),
+                                processingMethod.join("translations", JoinType.LEFT),
                                 language, patterns),
-                        translatedNameMatches(cb, coffeeVariety.join(CoffeeVarietyTranslation.class, JoinType.LEFT),
+                        translatedNameMatches(cb, coffeeVariety.join("translations", JoinType.LEFT),
                                 language, patterns)));
 
         return cb.exists(subquery);
@@ -429,7 +441,7 @@ final class ProductSearchPredicate {
                 cb.equal(product.<Object>get("id"), root.get("id")),
                 cb.or(
                         anyLike(cb, note.<String>get("slug"), patterns),
-                        translatedNameMatches(cb, note.join(TastingNoteTranslation.class, JoinType.LEFT),
+                        translatedNameMatches(cb, note.join("translations", JoinType.LEFT),
                                 language, patterns)));
 
         return cb.exists(subquery);
@@ -459,7 +471,7 @@ final class ProductSearchPredicate {
                 cb.equal(product.<Object>get("id"), root.get("id")),
                 cb.or(
                         anyLike(cb, method.<String>get("slug"), patterns),
-                        translatedNameMatches(cb, method.join(BrewingMethodTranslation.class, JoinType.LEFT),
+                        translatedNameMatches(cb, method.join("translations", JoinType.LEFT),
                                 language, patterns)));
 
         return cb.exists(subquery);
