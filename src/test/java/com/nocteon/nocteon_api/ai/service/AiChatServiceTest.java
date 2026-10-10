@@ -438,6 +438,35 @@ class AiChatServiceTest {
                 .contains("get_brewing_guide");
     }
 
+    /**
+     * The assistant must search before it questions.
+     *
+     * <p>An earlier version of the prompt said "if you do not know how they like their coffee, ask
+     * exactly one clarifying question first". A reasoning-capable model followed that literally and
+     * opened almost every conversation with a question — verified live, "I want a chocolatey,
+     * full-bodied coffee for espresso" came back as "What roast do you prefer?" and zero products.
+     * That reads as an assistant that will not help, and it costs a round trip for something the
+     * catalog could have answered immediately.
+     *
+     * <p>Pinned as a prompt assertion rather than a behaviour test because the behaviour is the
+     * hosted model's, and the prompt is the only surface this project controls.
+     */
+    @Test
+    void systemPromptSearchesBeforeAskingQuestions() {
+        String lower = AiChatService.SYSTEM_PROMPT.toLowerCase(Locale.ROOT);
+
+        assertThat(lower)
+                .as("the prompt must still describe searching as the default action")
+                .contains("never interrogate");
+        assertThat(lower)
+                .as("an explicit instruction not to open with a question, since that is the "
+                        + "specific behaviour that made the assistant feel unhelpful")
+                .contains("never open by asking");
+        assertThat(lower)
+                .as("the old instruction must be gone, not merely supplemented")
+                .doesNotContain("ask exactly one clarifying question");
+    }
+
     // --- fixtures ------------------------------------------------------------------------------
 
     private static Product product(Long id, String slug) {
