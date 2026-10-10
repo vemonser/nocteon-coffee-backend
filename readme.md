@@ -387,6 +387,17 @@ Chat-model selection is by `GROQ_API_KEY`, not by a flag — see
 `GEMINI_API_KEY` the same way — see [choosing an embedding provider](#choosing-an-embedding-provider).
 The two decisions are independent: a Groq key alone leaves embeddings on the local model.
 
+## How this was built, and what went wrong
+
+[`docs/ai-build-guide.md`](docs/ai-build-guide.md) is the full record: every decision and the
+alternatives that were rejected, the architecture as built, step-by-step instructions to run it
+from an empty database, and the eight defects that shipped with a green test suite.
+
+Worth knowing before reading further: **the tests did not catch these.** The application once
+failed to start, keyword search returned 500 for every caller, and the chatbot apologised instead of
+answering — all with 498 passing tests. Every one was found by running against a real database and
+a real API.
+
 ## Models and what they cost
 
 | Model | Size | Purpose |
