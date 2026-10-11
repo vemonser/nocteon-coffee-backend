@@ -40,8 +40,13 @@ public class DashboardCartService {
 
         @Transactional(readOnly = true)
         public Page<DashboardCartResponse> getAll(DashboardCartFilterRequest filter) {
+                // hasItems was hard-coded to true, so ?hasItems=false returned exactly the same
+                // rows as omitting it: DashboardCartFilterRequest bound the parameter, and
+                // CartRepository.findAllForDashboard already handles all three states
+                // (null / true / false), but nothing ever passed the value through.
                 return cartRepository
-                                .findAllForDashboard(filter.getSearch(), true, filter.toPageable())
+                                .findAllForDashboard(filter.getSearch(), filter.getHasItems(),
+                                                filter.toPageable())
                                 .map(this::buildDashboardResponse);
         }
 
