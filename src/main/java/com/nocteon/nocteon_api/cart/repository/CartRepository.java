@@ -8,10 +8,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.nocteon.nocteon_api.cart.entity.Cart;
 
-import io.lettuce.core.dynamic.annotation.Param;
 
 public interface CartRepository extends JpaRepository<Cart, Long> {
     Optional<Cart> findByUserId(Long userId);
@@ -30,7 +30,7 @@ public interface CartRepository extends JpaRepository<Cart, Long> {
                 SELECT c FROM Cart c
                 LEFT JOIN FETCH c.user u
                 LEFT JOIN FETCH u.profile p
-                WHERE (:search IS NULL OR :search = ''
+                WHERE (:search IS NULL OR COALESCE(:search, '') = ''
                     OR LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%'))
                     OR LOWER(u.username) LIKE LOWER(CONCAT('%', :search, '%'))
                     OR LOWER(p.firstName) LIKE LOWER(CONCAT('%', :search, '%'))

@@ -115,7 +115,8 @@ public class CoffeeVarietyService {
         public PageResponse<CoffeeVarietyResponse> getAll(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 Page<CoffeeVariety> page = coffeeVarietyRepository.findAllPublic(
-                                language, filter.getSearch(), filter.toPageable());
+                                filter.getSearch(),
+                                language, filter.toPageable());
                 return PageResponse.of(page.map(c -> buildResponse(c, language)));
         }
 

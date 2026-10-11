@@ -138,7 +138,8 @@ public class PairingService {
         public PageResponse<PairingResponse> getAll(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 Page<Pairing> page = pairingRepository.findAllPublic(
-                                language, filter.getSearch(), filter.toPageable());
+                                filter.getSearch(),
+                                language, filter.toPageable());
                 return PageResponse.of(page.map(p -> buildResponse(p, language)));
         }
 

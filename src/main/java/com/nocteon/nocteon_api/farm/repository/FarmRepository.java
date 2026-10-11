@@ -6,10 +6,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.nocteon.nocteon_api.farm.entity.Farm;
 
-import io.lettuce.core.dynamic.annotation.Param;
 
 public interface FarmRepository extends JpaRepository<Farm, Long> {
 
@@ -19,7 +19,7 @@ public interface FarmRepository extends JpaRepository<Farm, Long> {
                                 LEFT JOIN FETCH f.origin
                                 LEFT JOIN f.translations t
                                 WHERE t.language = :language
-                                AND (:search = ''
+                                AND (COALESCE(:search, '') = ''
                                 OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
                                 AND (:originSlug IS NULL OR f.origin.slug = :originSlug)
                                 """)

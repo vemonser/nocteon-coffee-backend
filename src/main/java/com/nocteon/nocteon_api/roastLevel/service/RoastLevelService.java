@@ -118,7 +118,8 @@ public class RoastLevelService {
         public PageResponse<RoastLevelResponse> getAll(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 Page<RoastLevel> page = roastLevelRepository.findAllPublic(
-                                language, filter.getSearch(), filter.toPageable());
+                                filter.getSearch(),
+                                language, filter.toPageable());
                 return PageResponse.of(page.map(r -> buildResponse(r, language)));
         }
 

@@ -39,7 +39,8 @@ public class TastingNoteService {
         public PageResponse<TastingNoteResponse> getAll(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 Page<TastingNote> page = tastingNoteRepository.findAllPublic(
-                                language, filter.getSearch(), filter.toPageable());
+                                filter.getSearch(),
+                                language, filter.toPageable());
                 return PageResponse.of(page.map(t -> buildResponse(t, language)));
         }
 

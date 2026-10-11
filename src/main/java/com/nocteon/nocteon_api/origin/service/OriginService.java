@@ -191,8 +191,8 @@ public class OriginService {
         public PageResponse<OriginResponse> getAll(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 Page<Origin> page = originRepository.findAllPublic(
-                                language,
                                 filter.getSearch(),
+                                language,
                                 filter.toPageable());
                 return PageResponse.of(page.map(o -> buildResponse(o, language)));
         }

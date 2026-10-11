@@ -8,12 +8,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.nocteon.nocteon_api.order.entity.Order;
 import com.nocteon.nocteon_api.order.enums.OrderStatus;
 import com.nocteon.nocteon_api.payment.enums.PaymentStatus;
 
-import io.lettuce.core.dynamic.annotation.Param;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
 

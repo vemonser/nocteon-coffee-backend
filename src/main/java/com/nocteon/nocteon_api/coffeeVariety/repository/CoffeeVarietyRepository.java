@@ -7,17 +7,17 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.nocteon.nocteon_api.coffeeVariety.entity.CoffeeVariety;
 
-import io.lettuce.core.dynamic.annotation.Param;
 
 public interface CoffeeVarietyRepository extends JpaRepository<CoffeeVariety, Long> {
 
     @Query("""
             SELECT DISTINCT c FROM CoffeeVariety c
             LEFT JOIN c.translations t
-            WHERE (:search = ''
+            WHERE (COALESCE(:search, '') = ''
                    OR (t.language = :language
                        AND LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))))
             """)
@@ -29,7 +29,7 @@ public interface CoffeeVarietyRepository extends JpaRepository<CoffeeVariety, Lo
     @Query("""
             SELECT DISTINCT c FROM CoffeeVariety c
             LEFT JOIN c.translations t
-            WHERE (:search = ''
+            WHERE (COALESCE(:search, '') = ''
                    OR  LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
                    OR  LOWER(c.slug) LIKE LOWER(CONCAT('%', :search, '%')))
             """)

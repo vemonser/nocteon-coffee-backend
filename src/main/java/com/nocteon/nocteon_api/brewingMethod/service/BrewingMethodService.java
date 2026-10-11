@@ -155,7 +155,8 @@ public class BrewingMethodService {
         public PageResponse<BrewingMethodResponse> getAll(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 Page<BrewingMethod> page = brewingMethodRepository.findAllPublic(
-                                language, filter.getSearch(), filter.toPageable());
+                                filter.getSearch(),
+                                language, filter.toPageable());
                 return PageResponse.of(page.map(b -> buildResponse(b, language)));
         }
 

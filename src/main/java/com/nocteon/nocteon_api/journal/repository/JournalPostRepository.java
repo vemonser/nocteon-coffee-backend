@@ -7,10 +7,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.nocteon.nocteon_api.journal.entity.JournalPost;
 
-import io.lettuce.core.dynamic.annotation.Param;
 
 public interface JournalPostRepository extends JpaRepository<JournalPost, Long> {
         @Query("""
@@ -35,7 +35,7 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
                         LEFT JOIN FETCH p.author
                         WHERE t.language = :language
                         AND p.status = com.nocteon.nocteon_api.journal.enums.JournalPostStatus.PUBLISHED
-                        AND (:search = ''
+                        AND (COALESCE(:search, '') = ''
                              OR LOWER(t.title) LIKE LOWER(CONCAT('%', :search, '%')))
                         AND (:categorySlug IS NULL OR p.journalCategory.slug = :categorySlug)
                         AND (:featured IS NULL OR p.featured = :featured)
@@ -52,7 +52,7 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
                         SELECT DISTINCT p FROM JournalPost p
                         LEFT JOIN p.translations t
                         LEFT JOIN FETCH p.author
-                        WHERE (:search = ''
+                        WHERE (COALESCE(:search, '') = ''
                                OR  LOWER(t.title) LIKE LOWER(CONCAT('%', :search, '%')))
                         AND (:categorySlug IS NULL OR p.journalCategory.slug = :categorySlug)
                         """)
