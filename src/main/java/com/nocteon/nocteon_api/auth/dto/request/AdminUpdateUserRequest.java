@@ -3,7 +3,6 @@ package com.nocteon.nocteon_api.auth.dto.request;
 import com.nocteon.nocteon_api.auth.enums.Role;
 
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
