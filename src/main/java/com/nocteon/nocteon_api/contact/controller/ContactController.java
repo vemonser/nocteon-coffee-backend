@@ -46,7 +46,17 @@ public class ContactController {
                 .body(ApiResponse.success(response, "Message sent successfully"));
     }
 
-    @GetMapping("/api/dashboard/contact-messages")
+    /**
+     * Inbox for staff.
+     *
+     * <p>The mapping is relative to the class-level {@code /api/contact}. It previously read
+     * {@code /api/dashboard/contact-messages}, which Spring composes to
+     * {@code /api/contact/api/dashboard/contact-messages} — a path no client would guess, so the
+     * dashboard's contact inbox 404'd. Worse, the composed path no longer starts with
+     * {@code /api/dashboard/}, so it also escaped the dashboard security rule and fell through to
+     * any-request-authenticated.
+     */
+    @GetMapping("/dashboard/contact-messages")
     @PreAuthorize("hasAuthority('contact:read')")
     public ResponseEntity<ApiResponse<PageResponse<ContactResponse>>> getAll(
             @ModelAttribute BaseFilterRequest filter) {
