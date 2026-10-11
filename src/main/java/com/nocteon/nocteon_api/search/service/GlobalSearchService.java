@@ -1,12 +1,16 @@
 package com.nocteon.nocteon_api.search.service;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.ArrayList;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.nocteon.nocteon_api.category.entity.CategoryTranslation;
 import com.nocteon.nocteon_api.category.repository.CategoryRepository;
@@ -37,13 +41,38 @@ public class GlobalSearchService {
     private static final int RESULTS_PER_TYPE = 5;
     private static final int MIN_QUERY_LENGTH = 2;
 
+    /**
+     * Search every dashboard entity type at once.
+     *
+     * <p>Matching is already bilingual: the translatable types inner-join their translations with no
+     * language predicate, so an Arabic or an English query both match, and users are matched with
+     * {@code ILIKE} on first and last name. Nothing here narrows by
+     * {@link LocaleContextHolder}, because an admin searching for "قهوة" must find the product
+     * whose Arabic name contains it even while the dashboard itself is in English.
+     *
+     * <p>What the locale <em>does</em> decide is which translation is shown as the result title.
+     * That is presentation, not matching: the current locale wins, falling back to whichever
+     * translation exists first.
+     *
+     * <p>{@code totalCount} is the number matched, not the number returned. Each type is capped at
+     * {@link #RESULTS_PER_TYPE} rows, so reporting {@code results.size()} claimed five matches for
+     * a query that hit twelve and hid the rest. The counts come from dedicated count queries that
+     * mirror the row queries' predicates.
+     */
+    @Transactional(readOnly = true)
     public GlobalSearchResponse search(String query) {
         if (query == null || query.trim().length() < MIN_QUERY_LENGTH) {
-            return GlobalSearchResponse.builder().results(List.of()).totalCount(0).build();
+            return GlobalSearchResponse.builder()
+                    .results(List.of())
+                    .totalCount(0)
+                    .countsByType(Map.of())
+                    .build();
         }
 
         String trimmedQuery = query.trim();
-        Pageable limit = PageRequest.of(0, RESULTS_PER_TYPE);
+        // Sorted by id so the capped page is stable: an unsorted LIMIT 5 can return a different
+        // five of the same matches on two identical requests.
+        Pageable limit = PageRequest.of(0, RESULTS_PER_TYPE, Sort.by("id"));
 
         List<SearchResultDto> results = new ArrayList<>();
         results.addAll(searchOrders(trimmedQuery, limit));
@@ -53,10 +82,30 @@ public class GlobalSearchService {
         results.addAll(searchPromoCodes(trimmedQuery, limit));
         results.addAll(searchJournalPosts(trimmedQuery, limit));
 
+        Map<String, Integer> countsByType = new LinkedHashMap<>();
+        countsByType.put(SearchResultType.ORDER.getRouteSegment(),
+                toCount(orderRepository.countSearchOrders(trimmedQuery)));
+        countsByType.put(SearchResultType.USER.getRouteSegment(),
+                toCount(userRepository.countSearchUsers(trimmedQuery)));
+        countsByType.put(SearchResultType.PRODUCT.getRouteSegment(),
+                toCount(productRepository.countSearchProducts(trimmedQuery)));
+        countsByType.put(SearchResultType.CATEGORY.getRouteSegment(),
+                toCount(categoryRepository.countSearchCategories(trimmedQuery)));
+        countsByType.put(SearchResultType.PROMO_CODE.getRouteSegment(),
+                toCount(promoCodeRepository.countSearchPromoCodes(trimmedQuery)));
+        countsByType.put(SearchResultType.JOURNAL_POST.getRouteSegment(),
+                toCount(journalPostRepository.countSearchJournalPosts(trimmedQuery)));
+
         return GlobalSearchResponse.builder()
                 .results(results)
-                .totalCount(results.size())
+                .totalCount(countsByType.values().stream().mapToInt(Integer::intValue).sum())
+                .countsByType(countsByType)
                 .build();
+    }
+
+    /** Narrows a count to {@code int} so a pathological match set cannot overflow the DTO. */
+    private static int toCount(long count) {
+        return (int) Math.min(count, Integer.MAX_VALUE);
     }
 
     private List<SearchResultDto> searchOrders(String query, Pageable limit) {

@@ -33,6 +33,28 @@ public interface UserRepository extends JpaRepository<User, Long> {
             """, nativeQuery = true)
     List<User> searchUsers(@Param("query") String query, Pageable pageable);
 
+    /**
+     * How many users the search query matches, uncapped.
+     *
+     * <p>Native, because the row query is: it reaches into {@code user_profiles}, which the entity
+     * does not map as a simple join. The predicates are identical to {@link #searchUsers}, including
+     * the concatenated full name, so the count cannot drift from the rows it describes.
+     */
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM users u
+            JOIN user_profiles p ON p.user_id = u.id
+            WHERE u.email ILIKE CONCAT('%', :query, '%')
+               OR p.first_name ILIKE CONCAT('%', :query, '%')
+               OR p.last_name ILIKE CONCAT('%', :query, '%')
+               OR CONCAT(
+                    COALESCE(p.first_name, ''),
+                    ' ',
+                    COALESCE(p.last_name, '')
+                  ) ILIKE CONCAT('%', :query, '%')
+            """, nativeQuery = true)
+    long countSearchUsers(@Param("query") String query);
+
     List<User> findByRoleAndSubscribedTrue(Role role);
 
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.profile WHERE u.id = :id")
