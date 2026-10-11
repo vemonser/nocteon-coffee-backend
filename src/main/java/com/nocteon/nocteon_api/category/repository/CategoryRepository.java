@@ -21,6 +21,18 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
                         """)
         List<Category> searchCategories(@Param("query") String query, Pageable pageable);
 
+        /**
+         * How many rows the search query matches, uncapped.
+         *
+         * <p>The search takes a fixed-size page of rows, so the returned list cannot be used
+         * to report a total: it is the page size, not the match count. This mirrors the row
+         * query's predicates exactly so the two cannot drift apart.
+         */
+        @Query("""
+                        SELECT COUNT(DISTINCT c) FROM Category c JOIN c.translations t WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(c.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        """)
+        long countSearchCategories(@Param("query") String query);
+
      @Query("""
                SELECT DISTINCT c
                FROM Category c

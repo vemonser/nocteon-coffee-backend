@@ -44,6 +44,18 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
                         """)
         List<Product> searchProducts(@Param("query") String query, Pageable pageable);
 
+        /**
+         * How many rows the search query matches, uncapped.
+         *
+         * <p>The search takes a fixed-size page of rows, so the returned list cannot be used
+         * to report a total: it is the page size, not the match count. This mirrors the row
+         * query's predicates exactly so the two cannot drift apart.
+         */
+        @Query("""
+                        SELECT COUNT(DISTINCT p) FROM Product p JOIN p.translations t WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(p.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        """)
+        long countSearchProducts(@Param("query") String query);
+
        
         
 

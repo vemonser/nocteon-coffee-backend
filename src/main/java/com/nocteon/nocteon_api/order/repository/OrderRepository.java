@@ -25,6 +25,18 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                         """)
         List<Order> searchOrders(@Param("query") String query, Pageable pageable);
 
+        /**
+         * How many rows the search query matches, uncapped.
+         *
+         * <p>The search takes a fixed-size page of rows, so the returned list cannot be used
+         * to report a total: it is the page size, not the match count. This mirrors the row
+         * query's predicates exactly so the two cannot drift apart.
+         */
+        @Query("""
+                        SELECT COUNT(o) FROM Order o JOIN o.user u WHERE CAST(o.id AS string) LIKE CONCAT('%', :query, '%') OR LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%'))
+                        """)
+        long countSearchOrders(@Param("query") String query);
+
         @Query("SELECT COALESCE(SUM(o.totalAmount), 0), COUNT(o) FROM Order o " +
                         "WHERE o.paymentStatus = :status AND o.createdAt >= :since")
         List<Object[]> getRevenueStats(@Param("status") PaymentStatus status, @Param("since") Instant since);

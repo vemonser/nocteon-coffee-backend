@@ -21,6 +21,18 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
         List<JournalPost> searchJournalPosts(@Param("query") String query, Pageable pageable);
 
         /**
+         * How many rows the search query matches, uncapped.
+         *
+         * <p>The search takes a fixed-size page of rows, so the returned list cannot be used
+         * to report a total: it is the page size, not the match count. This mirrors the row
+         * query's predicates exactly so the two cannot drift apart.
+         */
+        @Query("""
+                        SELECT COUNT(DISTINCT jp) FROM JournalPost jp JOIN jp.translations t WHERE LOWER(t.title) LIKE LOWER(CONCAT('%', :query, '%'))
+                        """)
+        long countSearchJournalPosts(@Param("query") String query);
+
+        /**
          * One post for staff, at any status.
          *
          * <p>{@code products} is deliberately not fetch-joined. {@code JournalPost.translations}
