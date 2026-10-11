@@ -20,10 +20,22 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
                         """)
         List<JournalPost> searchJournalPosts(@Param("query") String query, Pageable pageable);
 
+        /**
+         * One post for staff, at any status.
+         *
+         * <p>{@code products} is deliberately not fetch-joined. {@code JournalPost.translations}
+         * and {@code JournalPost.products} are both {@code List}, i.e. both bags, and Hibernate
+         * refuses to fetch two of them in one query — it throws
+         * {@code MultipleBagFetchException} at execution time, so this method failed for every
+         * slug rather than only for some. {@code products} lazy-loads instead; this returns a
+         * single post, so that is one extra query, not a per-row N+1.
+         *
+         * <p>Nothing detected this: it needs a database to execute, and the suite mocks
+         * repositories. {@code JournalRepositoryFetchTest} pins the rule instead.
+         */
         @Query("""
                         SELECT DISTINCT p FROM JournalPost p
                         LEFT JOIN FETCH p.translations
-                        LEFT JOIN FETCH p.products
                         LEFT JOIN FETCH p.author
                         WHERE p.slug = :slug
                         """)
@@ -61,15 +73,28 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
                         @Param("categorySlug") String categorySlug,
                         Pageable pageable);
 
+        /**
+         * A single post for the anonymous storefront, restricted to PUBLISHED.
+         *
+         * <p>The {@code status = PUBLISHED} predicate is load-bearing and mirrors
+         * {@link #findAllPublic}, which filters the same way. Without it this query returned DRAFT
+         * and ARCHIVED posts by slug to anyone who guessed the slug, because
+         * {@code JournalPostStatus} is {@code DRAFT, PUBLISHED, ARCHIVED} and the post body is
+         * returned in full. Staff use {@link #findBySlugForDashboard}, which deliberately sees
+         * every status.
+         *
+         * <p>As with that method, {@code products} is not fetch-joined: it and {@code translations}
+         * are both bags, and Hibernate cannot fetch two of them at once.
+         */
         @Query("""
                         SELECT DISTINCT p FROM JournalPost p
                         LEFT JOIN FETCH p.translations t
-                        LEFT JOIN FETCH p.products
                         LEFT JOIN FETCH p.author
                         WHERE p.slug = :slug
                         AND t.language = :language
+                        AND p.status = com.nocteon.nocteon_api.journal.enums.JournalPostStatus.PUBLISHED
                         """)
-        Optional<JournalPost> findBySlugAndLanguage(
+        Optional<JournalPost> findPublishedBySlugAndLanguage(
                         @Param("slug") String slug,
                         @Param("language") String language);
 

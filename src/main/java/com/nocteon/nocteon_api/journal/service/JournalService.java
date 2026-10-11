@@ -71,7 +71,10 @@ public class JournalService {
 
         public JournalPostResponse getBySlug(String slug) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
-                JournalPost post = postRepository.findBySlugAndLanguage(slug, language)
+                // findPublishedBySlugAndLanguage, not findBySlugForDashboard: this backs the
+                // anonymous /api/journal/{slug} route, so an unpublished post must resolve to
+                // 404 rather than returning its body.
+                JournalPost post = postRepository.findPublishedBySlugAndLanguage(slug, language)
                                 .orElseThrow(JournalPostNotFoundException::new);
                 return buildDetailResponse(post, language);
         }
