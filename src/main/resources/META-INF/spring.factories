@@ -1,0 +1,15 @@
+# Registers the AI provider selectors.
+#
+# ChatProviderEnvironmentPostProcessor decides whether the chat model comes from Groq or from
+# local Ollama, based on whether GROQ_API_KEY is set. EmbeddingProviderEnvironmentPostProcessor
+# does the same for embeddings, on GEMINI_API_KEY: Gemini when it is set, local Ollama when it is
+# not. Both have to run as environment post-processors because Spring AI gates each provider's
+# model autoconfiguration on a selector property that is matchIfMissing = true, so an unset
+# selector means every provider on the classpath tries to define the bean — and only one may
+# exist. A YAML placeholder cannot express "use this one only when a key is present".
+#
+# The key is org.springframework.boot.EnvironmentPostProcessor — the spring.factories entry
+# Spring Boot 4 itself uses for the built-in post-processors.
+org.springframework.boot.EnvironmentPostProcessor=\
+com.nocteon.nocteon_api.ai.config.ChatProviderEnvironmentPostProcessor,\
+com.nocteon.nocteon_api.ai.config.EmbeddingProviderEnvironmentPostProcessor

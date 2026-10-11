@@ -87,6 +87,69 @@ services:
         sync: false
       - key: GITHUB_CLIENT_SECRET
         sync: false
+
+      # ── AI feature flags ──────────────────────────────────────────────
+      # All three on. Neither capability needs a local model any more:
+      # embeddings go to the Gemini API and chat goes to Groq, so a free
+      # Render service with no GPU and no Ollama container is enough.
+      #
+      # An earlier version of this file kept search and chat switched off
+      # because embeddings were served by a local Ollama that a free
+      # service cannot run. That stopped being true when embeddings moved
+      # to Gemini — this comment was left behind and the flags with it.
+      #
+      # It also claimed Render managed Postgres cannot provide pgvector.
+      # That was wrong: Render supports pgvector on PostgreSQL 13 and later
+      # (https://render.com/docs/postgresql-extensions), and V103 enables
+      # it on startup.
+      #
+      # Turning search on with no index used to be a silent trap — every
+      # semantic query returned nothing and the storefront quietly fell
+      # back to keyword ranking. It is no longer a trap: ProductIndexBootstrap
+      # builds the index on ApplicationReadyEvent when it is empty or stale,
+      # so a fresh database indexes itself on first boot.
+      #
+      # If GEMINI_API_KEY is unset, search degrades to keyword-only rather
+      # than failing: semanticCandidates() catches and the hybrid ranker
+      # keeps working.
+      - key: AI_ENABLED
+        value: "true"
+      - key: AI_SEARCH_ENABLED
+        value: "true"
+      - key: AI_CHATBOT_ENABLED
+        value: "true"
+      # Required for embeddings. Left `sync: false` — a secret, and no
+      # literal value may live in this file. Without it the deployment
+      # still boots and search falls back to local Ollama, which does not
+      # exist here, so it degrades to keyword-only.
+      - key: GEMINI_API_KEY
+        sync: false
+      # Only consulted when GEMINI_API_KEY is blank. A free Render service
+      # runs no Ollama, so this is left unset on purpose.
+      - key: OLLAMA_BASE_URL
+        sync: false
+      # A secret, so no literal value here. Deliberately `sync: false` rather
+      # than `generateValue: true`: a generated value would be non-blank, and
+      # ChatProviderEnvironmentPostProcessor reads presence — not validity — so
+      # a random string would point the chat model at Groq and every reply would
+      # come back 401 instead of falling back to the local Ollama model. Set a
+      # real key in the Render dashboard to use Groq; leaving this unset keeps
+      # the zero-configuration local path.
+      - key: GROQ_API_KEY
+        sync: false
+
+      # ── Background mail jobs ──────────────────────────────────────────
+      # On. The two schedulers behind it are the abandoned-cart reminder
+      # (hourly) and the Brevo delivery retry (every 60s), and this is the
+      # production environment where both are the point of being deployed:
+      # leaving them off here means abandoned carts are never followed up and a
+      # Brevo send that fails is never retried, while transactional mail still
+      # goes out on the request path. Worth knowing: neither scheduler has ever
+      # executed in any environment, so watch the first few passes on this
+      # deploy rather than assuming the first run is clean.
+      - key: MAIL_SCHEDULING_ENABLED
+        value: "true"
+
       - key: FRONTEND_URL
         value: https://nocteon-coffee.onrender.com
       - key: CORS_ALLOWED_ORIGINS
@@ -94,8 +157,29 @@ services:
       - key: JAVA_OPTS
         value: -Xmx384m -Xms256m
 
+# ── Database ───────────────────────────────────────────────────
+# This database CAN serve semantic search. An earlier version of this
+# file said otherwise — that Render Postgres is standard PostgreSQL
+# without pgvector, and that AI_SEARCH_ENABLED had to stay false
+# because there was "no vector extension to search". Both statements
+# were wrong: Render supports pgvector on PostgreSQL 13 and later
+# (https://render.com/docs/postgresql-extensions) and V103 creates the
+# extension on startup.
+#
+# Keep this block on PostgreSQL 13 or later — that is the floor for the
+# pgvector extension. If you pin an older version, V103 warns instead of
+# failing, and the deployment loses vector search but still boots.
+#
+# If pgvector is ever missing, provision a pgvector-capable database
+# (the pgvector/pgvector:pg16 image from docker-compose.yml, or any
+# managed provider that ships the extension) and repoint the DATABASE_*
+# envVars above at it.
 databases:
   - name: nocteon-db
     databaseName: nocteon_db
     plan: free
     region: oregon
+    # Pinned explicitly because it is a hard requirement, not a preference:
+    # pgvector is only available on Render's PostgreSQL 13 and later.
+    # https://render.com/docs/postgresql-extensions
+    postgresMajorVersion: "16"

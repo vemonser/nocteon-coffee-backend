@@ -7,6 +7,7 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.nocteon.nocteon_api.ai.service.ProductIndexingService;
 import com.nocteon.nocteon_api.category.entity.Category;
 import com.nocteon.nocteon_api.category.repository.CategoryRepository;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidProductTypeException;
@@ -36,6 +37,8 @@ import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import com.nocteon.nocteon_api.product.repository.ProductTranslationRepository;
 
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -57,6 +60,7 @@ public class ProductMutationService {
     private final ProductVariantService productVariantService;
     private final ProductCoffeeDetailsService productCoffeeDetailsService;
     private final ProductRelationService productRelationService;
+    private final ProductIndexingService productIndexingService;
 
     @Transactional
     public ProductResponse create(ProductRequest request, List<MultipartFile> files) {
@@ -101,6 +105,9 @@ public class ProductMutationService {
         productMediaService.saveMedia(product, request.getMedia(), files);
 
         log.info("Product created with slug: {}", slug);
+        // Registered last, so the hook fires once every relation is on the product: the indexer
+        // re-reads it after the commit and would otherwise embed a product with no translations.
+        scheduleIndexUpsert(product.getId(), slug);
         return productResponseMapper.buildDetailResponse(
                 productRepository.findBySlugAndLanguage(slug, LocaleContextHolder.getLocale().getLanguage())
                         .orElseThrow(ProductNotFoundException::new),
@@ -135,6 +142,7 @@ public class ProductMutationService {
 
         productRepository.save(product);
         log.info("Product updated with slug: {}", slug);
+        scheduleIndexUpsert(product.getId(), slug);
         return dashboardProductMapper.buildDashboardResponse(product);
     }
 
@@ -144,6 +152,7 @@ public class ProductMutationService {
                 .orElseThrow(ProductNotFoundException::new);
         product.setActive(active);
         productRepository.save(product);
+        scheduleIndexUpsert(product.getId(), slug);
         return dashboardProductMapper.buildDashboardResponse(product);
     }
 
@@ -153,6 +162,7 @@ public class ProductMutationService {
                 .orElseThrow(ProductNotFoundException::new);
         product.setFeatured(featured);
         productRepository.save(product);
+        scheduleIndexUpsert(product.getId(), slug);
         return dashboardProductMapper.buildDashboardResponse(product);
     }
 
@@ -186,6 +196,74 @@ public class ProductMutationService {
         product.softDelete();
         productRepository.save(product);
         log.info("Product soft deleted: {}", slug);
+        scheduleIndexRemoval(slug);
+    }
+
+    /**
+     * Re-embeds a product once the transaction that changed it has committed.
+     *
+     * <p>After commit, never inside the {@code @Transactional} body. Indexing before the commit
+     * would embed a product that may still roll away, and a rollback would then leave a vector
+     * pointing at something that does not exist — a phantom the search results could surface. After
+     * the commit there is nothing left to roll back.
+     *
+     * <p>Only the id and the slug cross into the callback. The entity is detached by then and the
+     * projection behind {@code upsertById} walks lazy relations, so it re-reads the product itself
+     * rather than trusting this instance.
+     *
+     * <p>Every failure inside the hook is swallowed and logged. The product is already saved and the
+     * response already built by the time this runs, so a downed embedding model must cost the admin
+     * a stale search result — repaired by the nightly job — and not their product.
+     */
+    private void scheduleIndexUpsert(Long productId, String slug) {
+        registerAfterCommit(() -> {
+            try {
+                productIndexingService.upsertById(productId);
+            } catch (Exception e) {
+                log.warn("Post-commit AI reindex failed for product {} ({}): {}",
+                        productId, slug, e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Drops a soft-deleted product's vector document after the commit, for the same reasons and
+     * with the same failure tolerance as {@link #scheduleIndexUpsert(Long, String)}.
+     *
+     * <p>A document left behind by a failed removal is not a wrong answer: every catalog query
+     * filters on active products, so an orphaned document is unreachable and can never be served.
+     * It costs storage until it is pruned, which nothing does automatically today.
+     */
+    private void scheduleIndexRemoval(String slug) {
+        registerAfterCommit(() -> {
+            try {
+                productIndexingService.remove(slug);
+            } catch (Exception e) {
+                log.warn("Post-commit AI document removal failed for product {}: {}", slug, e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Runs {@code action} once the current transaction commits.
+     *
+     * <p>The synchronization check is the guard, not a formality:
+     * {@code registerSynchronization} throws {@code IllegalStateException} outside a transaction,
+     * and a future caller that dropped {@code @Transactional} would otherwise have its working save
+     * turned into a 500. Nothing to defer means nothing to do.
+     */
+    private void registerAfterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            log.debug("No active transaction, skipping the post-commit AI index hook");
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    action.run();
+                }
+        });
     }
 
     private void validateProductType(ProductRequest request) {

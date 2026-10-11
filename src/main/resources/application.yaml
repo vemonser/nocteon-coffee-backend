@@ -77,10 +77,147 @@ spring:
     mode: HTML
     cache: true
 
+  ai:
+    # ── provider selectors ────────────────────────────────────────────────
+    # Spring AI 2.0.1 gates every provider's model autoconfiguration on one of
+    # these properties, each with `matchIfMissing = true`. With more than one
+    # starter on the classpath, an unset selector means two autoconfigurations
+    # both try to define the same bean type.
+    #
+    # NONE of these are set here — not `chat`, and neither embedding selector.
+    # They are derived from whether the relevant API key is configured:
+    # ChatProviderEnvironmentPostProcessor from GROQ_API_KEY, and
+    # EmbeddingProviderEnvironmentPostProcessor from GEMINI_API_KEY. A YAML
+    # placeholder cannot be conditional ("use this only when a key is present"),
+    # and an environment post-processor runs before the context exists, which is
+    # the only point where the decision can still be made.
+    #
+    # Set either directly to override that decision — `AI_CHAT_PROVIDER=ollama`,
+    # or `spring.ai.model.embedding.text=google-genai` / `=none`.
+    #
+    # The embedding case needs BOTH selectors, and that is Spring AI's design
+    # rather than ours: Ollama and OpenAI test `spring.ai.model.embedding`, while
+    # the Gemini starter tests `spring.ai.model.embedding.text`. Verified against
+    # the 2.0.1 jars. Only one EmbeddingModel may exist — PgVectorStore is
+    # constructed with it, so an ambiguous one is a boot failure — so the
+    # post-processor switches the rejected providers off rather than leaving their
+    # selectors unset.
+    model:
+      # No image or moderation model is used anywhere in this project, and the
+      # OpenAI and Google starters would otherwise auto-configure both against a
+      # base URL and key that are only meant for embeddings.
+      image: none
+      moderation: none
+
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      init:
+        # `never` (the Spring AI 2.0.1 default) is deliberate: Spring AI must never
+        # block or fail application startup on an external Ollama call — with any
+        # other value the model beans are pre-instantiated during context refresh
+        # and pull-model would burn the 5m timeout and abort boot when Ollama is
+        # down. Models are provisioned by the `ollama-init` compose service on
+        # `docker compose up` (or manually via `docker compose run --rm ollama-init`),
+        # so with `never` Spring AI never pulls and never contacts Ollama at startup.
+        pull-model-strategy: never
+      chat:
+        # The local fallback model. Used whenever GROQ_API_KEY is unset, which is
+        # the zero-configuration path: no API key, no account, no network.
+        options:
+          model: ${AI_LOCAL_CHAT_MODEL:qwen2.5:3b-instruct}
+          temperature: 0.7
+      embedding:
+        options:
+          # Only read when the embedding selector resolves to ollama, i.e. when
+          # GEMINI_API_KEY is unset. That is the zero-configuration path: no API
+          # key, no account, no network.
+          model: nomic-embed-text
+
+    # Gemini embeddings, through the AI Studio API (a plain `GEMINI_API_KEY`).
+    # NOT the Vertex AI path, which authenticates with Google Cloud credentials
+    # and needs a billing-enabled Cloud project; the starter for that is a
+    # different artifact (`spring-ai-starter-model-vertex-ai-embedding`).
+    #
+    # Only read when the embedding selector resolves to google-genai. With a blank
+    # key the post-processor selects Ollama instead and none of this is consulted.
+    google:
+      genai:
+        embedding:
+          # Blank by default, never a committed value: an unset variable must
+          # leave the project on the local path rather than half-configured.
+          api-key: ${GEMINI_API_KEY:}
+          text:
+            # `gemini-embedding-2` rather than `gemini-embedding-001`: it
+            # auto-normalizes non-default output dimensions, so 768 comes back
+            # unit-length and ready for the cosine distance below.
+            model: gemini-embedding-2
+            # Matryoshka (MRL) truncation. 768 is the vector column width of
+            # `vector_store` and one of the three dimensions Google recommends,
+            # so this is why the model swap needs no schema change and no table
+            # rebuild. Verified live against the real API: 768 in, 768 out,
+            # L2 norm 1.000000.
+            dimensions: 768
+
+    # Groq, over its OpenAI-compatible endpoint. Only read when
+    # `spring.ai.model.chat` resolves to `openai`, i.e. when GROQ_API_KEY is set.
+    #
+    # The `/openai/v1` suffix is required and not obvious: Groq's OpenAI-compatible API lives
+    # under `/openai/v1`, not `/openai`. Verified against the live endpoint — with
+    # `https://api.groq.com/openai` the client gets
+    #   404: Unknown request URL: POST /openai/chat/completions
+    # and with the `/v1` form it gets 401 for a bad key, which is the correct answer.
+    # Spring AI appends `/chat/completions` to this value, so it must be the API root.
+    openai:
+      base-url: ${GROQ_BASE_URL:https://api.groq.com/openai/v1}
+      api-key: ${GROQ_API_KEY:}
+      chat:
+        options:
+          # A NON-reasoning model is required, not a preference.
+          #
+          # openai/gpt-oss-20b is a reasoning model: it returns a `reasoning_content` field on
+          # every assistant turn. Spring AI's tool-calling loop replays that assistant message
+          # verbatim in the follow-up request, and Groq rejects it —
+          #   400 'messages.2' : for 'role:assistant' the following must be satisfied
+          #        [('messages.2' : property 'reasoning_content' is unsupported)]
+          # — so any question that reaches a catalog tool answers with the failure apology
+          # instead of a recommendation, while a question that happens not to call a tool works
+          # fine. That asymmetry is what made it look intermittent rather than broken.
+          #
+          # This cannot be configured away in Spring AI 2.0.1: the request is built by the
+          # openai-java client's ChatCompletionCreateParams, which has no reasoning field, and
+          # nothing in spring-ai-openai-2.0.1 emits `reasoning_effort` (checked at the bytecode
+          # level). OpenAiChatOptions.getReasoningEffort() exists and is readable but is never
+          # written into the body, so `reasoning-effort: low` is silently dead config.
+          #
+          # The free tier offers exactly three chat models with access on this account
+          # (llama-3.1-8b-instant and llama-3.3-70b-versatile are Enterprise-gated and return
+          # "does not exist or you do not have access"), and both gpt-oss models are reasoning
+          # models, so qwen/qwen3.8-27b is the only free-tier model whose tool loop completes.
+          # Verified live: a full two-step tool round trip returns
+          # "The **Brazil Mogiana** coffee costs **$240**." with no reasoning field on the wire.
+          model: ${GROQ_CHAT_MODEL:qwen/qwen3.8-27b}
+          temperature: 0.7
+
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+        index-type: hnsw
+        distance-type: cosine_distance
+        dimensions: 768
+        max-document-batch-size: 100
+
 nocteon:
+  ai:
+    enabled: ${AI_ENABLED:false}
+    search-enabled: ${AI_SEARCH_ENABLED:false}
+    chatbot-enabled: ${AI_CHATBOT_ENABLED:false}
   mail:
     from: ${MAIL_FROM:nocteoncoffee@gmail.com}
     from-name: Nocteon Coffee
+    # Gates the two background mail jobs (AbandonedCartScheduler, EmailRetryScheduler).
+    # Off by default: enabling it starts sending abandoned-cart reminders and retrying
+    # Brevo sends, so it must be a deliberate per-environment decision.
+    scheduling-enabled: ${MAIL_SCHEDULING_ENABLED:false}
 
 application:
   paymob:

@@ -28,7 +28,15 @@ target/
 build/
 !**/src/main/**/build/
 !**/src/test/**/build/
-/docs
+# `docs/` is ignored: it is mostly generated design/audit output that is deliberately
+# untracked. The AI docs are the exception — they are part of the delivered feature and
+# must be updatable without `-f`. Trailing `/*` rather than a bare `/docs` is what makes
+# that possible: ignoring a directory outright stops git from descending into it, so no
+# later negation can re-include a file inside it. Ignoring the directory's *entries*
+# instead leaves the traversal open, which is what lets these two negations win.
+/docs/*
+!/docs/ai-golden-queries.md
+!/docs/ai-load.js
 ### VS Code ###
 .vscode/
 .env

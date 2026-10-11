@@ -98,9 +98,15 @@ public class Product extends SoftDeletableEntity {
         @BatchSize(size = 30)
         private Set<ProductMedia> media = new HashSet<>();
 
+        /**
+         * Batched like the other collections on this entity, because the AI projection walks it
+         * for every product it touches. Left unbatched it costs one {@code SELECT} per product,
+         * which is an N+1 on any full-catalog read.
+         */
         @ManyToMany(fetch = FetchType.LAZY)
         @JoinTable(name = "product_tasting_notes", joinColumns = @JoinColumn(name = "product_id"), inverseJoinColumns = @JoinColumn(name = "tasting_note_id"))
         @Builder.Default
+        @BatchSize(size = 30)
         private List<TastingNote> tastingNotes = new ArrayList<>();
 
         @ManyToMany(fetch = FetchType.LAZY)

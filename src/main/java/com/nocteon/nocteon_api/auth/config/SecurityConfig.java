@@ -90,6 +90,16 @@ public class SecurityConfig {
                                                 .requestMatchers(HttpMethod.POST,
                                                                 "/api/orders/payment/webhook")
                                                 .permitAll()
+                                                // The coffee assistant, public by design: there is no
+                                                // authenticated principal in that flow, and it holds no
+                                                // tool that can reach a cart, an order or any other
+                                                // account data. Permitted for every method because the
+                                                // widget posts a turn, then reads and clears history.
+                                                // /api/dashboard/** stays authenticated below.
+                                                .requestMatchers(
+                                                                "/api/ai/chat",
+                                                                "/api/ai/chat/**")
+                                                .permitAll()
                                                 .requestMatchers(HttpMethod.POST,
                                                                 "/api/newsletter/subscribe")
                                                 .permitAll()

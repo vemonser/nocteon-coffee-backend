@@ -16,6 +16,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.nocteon.nocteon_api.ai.service.SemanticProductSearch;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductNotFoundException;
 import com.nocteon.nocteon_api.common.util.ProductSortResolver;
@@ -51,8 +52,29 @@ public class ProductService {
     private final DashboardProductMapper dashboardProductMapper;
     private final ProductMutationService productMutationService;
     private final ProductOptionValueRepository productOptionValueRepository;
+    private final SemanticProductSearch semanticProductSearch;
 
+    /**
+     * The public catalog listing. Answers with vector-similarity ranking when the caller opts
+     * in via {@code ?semantic=true} with real search text, and with the existing keyword query
+     * otherwise — including whenever the semantic path cannot answer.
+     *
+     * <p>The semantic branch is {@code SemanticProductSearch.rank}, which returns
+     * {@code Optional.empty()} rather than an empty page when the vector signal is unusable, so
+     * an unreachable store or an all-filtered-out candidate set degrades to the plain listing
+     * instead of claiming the catalog has nothing. {@code Optional.orElseGet} with
+     * {@link #keywordSearch} is what performs that fallback, and it is deliberately lazy: the
+     * keyword query is not issued on the semantic path.
+     *
+     * @return the requested page of cards; the response shape is identical either way, only
+     *         the ordering and the page membership differ
+     */
     public PageResponse<ProductCardResponse> getAll(ProductFilterRequest filter) {
+        return semanticProductSearch.rank(filter)
+                .orElseGet(() -> keywordSearch(filter));
+    }
+
+    private PageResponse<ProductCardResponse> keywordSearch(ProductFilterRequest filter) {
         String language = LocaleContextHolder.getLocale().getLanguage();
 
         String sort = switch (filter.getSort()) {
@@ -61,14 +83,9 @@ public class ProductService {
         };
 
         filter.setSort(sort);
-        long distinctOptionCount = 0;
 
-        if (filter.getOptionValueIds() != null && !filter.getOptionValueIds().isEmpty()) {
-            distinctOptionCount = productOptionValueRepository
-                    .countDistinctOptionsByValueIds(filter.getOptionValueIds());
-        }
-
-        Specification<Product> spec = ProductSpecifications.withFilters(filter, language, distinctOptionCount);
+        Specification<Product> spec = ProductSpecifications.withFilters(filter, language,
+                countDistinctOptions(filter));
         Sort resolvedSort = ProductSortResolver.resolve(sort, filter.getDirection());
         Pageable pageable = PageRequest.of(filter.getPage(), filter.getSize(), resolvedSort);
 
@@ -76,6 +93,23 @@ public class ProductService {
 
         return PageResponse.of(
                 page.map(p -> productResponseMapper.buildListResponse(p, language)));
+    }
+
+    /**
+     * How many distinct options the requested option values span, which
+     * {@link ProductSpecifications} needs to require <em>all</em> of them. Zero when no option
+     * filter was asked for.
+     *
+     * <p>Kept here rather than shared with {@code SemanticProductSearch}, which has its own copy:
+     * the two paths build different specifications for different purposes, and the value is four
+     * lines of a single conditional.
+     */
+    private long countDistinctOptions(ProductFilterRequest filter) {
+        if (filter.getOptionValueIds() == null || filter.getOptionValueIds().isEmpty()) {
+            return 0;
+        }
+        return productOptionValueRepository
+                .countDistinctOptionsByValueIds(filter.getOptionValueIds());
     }
 
     // في ProductService

@@ -31,6 +31,21 @@ import jakarta.persistence.criteria.Subquery;
 
 public class ProductSpecifications {
 
+    /**
+     * Every filter this endpoint understands, ANDed into one specification.
+     *
+     * <p>The free-text search is delegated to {@link ProductSearchPredicate}: matching the raw
+     * query against {@code product_translations.name} alone could not answer {@code "ethiopian
+     * coffee"}, because the country lives in {@code origins.slug} and the noun in
+     * {@code categories.slug}, and on the {@code ar} locale the name itself is Arabic. It reads the
+     * attributes a customer actually types — origin, farm, category, roast level, processing
+     * method, variety, tasting notes and brewing methods, by slug and by translated name — and
+     * reaches every multi-valued one of them through an {@code EXISTS} subquery so the row count,
+     * and therefore the page, is unchanged.
+     *
+     * @param language the locale to read translated names in; the {@code translations} join is
+     * pinned to it and so is every translation the search reads, so nothing widens past it
+     */
     public static Specification<Product> withFilters(
             ProductFilterRequest filter,
             String language,
@@ -49,8 +64,11 @@ public class ProductSpecifications {
             predicates.add(cb.isTrue(variants.get("isActive")));
 
             if (StringUtils.hasText(filter.getSearch())) {
-                predicates.add(cb.like(cb.lower(translations.get("name")),
-                        "%" + filter.getSearch().toLowerCase() + "%"));
+                Predicate searchMatch = ProductSearchPredicate.build(cb, query, root, language,
+                        filter.getSearch(), translations, category, origin, farm);
+                if (searchMatch != null) {
+                    predicates.add(searchMatch);
+                }
             }
             if (StringUtils.hasText(filter.getCategorySlug())) {
                 predicates.add(cb.equal(category.get("slug"), filter.getCategorySlug()));
