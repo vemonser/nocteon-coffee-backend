@@ -7,17 +7,17 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.nocteon.nocteon_api.tastingNote.entity.TastingNote;
 
-import io.lettuce.core.dynamic.annotation.Param;
 
 public interface TastingNoteRepository extends JpaRepository<TastingNote, Long> {
 
     @Query("""
             SELECT DISTINCT t FROM TastingNote t
             LEFT JOIN t.translations tr
-            WHERE (:search = ''
+            WHERE (COALESCE(:search, '') = ''
                    OR (tr.language = :language
                        AND LOWER(tr.name) LIKE LOWER(CONCAT('%', :search, '%'))))
             """)
@@ -29,7 +29,7 @@ public interface TastingNoteRepository extends JpaRepository<TastingNote, Long> 
     @Query("""
             SELECT DISTINCT t FROM TastingNote t
             LEFT JOIN t.translations tr
-            WHERE (:search = ''
+            WHERE (COALESCE(:search, '') = ''
                    OR LOWER(tr.name) LIKE LOWER(CONCAT('%', :search, '%'))
                    OR LOWER(t.slug) LIKE LOWER(CONCAT('%', :search, '%'))
                 )

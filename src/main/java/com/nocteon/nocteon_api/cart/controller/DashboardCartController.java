@@ -26,7 +26,7 @@ public class DashboardCartController {
     private final DashboardCartService dashboardCartService;
 
     @GetMapping
-    @PreAuthorize("hasAuthority('cart:manage')")
+    @PreAuthorize("hasAuthority('cart:read_all')")
     public ResponseEntity<ApiResponse<PageResponse<DashboardCartResponse>>> getAll(
             @ModelAttribute DashboardCartFilterRequest filter) {
         return ResponseEntity.ok(ApiResponse.success(
@@ -35,7 +35,7 @@ public class DashboardCartController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('cart:manage')")
+    @PreAuthorize("hasAuthority('cart:read_all')")
     public ResponseEntity<ApiResponse<DashboardCartResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(
                 dashboardCartService.getById(id),

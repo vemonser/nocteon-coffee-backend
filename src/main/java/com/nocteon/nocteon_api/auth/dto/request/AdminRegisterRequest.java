@@ -34,6 +34,7 @@ public class AdminRegisterRequest {
     private String phone;
 
     @Email(message = "{validation.email.invalid}")
+    @Size(max = 255, message = "{validation.email.size}")
     @NotBlank(message = "{validation.email.notBlank}")
     private String email;
 

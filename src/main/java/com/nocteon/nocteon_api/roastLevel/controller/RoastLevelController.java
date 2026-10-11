@@ -79,7 +79,16 @@ public class RoastLevelController {
         roastLevelService.delete(slug);
         return ResponseEntity.noContent().build();
     }
-    @GetMapping("/{slug}")
+    /**
+     * One roast level by slug.
+     *
+     * <p>Previously {@code @GetMapping("/roast-levels/{slug}")} under the class-level {@code /api}, which made
+     * this a catch-all over the entire public API namespace: {@code GET /api/anything} resolved to
+     * a roast-level lookup rather than 404, and the roast-level detail page had no route at all.
+     * Now it lives under the same prefix as the list endpoint, which is also what the
+     * permitAll entry added for the storefront matches.
+     */
+    @GetMapping("/roast-levels/{slug}")
     public ResponseEntity<ApiResponse<RoastLevelResponse>> getBySlug(@PathVariable String slug) {
         return ResponseEntity.ok(ApiResponse.success(roastLevelService.getBySlug(slug), "Roast level retrieved"));
     }

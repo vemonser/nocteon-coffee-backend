@@ -36,7 +36,7 @@ public class ProductOptionController {
     private final ProductOptionService productOptionService;
 
     @GetMapping("/dashboard/product-options")
-    @PreAuthorize("hasAuthority('product_option:read')")
+    @PreAuthorize("hasAuthority('product:read')")
     public ResponseEntity<ApiResponse<PageResponse<ProductOptionResponseDashboard>>> getAllDashboard(
             @ModelAttribute LookupFilterRequest filter) {
         return ResponseEntity.ok(
@@ -44,7 +44,7 @@ public class ProductOptionController {
     }
 
     @GetMapping("/dashboard/product-options/{optionId}")
-    @PreAuthorize("hasAuthority('product_option:read')")
+    @PreAuthorize("hasAuthority('product:read')")
     public ResponseEntity<ApiResponse<ProductOptionResponseDashboard>> getDashboardById(
             @PathVariable Long optionId) {
         return ResponseEntity.ok(
@@ -52,7 +52,7 @@ public class ProductOptionController {
     }
 
     @PostMapping("/dashboard/product-options")
-    @PreAuthorize("hasAuthority('product_option:create')")
+    @PreAuthorize("hasAuthority('product:update')")
     public ResponseEntity<ApiResponse<ProductOptionResponse>> create(
             @Valid @RequestBody ProductOptionRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -60,7 +60,7 @@ public class ProductOptionController {
     }
 
     @PutMapping("/dashboard/product-options/{optionId}")
-    @PreAuthorize("hasAuthority('product_option:update')")
+    @PreAuthorize("hasAuthority('product:update')")
     public ResponseEntity<ApiResponse<ProductOptionResponse>> update(
             @PathVariable Long optionId,
             @Valid @RequestBody ProductOptionRequest request) {
@@ -69,7 +69,7 @@ public class ProductOptionController {
     }
 
     @DeleteMapping("/dashboard/product-options/{optionId}")
-    @PreAuthorize("hasAuthority('product_option:delete')")
+    @PreAuthorize("hasAuthority('product:update')")
     public ResponseEntity<Void> delete(@PathVariable Long optionId) {
         productOptionService.delete(optionId);
         return ResponseEntity.noContent().build();
@@ -78,7 +78,7 @@ public class ProductOptionController {
     // ===== Values =====
 
     @PostMapping("/dashboard/product-options/{optionId}/values")
-    @PreAuthorize("hasAuthority('product_option:update')")
+    @PreAuthorize("hasAuthority('product:update')")
     public ResponseEntity<ApiResponse<ProductOptionValueResponseDashboard>> addValue(
             @PathVariable Long optionId,
             @Valid @RequestBody ProductOptionValueRequest request) {
@@ -87,7 +87,7 @@ public class ProductOptionController {
     }
 
     @DeleteMapping("/dashboard/product-options/{optionId}/values/{valueId}")
-    @PreAuthorize("hasAuthority('product_option:update')")
+    @PreAuthorize("hasAuthority('product:update')")
     public ResponseEntity<Void> deleteValue(
             @PathVariable Long optionId,
             @PathVariable Long valueId) {

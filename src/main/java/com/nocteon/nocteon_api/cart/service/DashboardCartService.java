@@ -40,11 +40,25 @@ public class DashboardCartService {
 
         @Transactional(readOnly = true)
         public Page<DashboardCartResponse> getAll(DashboardCartFilterRequest filter) {
+                // hasItems was hard-coded to true, so ?hasItems=false returned exactly the same
+                // rows as omitting it: DashboardCartFilterRequest bound the parameter, and
+                // CartRepository.findAllForDashboard already handles all three states
+                // (null / true / false), but nothing ever passed the value through.
                 return cartRepository
-                                .findAllForDashboard(filter.getSearch(), true, filter.toPageable())
+                                .findAllForDashboard(filter.getSearch(), filter.getHasItems(),
+                                                filter.toPageable())
                                 .map(this::buildDashboardResponse);
         }
 
+        /**
+         * One cart, by id, for staff.
+         *
+         * <p>Reached only through {@code cart:read_all}, which no customer holds. The permission
+         * is the authorisation; this method is the reason it is worth having — it returns another
+         * user's email, full name and basket contents, so it must never be reachable by guessing an
+         * id. Any future refactor that re-gates this on {@code cart:manage} reopens the hole,
+         * which is why the permission name is deliberately not the one the storefront uses.
+         */
         @Transactional(readOnly = true)
         public DashboardCartResponse getById(Long cartId) {
                 Cart cart = cartRepository.findById(cartId)

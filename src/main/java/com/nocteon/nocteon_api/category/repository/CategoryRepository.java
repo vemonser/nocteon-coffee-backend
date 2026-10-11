@@ -7,19 +7,58 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.nocteon.nocteon_api.category.entity.Category;
 
-import io.lettuce.core.dynamic.annotation.Param;
 
 public interface CategoryRepository extends JpaRepository<Category, Long> {
+        /**
+         * Rank tiers, weakest to strongest: 3 anywhere, 2 whole word, 1 prefix, 0 exact.
+         *
+         * <p>The dashboard caps each type at five rows, so without an explicit order the five it
+         * keeps were whichever five the database returned first. That is not merely unstable, it
+         * is unhelpful: an exact slug has to outrank a row that merely contains the same letters
+         * somewhere in its name.
+         *
+         * <p>Ties break on the slug, which is language-neutral. Ordering by a translated name
+         * would rank the same category differently depending on which translations happen to
+         * exist, and could interleave two languages in one alphabetical sequence.
+         *
+         * <p>{@code GROUP BY} replaces {@code DISTINCT} here. PostgreSQL rejects an ORDER BY
+         * expression under SELECT DISTINCT unless that expression is in the select list, and the
+         * rank is a computed aggregate. Grouping by the primary key also satisfies Postgres'
+         * functional-dependency rule, so selecting the whole entity stays legal.
+         */
         @Query("""
-                            SELECT DISTINCT c FROM Category c
-                            JOIN c.translations t
-                            WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :query, '%'))
-                               OR LOWER(c.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        SELECT c FROM Category c
+                        JOIN c.translations t
+                        WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :query, '%'))
+                           OR LOWER(c.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        GROUP BY c.id, c.slug
+                        ORDER BY MIN(CASE
+                                WHEN LOWER(c.slug) = LOWER(:query) THEN 0
+                                WHEN LOWER(t.name) = LOWER(:query) THEN 0
+                                WHEN LOWER(c.slug) LIKE LOWER(CONCAT(:query, '%')) THEN 1
+                                WHEN LOWER(t.name) LIKE LOWER(CONCAT(:query, '%')) THEN 1
+                                WHEN LOWER(t.name) LIKE LOWER(CONCAT('% ', :query, '%')) THEN 2
+                                ELSE 3
+                            END),
+                            MIN(LOWER(c.slug))
                         """)
         List<Category> searchCategories(@Param("query") String query, Pageable pageable);
+
+        /**
+         * How many rows the search query matches, uncapped.
+         *
+         * <p>The search takes a fixed-size page of rows, so the returned list cannot be used
+         * to report a total: it is the page size, not the match count. This mirrors the row
+         * query's predicates exactly so the two cannot drift apart.
+         */
+        @Query("""
+                        SELECT COUNT(DISTINCT c) FROM Category c JOIN c.translations t WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(c.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        """)
+        long countSearchCategories(@Param("query") String query);
 
      @Query("""
                SELECT DISTINCT c
@@ -27,7 +66,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
                LEFT JOIN c.translations t
                WHERE t.language = :language
                AND c.isActive = true
-               AND (:search = ''
+               AND (COALESCE(:search, '') = ''
                     OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
                )
                """)
@@ -40,7 +79,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
      @Query("""
                SELECT DISTINCT c FROM Category c
                LEFT JOIN c.translations t
-               WHERE (:search = ''
+               WHERE (COALESCE(:search, '') = ''
                       OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
                       OR LOWER(c.slug) LIKE LOWER(CONCAT('%', :search, '%'))
                      )

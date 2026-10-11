@@ -6,17 +6,17 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.nocteon.nocteon_api.roastLevel.entity.RoastLevel;
 
-import io.lettuce.core.dynamic.annotation.Param;
 
 public interface RoastLevelRepository extends JpaRepository<RoastLevel, Long> {
 
     @Query("""
             SELECT DISTINCT r FROM RoastLevel r
             LEFT JOIN r.translations t
-            WHERE (:search = ''
+            WHERE (COALESCE(:search, '') = ''
                    OR (t.language = :language
                        AND LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))))
             """)
@@ -28,7 +28,7 @@ public interface RoastLevelRepository extends JpaRepository<RoastLevel, Long> {
     @Query("""
             SELECT DISTINCT r FROM RoastLevel r
             LEFT JOIN  r.translations t
-                        WHERE (:search = ''
+                        WHERE (COALESCE(:search, '') = ''
             OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
             OR LOWER(r.slug) LIKE LOWER(CONCAT('%', :search, '%'))
             )

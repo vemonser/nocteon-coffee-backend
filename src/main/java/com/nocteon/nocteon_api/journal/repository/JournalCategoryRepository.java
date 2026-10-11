@@ -5,10 +5,10 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.nocteon.nocteon_api.journal.entity.JournalCategory;
 
-import io.lettuce.core.dynamic.annotation.Param;
 
 public interface JournalCategoryRepository extends JpaRepository<JournalCategory, Long> {
 

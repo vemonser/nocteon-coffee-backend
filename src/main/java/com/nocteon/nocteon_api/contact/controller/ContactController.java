@@ -25,7 +25,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/contact")
+@RequestMapping("/api")
 @Validated
 @RequiredArgsConstructor
 public class ContactController {
@@ -33,7 +33,7 @@ public class ContactController {
     private final ContactService contactService;
     private final RateLimiterService rateLimiterService;
 
-    @PostMapping
+    @PostMapping("/contact")
     public ResponseEntity<ApiResponse<ContactResponse>> submit(
             @Valid @RequestBody ContactRequest request,
             HttpServletRequest httpRequest) {
@@ -46,7 +46,22 @@ public class ContactController {
                 .body(ApiResponse.success(response, "Message sent successfully"));
     }
 
-    @GetMapping("/api/dashboard/contact-messages")
+    /**
+     * Inbox for staff.
+     *
+     * <p>The class mapping is {@code /api}, not {@code /api/contact}, so this composes to
+     * {@code /api/dashboard/contact-messages}: both the path the dashboard calls and the prefix
+     * the dashboard security rule matches.
+     *
+     * <p>It was originally {@code /api/contact} plus a method mapping of
+     * {@code /api/dashboard/contact-messages}, which Spring concatenates into
+     * {@code /api/contact/api/dashboard/contact-messages}. Fixing only the method mapping repaired
+     * the 404 but not the other half: the result still did not begin with {@code /api/dashboard/},
+     * so it fell through to any-request-authenticated rather than the dashboard rule. It was not
+     * exploitable, since {@code contact:read} is the real control and only ADMIN holds it, but a
+     * staff inbox ended up outside the rule meant to cover staff endpoints.
+     */
+    @GetMapping("/dashboard/contact-messages")
     @PreAuthorize("hasAuthority('contact:read')")
     public ResponseEntity<ApiResponse<PageResponse<ContactResponse>>> getAll(
             @ModelAttribute BaseFilterRequest filter) {

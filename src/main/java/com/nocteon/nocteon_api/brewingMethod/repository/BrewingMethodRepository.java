@@ -7,17 +7,17 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.nocteon.nocteon_api.brewingMethod.entity.BrewingMethod;
 
-import io.lettuce.core.dynamic.annotation.Param;
 
 public interface BrewingMethodRepository extends JpaRepository<BrewingMethod, Long> {
 
     @Query("""
             SELECT DISTINCT b FROM BrewingMethod b
             LEFT JOIN b.translations t
-            WHERE (:search = ''
+            WHERE (COALESCE(:search, '') = ''
                    OR (t.language = :language
                        AND LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))))
             """)
@@ -29,7 +29,7 @@ public interface BrewingMethodRepository extends JpaRepository<BrewingMethod, Lo
     @Query("""
             SELECT DISTINCT b FROM BrewingMethod b
             LEFT JOIN b.translations t
-            WHERE (:search = ''
+            WHERE (COALESCE(:search, '') = ''
                    OR  LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
                    OR  LOWER(b.slug) LIKE LOWER(CONCAT('%', :search, '%'))
                 )

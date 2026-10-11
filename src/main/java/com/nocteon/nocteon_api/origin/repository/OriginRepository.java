@@ -7,17 +7,17 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.nocteon.nocteon_api.origin.entity.Origin;
 
-import io.lettuce.core.dynamic.annotation.Param;
 
 public interface OriginRepository extends JpaRepository<Origin, Long> {
 
     @Query("""
             SELECT DISTINCT o FROM Origin o
             LEFT JOIN o.translations t
-            WHERE (:search = ''
+            WHERE (COALESCE(:search, '') = ''
                    OR (t.language = :language
                        AND LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))))
             """)
@@ -29,7 +29,7 @@ public interface OriginRepository extends JpaRepository<Origin, Long> {
     @Query("""
             SELECT DISTINCT o FROM Origin o
             LEFT JOIN o.translations t
-            WHERE (:search = ''
+            WHERE (COALESCE(:search, '') = ''
                    OR (t.language = :language
                        AND LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))))
             """)

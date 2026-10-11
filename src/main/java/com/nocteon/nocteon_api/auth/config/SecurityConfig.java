@@ -41,6 +41,46 @@ public class SecurityConfig {
         private final UserActivityTrackingFilter userActivityTrackingFilter;
         private final CookieOAuth2AuthorizationRequestRepository cookieOAuth2AuthorizationRequestRepository;
 
+        /**
+         * Read-only endpoints a storefront visitor may call without a token.
+         *
+         * <p>Named and package-visible rather than inline in the filter chain because this list has
+         * to agree with what the controllers actually map, and nothing in Java enforces that. Three
+         * of the entries were wrong at one point — {@code /api/roast-profiles} against a controller
+         * mapping {@code /api/roast-levels}, a missing journal, and the roast-level catch-all —
+         * and each one is a 401 for the storefront that only shows up in a browser.
+         *
+         * <p>{@link com.nocteon.nocteon_api.auth.AuthorizationConfigTest} reads this array and
+         * asserts that every public controller mapping is covered, so a rename on either side now
+         * fails the build instead of production.
+         */
+        public static final String[] PUBLIC_READ_PATHS = {
+                        "/api/categories",
+                        "/api/categories/**",
+                        "/api/origins",
+                        "/api/origins/**",
+                        "/api/farms",
+                        "/api/farms/**",
+                        "/api/roast-levels",
+                        "/api/roast-levels/**",
+                        "/api/processing-methods",
+                        "/api/processing-methods/**",
+                        "/api/coffee-varieties",
+                        "/api/coffee-varieties/**",
+                        "/api/tasting-notes",
+                        "/api/tasting-notes/**",
+                        "/api/brewing-methods",
+                        "/api/brewing-methods/**",
+                        "/api/pairings",
+                        "/api/pairings/**",
+                        // Public journal. JournalController maps /journal and /journal/{slug}, and
+                        // neither was listed here, so the storefront's blog returned 401.
+                        "/api/journal",
+                        "/api/journal/**",
+                        "/api/products",
+                        "/api/products/**",
+                        "/api/settings" };
+
         @Bean
         public RateLimitFilter rateLimitFilter() {
                 return new RateLimitFilter(rateLimiterService);
@@ -64,28 +104,7 @@ public class SecurityConfig {
                                                                 "/swagger-ui/**",
                                                                 "/swagger-ui.html")
                                                 .permitAll()
-                                                .requestMatchers(HttpMethod.GET,
-                                                                "/api/categories",
-                                                                "/api/categories/**",
-                                                                "/api/origins",
-                                                                "/api/origins/**",
-                                                                "/api/farms",
-                                                                "/api/farms/**",
-                                                                "/api/roast-profiles",
-                                                                "/api/roast-profiles/**",
-                                                                "/api/processing-methods",
-                                                                "/api/processing-methods/**",
-                                                                "/api/coffee-varieties",
-                                                                "/api/coffee-varieties/**",
-                                                                "/api/tasting-notes",
-                                                                "/api/tasting-notes/**",
-                                                                "/api/brewing-methods",
-                                                                "/api/brewing-methods/**",
-                                                                "/api/pairings",
-                                                                "/api/pairings/**",
-                                                                "/api/products",
-                                                                "/api/products/**",
-                                                                "/api/settings")
+                                                .requestMatchers(HttpMethod.GET, PUBLIC_READ_PATHS)
                                                 .permitAll()
                                                 .requestMatchers(HttpMethod.POST,
                                                                 "/api/orders/payment/webhook")

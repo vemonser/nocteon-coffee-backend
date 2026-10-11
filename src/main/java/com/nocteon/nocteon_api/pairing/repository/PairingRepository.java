@@ -7,17 +7,17 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.nocteon.nocteon_api.pairing.entity.Pairing;
 
-import io.lettuce.core.dynamic.annotation.Param;
 
 public interface PairingRepository extends JpaRepository<Pairing, Long> {
 
     @Query("""
             SELECT DISTINCT p FROM Pairing p
             LEFT JOIN p.translations t
-            WHERE (:search = ''
+            WHERE (COALESCE(:search, '') = ''
                    OR (t.language = :language
                        AND LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))))
             """)
@@ -29,7 +29,7 @@ public interface PairingRepository extends JpaRepository<Pairing, Long> {
     @Query("""
             SELECT DISTINCT p FROM Pairing p
             LEFT JOIN p.translations t
-            WHERE (:search = ''
+            WHERE (COALESCE(:search, '') = ''
                    OR  LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
                    OR  LOWER(p.slug) LIKE LOWER(CONCAT('%', :search, '%'))
                 )
@@ -52,7 +52,10 @@ public interface PairingRepository extends JpaRepository<Pairing, Long> {
         where product.id = :productId
         and t.language = :language
     """)
-    List<Pairing> findByProductId(Long productId, String language);
+    // Annotated explicitly even though the call order happens to match: without @Param this binds
+    // positionally, so reordering the parameters would silently swap productId and language and
+    // return pairings for the wrong locale rather than fail.
+    List<Pairing> findByProductId(@Param("productId") Long productId, @Param("language") String language);
 
     @Query("""
             SELECT p FROM Pairing p

@@ -53,7 +53,7 @@ public class PairingController {
     }
 
     @GetMapping("/dashboard/pairings/{slug}")
-    @PreAuthorize("hasAuthority('category:read')")
+    @PreAuthorize("hasAuthority('pairing:read')")
     public ResponseEntity<ApiResponse<PairingResponseDashboard>> getDashboardBySlug(@PathVariable String slug) {
         return ResponseEntity.ok(
                 ApiResponse.success(pairingService.getDashboardBySlug(slug), "Pairing retrieved"));

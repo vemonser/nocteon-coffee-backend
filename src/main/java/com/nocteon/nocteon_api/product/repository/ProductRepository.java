@@ -15,6 +15,23 @@ import com.nocteon.nocteon_api.product.enums.ProductType;
 import org.springframework.data.repository.query.Param;
 
 public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpecificationExecutor<Product>  {
+                /**
+         * Rank tiers, weakest to strongest: 3 anywhere, 2 whole word, 1 prefix, 0 exact.
+         *
+         * <p>The dashboard caps each type at five rows, so without an explicit order the five it
+         * keeps were whichever five the database returned first. That is not merely unstable, it
+         * is unhelpful: an exact slug has to outrank a row that merely contains the same letters
+         * somewhere in its name.
+         *
+         * <p>Ties break on the slug, which is language-neutral. Ordering by a translated name
+         * would rank the same product differently depending on which translations happen to
+         * exist, and could interleave two languages in one alphabetical sequence.
+         *
+         * <p>{@code GROUP BY} replaces {@code DISTINCT} here. PostgreSQL rejects an ORDER BY
+         * expression under SELECT DISTINCT unless that expression is in the select list, and the
+         * rank is a computed aggregate. Grouping by the primary key also satisfies Postgres'
+         * functional-dependency rule, so selecting the whole entity stays legal.
+         */
         @Query("""
                         SELECT p FROM Product p
                         WHERE p.category.slug = :slug
@@ -37,12 +54,34 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
         Page<Product> findByOriginSlugPublic(@Param("slug") String slug, Pageable pageable);
 
         @Query("""
-                            SELECT DISTINCT p FROM Product p
-                            JOIN p.translations t
-                            WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :query, '%'))
-                            OR LOWER(p.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        SELECT p FROM Product p
+                        JOIN p.translations t
+                        WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :query, '%'))
+                        OR LOWER(p.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        GROUP BY p.id, p.slug
+                        ORDER BY MIN(CASE
+                                WHEN LOWER(p.slug) = LOWER(:query) THEN 0
+                                WHEN LOWER(t.name) = LOWER(:query) THEN 0
+                                WHEN LOWER(p.slug) LIKE LOWER(CONCAT(:query, '%')) THEN 1
+                                WHEN LOWER(t.name) LIKE LOWER(CONCAT(:query, '%')) THEN 1
+                                WHEN LOWER(t.name) LIKE LOWER(CONCAT('% ', :query, '%')) THEN 2
+                                ELSE 3
+                            END),
+                            MIN(LOWER(p.slug))
                         """)
         List<Product> searchProducts(@Param("query") String query, Pageable pageable);
+
+        /**
+         * How many rows the search query matches, uncapped.
+         *
+         * <p>The search takes a fixed-size page of rows, so the returned list cannot be used
+         * to report a total: it is the page size, not the match count. This mirrors the row
+         * query's predicates exactly so the two cannot drift apart.
+         */
+        @Query("""
+                        SELECT COUNT(DISTINCT p) FROM Product p JOIN p.translations t WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(p.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        """)
+        long countSearchProducts(@Param("query") String query);
 
        
         
@@ -51,7 +90,7 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
                         SELECT DISTINCT p FROM Product p
                         LEFT JOIN p.translations t
                         LEFT JOIN p.category c
-                        WHERE (:search IS NULL OR :search = ''
+                        WHERE (:search IS NULL OR COALESCE(:search, '') = ''
                                OR  LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
                         AND (:categorySlug IS NULL OR c.slug = :categorySlug)
                         AND (:productType IS NULL OR p.productType = :productType)

@@ -88,7 +88,18 @@ public enum Permission {
     SHIPPING_DELETE("shipping:delete"),
     // user
     USER_READ("user:read"),
+    // Provisioning is a separate grant from editing. AdminUserController's create endpoint
+    // required 'user:create' before this constant existed, and that string is not one any role
+    // holds — so POST /api/dashboard/users returned 403 for ADMIN too, making it unreachable.
+    USER_CREATE("user:create"),
     USER_UPDATE("user:update"),
+    // Changing someone's role is separated from editing their profile on purpose.
+    // AdminUserController's update route is gated on user:update, which MODERATOR holds, and the
+    // request body carried an unbounded `role` field that UserService.adminUpdate applied without
+    // restriction. A moderator could therefore PUT {"role":"ADMIN"} and grant themselves every
+    // permission in the system, including user:delete and user:create, which MODERATOR
+    // deliberately does not hold. Only ADMIN carries this one.
+    USER_CHANGE_ROLE("user:change_role"),
     USER_DELETE("user:delete"),
     
     // dashboard
@@ -117,7 +128,13 @@ public enum Permission {
     CONTACT_READ("contact:read"),
 
     // Cart & Wishlist
+    // CART_MANAGE means "manage your own cart" and is deliberately held by CUSTOMER — the
+    // storefront needs it for the basket button. It must never gate a dashboard endpoint:
+    // DashboardCartService reads by id without an ownership check, so reusing it there let any
+    // registered customer enumerate every other user's cart, including their email and full name.
+    // CART_READ_ALL exists so that staff-wide cart visibility is an explicit, separate grant.
     CART_MANAGE("cart:manage"),
+    CART_READ_ALL("cart:read_all"),
     WISHLIST_MANAGE("wishlist:manage"),
 
     // AI

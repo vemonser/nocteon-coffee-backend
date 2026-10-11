@@ -39,7 +39,8 @@ public class ProcessingMethodService {
         public PageResponse<ProcessingMethodResponse> getAll(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 Page<ProcessingMethod> page = processingMethodRepository.findAllPublic(
-                                language, filter.getSearch(), filter.toPageable());
+                                filter.getSearch(),
+                                language, filter.toPageable());
                 return PageResponse.of(page.map(p -> buildResponse(p, language)));
         }
 
