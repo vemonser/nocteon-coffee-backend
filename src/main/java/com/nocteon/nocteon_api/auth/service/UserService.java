@@ -21,6 +21,7 @@ import com.nocteon.nocteon_api.auth.entity.UserProfile;
 import com.nocteon.nocteon_api.auth.enums.Role;
 import com.nocteon.nocteon_api.auth.repository.UserProfileRepository;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
+import com.nocteon.nocteon_api.auth.exception.RoleChangeForbiddenException;
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.cloudinary.service.CloudinaryService;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
@@ -194,7 +195,7 @@ public class UserService {
     }
 
     @Transactional
-    public UserResponse adminUpdate(Long userId, AdminUpdateUserRequest request) {
+    public UserResponse adminUpdate(Long userId, AdminUpdateUserRequest request, UserPrincipal actor) {
         User user = userRepository.findByIdWithProfile(userId)
                 .orElseThrow(() -> new UserNotFoundException());
 
@@ -212,7 +213,22 @@ public class UserService {
             user.setEmail(request.getEmail());
         }
 
-        if (request.getRole() != null) {
+        if (request.getRole() != null && request.getRole() != user.getRole()) {
+            // An authority check, not a role check: USER_CHANGE_ROLE is what separates "may edit
+            // this account" from "may change what this account is allowed to do". The route above
+            // is gated on user:update, which MODERATOR holds, so without this a moderator could
+            // promote any user — including themselves — to ADMIN and inherit every permission,
+            // among them user:delete and user:create, which MODERATOR deliberately lacks.
+            boolean mayChangeRole = actor != null && actor.getAuthorities().stream()
+                    .anyMatch(authority -> Permission.USER_CHANGE_ROLE.getPermission()
+                            .equals(authority.getAuthority()));
+            if (!mayChangeRole) {
+                log.warn("User {} attempted to change the role of user {} to {}",
+                        actor == null ? "unknown" : actor.getUserId(),
+                        userId,
+                        request.getRole());
+                throw new RoleChangeForbiddenException();
+            }
             user.setRole(request.getRole());
         }
 

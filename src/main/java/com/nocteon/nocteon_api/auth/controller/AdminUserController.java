@@ -1,5 +1,6 @@
 package com.nocteon.nocteon_api.auth.controller;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.validation.annotation.Validated;
 
+import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.auth.dto.request.AdminRegisterRequest;
 import com.nocteon.nocteon_api.auth.dto.request.AdminUpdateUserRequest;
 import com.nocteon.nocteon_api.auth.dto.request.UserFilterRequest;
@@ -65,9 +67,13 @@ public class AdminUserController {
         @PreAuthorize("hasAuthority('user:update')")
         public ResponseEntity<ApiResponse<UserResponse>> update(
                         @PathVariable Long id,
+                        @AuthenticationPrincipal UserPrincipal principal,
                         @RequestBody @Valid AdminUpdateUserRequest request) {
+                // The principal is passed through because the route's own permission is not enough
+                // to cover every field in the body: UserService.adminUpdate re-checks a requested
+                // role change against user:change_role, which MODERATOR does not hold.
                 return ResponseEntity.ok(ApiResponse.success(
-                                userService.adminUpdate(id, request),
+                                userService.adminUpdate(id, request, principal),
                                 "User updated successfully"));
         }
 

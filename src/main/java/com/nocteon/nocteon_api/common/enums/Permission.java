@@ -93,6 +93,13 @@ public enum Permission {
     // holds — so POST /api/dashboard/users returned 403 for ADMIN too, making it unreachable.
     USER_CREATE("user:create"),
     USER_UPDATE("user:update"),
+    // Changing someone's role is separated from editing their profile on purpose.
+    // AdminUserController's update route is gated on user:update, which MODERATOR holds, and the
+    // request body carried an unbounded `role` field that UserService.adminUpdate applied without
+    // restriction. A moderator could therefore PUT {"role":"ADMIN"} and grant themselves every
+    // permission in the system, including user:delete and user:create, which MODERATOR
+    // deliberately does not hold. Only ADMIN carries this one.
+    USER_CHANGE_ROLE("user:change_role"),
     USER_DELETE("user:delete"),
     
     // dashboard
