@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -70,9 +69,9 @@ public class GlobalSearchService {
         }
 
         String trimmedQuery = query.trim();
-        // Sorted by id so the capped page is stable: an unsorted LIMIT 5 can return a different
-        // five of the same matches on two identical requests.
-        Pageable limit = PageRequest.of(0, RESULTS_PER_TYPE, Sort.by("id"));
+        // Deliberately unsorted: every row query carries its own relevance ORDER BY. Passing a sort
+        // here would make Spring Data append a second ORDER BY clause, which is a SQL error.
+        Pageable limit = PageRequest.of(0, RESULTS_PER_TYPE);
 
         List<SearchResultDto> results = new ArrayList<>();
         results.addAll(searchOrders(trimmedQuery, limit));

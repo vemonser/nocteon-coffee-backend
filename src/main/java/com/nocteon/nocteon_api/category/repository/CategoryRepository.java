@@ -13,11 +13,38 @@ import com.nocteon.nocteon_api.category.entity.Category;
 
 
 public interface CategoryRepository extends JpaRepository<Category, Long> {
+        /**
+         * Rank tiers, weakest to strongest: 3 anywhere, 2 whole word, 1 prefix, 0 exact.
+         *
+         * <p>The dashboard caps each type at five rows, so without an explicit order the five it
+         * keeps were whichever five the database returned first. That is not merely unstable, it
+         * is unhelpful: an exact slug has to outrank a row that merely contains the same letters
+         * somewhere in its name.
+         *
+         * <p>Ties break on the slug, which is language-neutral. Ordering by a translated name
+         * would rank the same category differently depending on which translations happen to
+         * exist, and could interleave two languages in one alphabetical sequence.
+         *
+         * <p>{@code GROUP BY} replaces {@code DISTINCT} here. PostgreSQL rejects an ORDER BY
+         * expression under SELECT DISTINCT unless that expression is in the select list, and the
+         * rank is a computed aggregate. Grouping by the primary key also satisfies Postgres'
+         * functional-dependency rule, so selecting the whole entity stays legal.
+         */
         @Query("""
-                            SELECT DISTINCT c FROM Category c
-                            JOIN c.translations t
-                            WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :query, '%'))
-                               OR LOWER(c.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        SELECT c FROM Category c
+                        JOIN c.translations t
+                        WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :query, '%'))
+                           OR LOWER(c.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        GROUP BY c.id, c.slug
+                        ORDER BY MIN(CASE
+                                WHEN LOWER(c.slug) = LOWER(:query) THEN 0
+                                WHEN LOWER(t.name) = LOWER(:query) THEN 0
+                                WHEN LOWER(c.slug) LIKE LOWER(CONCAT(:query, '%')) THEN 1
+                                WHEN LOWER(t.name) LIKE LOWER(CONCAT(:query, '%')) THEN 1
+                                WHEN LOWER(t.name) LIKE LOWER(CONCAT('% ', :query, '%')) THEN 2
+                                ELSE 3
+                            END),
+                            MIN(LOWER(c.slug))
                         """)
         List<Category> searchCategories(@Param("query") String query, Pageable pageable);
 

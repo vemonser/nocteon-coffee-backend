@@ -13,10 +13,31 @@ import com.nocteon.nocteon_api.journal.entity.JournalPost;
 
 
 public interface JournalPostRepository extends JpaRepository<JournalPost, Long> {
+                /**
+         * Rank tiers, weakest to strongest: 3 anywhere, 2 whole word, 1 prefix, 0 exact.
+         *
+         * <p>Matches the slug as well as the title. Products and categories were searchable by
+         * slug long before this was, so an admin who typed a post's slug found products and
+         * categories but nothing in the journal — the omission was an oversight, not a policy.
+         *
+         * <p>Ties break on the slug rather than the title, because titles are per-locale and an
+         * Arabic and an English title would otherwise interleave in one alphabetical sequence.
+         */
         @Query("""
-                            SELECT DISTINCT jp FROM JournalPost jp
-                            JOIN jp.translations t
-                            WHERE LOWER(t.title) LIKE LOWER(CONCAT('%', :query, '%'))
+                        SELECT jp FROM JournalPost jp
+                        JOIN jp.translations t
+                        WHERE LOWER(t.title) LIKE LOWER(CONCAT('%', :query, '%'))
+                           OR LOWER(jp.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        GROUP BY jp.id, jp.slug
+                        ORDER BY MIN(CASE
+                                WHEN LOWER(jp.slug) = LOWER(:query) THEN 0
+                                WHEN LOWER(t.title) = LOWER(:query) THEN 0
+                                WHEN LOWER(jp.slug) LIKE LOWER(CONCAT(:query, '%')) THEN 1
+                                WHEN LOWER(t.title) LIKE LOWER(CONCAT(:query, '%')) THEN 1
+                                WHEN LOWER(t.title) LIKE LOWER(CONCAT('% ', :query, '%')) THEN 2
+                                ELSE 3
+                            END),
+                            MIN(LOWER(jp.slug))
                         """)
         List<JournalPost> searchJournalPosts(@Param("query") String query, Pageable pageable);
 
@@ -28,7 +49,7 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
          * query's predicates exactly so the two cannot drift apart.
          */
         @Query("""
-                        SELECT COUNT(DISTINCT jp) FROM JournalPost jp JOIN jp.translations t WHERE LOWER(t.title) LIKE LOWER(CONCAT('%', :query, '%'))
+                        SELECT COUNT(DISTINCT jp) FROM JournalPost jp JOIN jp.translations t WHERE LOWER(t.title) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(jp.slug) LIKE LOWER(CONCAT('%', :query, '%'))
                         """)
         long countSearchJournalPosts(@Param("query") String query);
 

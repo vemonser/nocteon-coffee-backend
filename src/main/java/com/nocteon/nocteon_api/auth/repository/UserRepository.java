@@ -18,6 +18,14 @@ import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
+    /**
+     * An exact email or full name first, then a prefix, then anywhere.
+     *
+     * <p>People get typed by exact identifier far more often than by fragment, so an exact email or
+     * an exact full name has to outrank an address that merely contains the text. Ties break on
+     * email rather than name because names are per-locale and an Arabic and an English name would
+     * otherwise interleave in one alphabetical sequence.
+     */
     @Query(value = """
             SELECT u.*
             FROM users u
@@ -30,6 +38,16 @@ public interface UserRepository extends JpaRepository<User, Long> {
                     ' ',
                     COALESCE(p.last_name, '')
                   ) ILIKE CONCAT('%', :query, '%')
+            ORDER BY CASE
+                WHEN u.email ILIKE :query THEN 0
+                WHEN CONCAT(COALESCE(p.first_name, ''), ' ', COALESCE(p.last_name, ''))
+                     ILIKE :query THEN 0
+                WHEN u.email ILIKE CONCAT(:query, '%') THEN 1
+                WHEN CONCAT(COALESCE(p.first_name, ''), ' ', COALESCE(p.last_name, ''))
+                     ILIKE CONCAT(:query, '%') THEN 1
+                ELSE 2
+            END,
+            LOWER(u.email)
             """, nativeQuery = true)
     List<User> searchUsers(@Param("query") String query, Pageable pageable);
 

@@ -18,12 +18,26 @@ import com.nocteon.nocteon_api.payment.enums.PaymentStatus;
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
         @Query("""
-                            SELECT o FROM Order o
-                            JOIN o.user u
-                            WHERE CAST(o.id AS string) LIKE CONCAT('%', :query, '%')
-                            OR LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%'))
+                        SELECT o FROM Order o
+                        JOIN o.user u
+                        WHERE CAST(o.id AS string) LIKE CONCAT('%', :query, '%')
+                           OR LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%'))
+                        ORDER BY CASE
+                                WHEN CAST(o.id AS string) = :query THEN 0
+                                WHEN CAST(o.id AS string) LIKE CONCAT(:query, '%') THEN 1
+                                WHEN LOWER(u.email) = LOWER(:query) THEN 2
+                                ELSE 3
+                            END,
+                            o.id
                         """)
-        List<Order> searchOrders(@Param("query") String query, Pageable pageable);
+                        /**
+         * A whole order number first, then a prefix of one, then an email match.
+         *
+         * <p>Orders are usually searched by the number a customer quotes, so matching the id
+         * exactly outranks an email that merely contains the digits. No GROUP BY is needed here:
+         * the join is many-to-one, so it cannot duplicate rows.
+         */
+List<Order> searchOrders(@Param("query") String query, Pageable pageable);
 
         /**
          * How many rows the search query matches, uncapped.
