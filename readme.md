@@ -284,14 +284,28 @@ CLOUDINARY_API_SECRET=
 docker compose up -d
 ```
 
-This brings up four services:
+This brings up two services:
 
 | Service | Image | Purpose |
 |---|---|---|
 | `db` | `pgvector/pgvector:pg16` | Postgres **with the `vector` extension**. Not the vanilla image — semantic search needs pgvector and it cannot be installed on an existing cluster without superuser. |
 | `redis` | `redis:7-alpine` | Sessions, rate limits, chat history. |
+
+**Ollama is not started by that command**, and its image is not pulled. Two more services sit
+behind a profile:
+
+| Service | Image | Purpose |
+|---|---|---|
 | `ollama` | `ollama/ollama:latest` | Local model inference. |
-| `ollama-init` | `ollama/ollama:latest` | One-shot. Pulls both models into the `ollama-data` volume, then exits. Nothing depends on it, so a failed pull never blocks the other services; re-run it with `docker compose run --rm ollama-init`. |
+| `ollama-init` | `ollama/ollama:latest` | One-shot. Pulls both models into the `ollama-data` volume, then exits. Nothing depends on it, so a failed pull never blocks the other services; re-run it with `docker compose --profile local-ai run --rm ollama-init`. |
+
+You need them only when **both `GEMINI_API_KEY` and `GROQ_API_KEY` are blank**. With a key set the
+application never contacts Ollama, so the profile buys nothing but a ~1 GB image and two more models
+in the volume:
+
+```bash
+docker compose --profile local-ai up -d
+```
 
 The application itself is **not** a compose service — run it from the host with
 `./mvnw spring-boot:run` (below), so a code change is a rebuild rather than a container
@@ -335,21 +349,23 @@ behaves exactly as it did before.
 ## Quickstart
 
 ```bash
-# 1. Infrastructure, including the two model downloads (~2 GB, one time)
+# 1. Infrastructure — Postgres + Redis only, no model downloads
 docker compose up -d
 
-# 2. Confirm the models landed
+# 2. Only if GEMINI_API_KEY and GROQ_API_KEY are both blank: the local
+#    fallback. ~1 GB image plus ~2 GB of models, once.
+docker compose --profile local-ai up -d
 docker compose exec ollama ollama list
 #   nomic-embed-text:latest
 #   qwen2.5:3b-instruct:latest
 
-# 3. Run the app (AI flags still off)
-AI_ENABLED=true ./mvnw spring-boot:run
+# 3. Run the app
+AI_ENABLED=true AI_SEARCH_ENABLED=true AI_CHATBOT_ENABLED=true ./mvnw spring-boot:run
 
-# 4. Build the index
-curl -X POST http://localhost:8080/api/dashboard/ai/reindex -H "Authorization: Bearer $ADMIN_TOKEN"
-curl http://localhost:8080/api/dashboard/ai/stats    -H "Authorization: Bearer $ADMIN_TOKEN"
-#   indexed > 0, then stale: 0
+# 4. Nothing to do — the vector index builds itself on first boot when it is
+#    empty or stale. Check it if you want to:
+curl http://localhost:8080/api/dashboard/ai/stats -H "Authorization: Bearer $ADMIN_TOKEN"
+#   indexed > 0, stale: 0
 ```
 
 ## The order the flags go up in

@@ -37,6 +37,9 @@ build/
 /docs/*
 !/docs/ai-golden-queries.md
 !/docs/ai-load.js
+!/docs/ai-architecture.md
+!/docs/ai-build-guide.md
+!/docs/ai-build-guide-ar.md
 ### VS Code ###
 .vscode/
 .env
