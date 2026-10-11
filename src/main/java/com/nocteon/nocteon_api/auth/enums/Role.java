@@ -23,8 +23,17 @@ public enum Role {
             Permission.ORDER_CREATE, Permission.ORDER_READ, Permission.ORDER_UPDATE,
             Permission.REVIEW_CREATE, Permission.REVIEW_READ,
             Permission.REVIEW_UPDATE, Permission.REVIEW_DELETE,
+            // Moderating is the one review permission MODERATOR was missing. It already holds
+            // REVIEW_UPDATE and REVIEW_DELETE, so without this the role could edit and remove a
+            // review but could not approve, reject or flag one — and ReviewController gates those
+            // three endpoints on review:moderate, which returned 403 for every moderator.
+            Permission.REVIEW_MODERATE,
             Permission.USER_READ, Permission.USER_UPDATE,
-            Permission.CART_MANAGE, Permission.WISHLIST_MANAGE
+            Permission.CART_MANAGE, Permission.WISHLIST_MANAGE,
+            // Staff-wide cart visibility. MODERATOR reads carts as part of day-to-day support
+            // work, and this is the permission that grants it — CART_MANAGE alone is not enough,
+            // because that one is deliberately shared with CUSTOMER for the storefront basket.
+            Permission.CART_READ_ALL
     )),
 
     CUSTOMER(Set.of(

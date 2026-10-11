@@ -45,6 +45,15 @@ public class DashboardCartService {
                                 .map(this::buildDashboardResponse);
         }
 
+        /**
+         * One cart, by id, for staff.
+         *
+         * <p>Reached only through {@code cart:read_all}, which no customer holds. The permission
+         * is the authorisation; this method is the reason it is worth having — it returns another
+         * user's email, full name and basket contents, so it must never be reachable by guessing an
+         * id. Any future refactor that re-gates this on {@code cart:manage} reopens the hole,
+         * which is why the permission name is deliberately not the one the storefront uses.
+         */
         @Transactional(readOnly = true)
         public DashboardCartResponse getById(Long cartId) {
                 Cart cart = cartRepository.findById(cartId)
