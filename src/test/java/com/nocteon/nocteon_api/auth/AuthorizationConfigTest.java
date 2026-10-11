@@ -105,21 +105,25 @@ class AuthorizationConfigTest {
     }
 
     /**
-     * A staff-only surface must not be gated on a permission customers hold.
+     * A staff-only surface must not be gated on any permission a customer holds.
      *
      * <p>Catches {@code DashboardCartController} using {@code cart:manage}, which CUSTOMER holds
      * for its own basket, over {@code GET /api/dashboard/carts} — whose service reads by id with
      * no ownership check and returns another user's email, full name and basket contents.
+     *
+     * <p>The assertion is disjointness from the whole CUSTOMER set, not from {@code cart:manage}
+     * specifically. An earlier version checked only the latter, which would have stayed green if the
+     * controller had been re-gated on {@code product:read}, {@code order:read} or any of the other
+     * permissions a customer legitimately holds.
      */
     @Test
-    @DisplayName("the dashboard cart inbox is not gated on the customer basket permission")
+    @DisplayName("the dashboard cart inbox is gated on nothing a customer holds")
     void dashboardCartInboxIsNotCustomerAccessible() {
         Set<Permission> customer = Role.CUSTOMER.getPermissions();
-        String basketPermission = Permission.CART_MANAGE.getPermission();
 
         assertThat(customer)
                 .as("precondition: CUSTOMER holds %s for its own basket, which is why it cannot also "
-                        + "gate staff-wide visibility", basketPermission)
+                        + "gate staff-wide visibility", Permission.CART_MANAGE.getPermission())
                 .contains(Permission.CART_MANAGE);
 
         assertThat(customer)
@@ -138,10 +142,46 @@ class AuthorizationConfigTest {
                 .toList();
 
         assertThat(authorities)
-                .as("the cart inbox exposes other users' carts, so it must not reuse the "
-                        + "customer basket permission")
+                .as("""
+                        The cart inbox exposes other users' email, full name and basket, so none of \
+                        its authorities may be one CUSTOMER holds.
+
+                        Checked against the whole CUSTOMER set rather than a single permission: \
+                        re-gating on any permission a customer legitimately holds — product:read, \
+                        order:read, user:read — would reopen the same hole under a different name.""")
                 .isNotEmpty()
-                .doesNotContain(basketPermission);
+                .doesNotContainAnyElementsOf(customer.stream()
+                        .map(Permission::getPermission)
+                        .toList());
+    }
+
+    /**
+     * Only ADMIN may change a user's role.
+     *
+     * <p>{@code PUT /api/dashboard/users/{id}} is gated on {@code user:update}, which MODERATOR
+     * holds, and the request body carries an optional {@code role} that
+     * {@code UserService.adminUpdate} applied without any further check. A moderator could
+     * therefore promote any account to ADMIN and inherit every permission in the system,
+     * including {@code user:delete} and {@code user:create}, which MODERATOR deliberately lacks.
+     *
+     * <p>Route-level permission alone cannot express this, so the guarantee is the existence of a
+     * separate {@code user:change_role} grant held by ADMIN and by no other role.
+     */
+    @Test
+    @DisplayName("role changes require a permission no non-admin role holds")
+    void roleChangesRequireAnAdminOnlyPermission() {
+        for (Role role : Role.values()) {
+            if (role == Role.ADMIN) {
+                continue;
+            }
+            assertThat(role.getPermissions())
+                    .as("%s must not be able to change a user's role", role)
+                    .doesNotContain(Permission.USER_CHANGE_ROLE);
+        }
+
+        assertThat(Role.ADMIN.getPermissions())
+                .as("ADMIN must be able to change a user's role")
+                .contains(Permission.USER_CHANGE_ROLE);
     }
 
     /**
