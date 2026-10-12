@@ -102,6 +102,13 @@ public class BroadcastCreationService {
         return buildResponse(broadcast);
     }
 
+    @Transactional
+    public void delete(Long id) {
+        Broadcast broadcast = broadcastRepository.findById(id)
+                .orElseThrow(BroadcastNotFoundException::new);
+        broadcastRepository.delete(broadcast);
+    }
+
     private BroadcastResponse buildResponse(Broadcast broadcast) {
         return BroadcastResponse.builder()
                 .id(broadcast.getId())

@@ -36,6 +36,13 @@ public class OrderQueryService {
         return PageResponse.of(page.map(this::buildResponse));
     }
 
+    @Transactional(readOnly = true)
+    public OrderResponse getById(Long id) {
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new com.nocteon.nocteon_api.common.exception.notFound.OrderNotFoundException());
+        return buildResponse(order);
+    }
+
     OrderResponse buildResponse(Order order) {
         List<OrderItemResponse> items = order.getItems().stream()
                 .map(item -> OrderItemResponse.builder()

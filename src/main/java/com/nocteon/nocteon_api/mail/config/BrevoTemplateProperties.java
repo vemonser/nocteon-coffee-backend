@@ -17,4 +17,6 @@ public class BrevoTemplateProperties {
     private Long paymentSuccess;
     private Long abandonedCart;
     private Long adminBroadcast;
+    private Long verification;
+    private Long passwordReset;
 }

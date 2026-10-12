@@ -60,6 +60,9 @@ CREATE TABLE contact_messages (
     email VARCHAR(255) NOT NULL,
     subject VARCHAR(200) NOT NULL,
     message TEXT NOT NULL,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    is_replied BOOLEAN NOT NULL DEFAULT FALSE,
+    reply_content TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW (),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW ()
 );

@@ -7,6 +7,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -122,5 +123,14 @@ public class OrderController {
                                 ApiResponse.success(
                                                 orderService.updateStatus(id, request.getStatus()),
                                                 "Order status updated"));
+        }
+
+        @GetMapping("/dashboard/orders/{id}")
+        @PreAuthorize("hasAuthority('order:read')")
+        public ResponseEntity<ApiResponse<OrderResponse>> getById(@PathVariable Long id) {
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                orderQueryService.getById(id),
+                                                "Order retrieved"));
         }
 }

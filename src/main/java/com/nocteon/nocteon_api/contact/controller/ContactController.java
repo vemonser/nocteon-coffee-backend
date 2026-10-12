@@ -3,11 +3,15 @@ package com.nocteon.nocteon_api.contact.controller;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.validation.annotation.Validated;
 
@@ -46,25 +50,56 @@ public class ContactController {
                 .body(ApiResponse.success(response, "Message sent successfully"));
     }
 
-    /**
-     * Inbox for staff.
-     *
-     * <p>The class mapping is {@code /api}, not {@code /api/contact}, so this composes to
-     * {@code /api/dashboard/contact-messages}: both the path the dashboard calls and the prefix
-     * the dashboard security rule matches.
-     *
-     * <p>It was originally {@code /api/contact} plus a method mapping of
-     * {@code /api/dashboard/contact-messages}, which Spring concatenates into
-     * {@code /api/contact/api/dashboard/contact-messages}. Fixing only the method mapping repaired
-     * the 404 but not the other half: the result still did not begin with {@code /api/dashboard/},
-     * so it fell through to any-request-authenticated rather than the dashboard rule. It was not
-     * exploitable, since {@code contact:read} is the real control and only ADMIN holds it, but a
-     * staff inbox ended up outside the rule meant to cover staff endpoints.
-     */
     @GetMapping("/dashboard/contact-messages")
     @PreAuthorize("hasAuthority('contact:read')")
     public ResponseEntity<ApiResponse<PageResponse<ContactResponse>>> getAll(
             @ModelAttribute BaseFilterRequest filter) {
         return ResponseEntity.ok(ApiResponse.success(contactService.getAll(filter), "Contact messages retrieved"));
+    }
+
+    @GetMapping("/dashboard/contact-messages/unread")
+    @PreAuthorize("hasAuthority('contact:read')")
+    public ResponseEntity<ApiResponse<PageResponse<ContactResponse>>> getAllUnread(
+            @ModelAttribute BaseFilterRequest filter) {
+        return ResponseEntity.ok(ApiResponse.success(contactService.getAllUnread(filter), "Unread messages retrieved"));
+    }
+
+    @GetMapping("/dashboard/contact-messages/{id}")
+    @PreAuthorize("hasAuthority('contact:read')")
+    public ResponseEntity<ApiResponse<ContactResponse>> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(contactService.getById(id), "Contact message retrieved"));
+    }
+
+    @PatchMapping("/dashboard/contact-messages/{id}/read")
+    @PreAuthorize("hasAuthority('contact:update')")
+    public ResponseEntity<ApiResponse<ContactResponse>> markAsRead(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(contactService.markAsRead(id), "Message marked as read"));
+    }
+
+    @PostMapping("/dashboard/contact-messages/{id}/reply")
+    @PreAuthorize("hasAuthority('contact:update')")
+    public ResponseEntity<ApiResponse<ContactResponse>> reply(
+            @PathVariable Long id,
+            @RequestBody @Valid ReplyRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(contactService.reply(id, request.getReplyContent()), "Reply sent"));
+    }
+
+    @DeleteMapping("/dashboard/contact-messages/{id}")
+    @PreAuthorize("hasAuthority('contact:delete')")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        contactService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ── Inner DTO for reply request ─────────────────────────────────────────────
+
+    @jakarta.validation.constraints.NotBlank
+    @lombok.Getter
+    @lombok.Setter
+    @lombok.NoArgsConstructor
+    public static class ReplyRequest {
+        @jakarta.validation.constraints.NotBlank(message = "Reply content is required")
+        @jakarta.validation.constraints.Size(max = 2000, message = "Reply must be at most 2000 characters")
+        private String replyContent;
     }
 }

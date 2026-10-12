@@ -123,9 +123,18 @@ public enum Permission {
     // Broadcast
     BROADCAST_CREATE("broadcast:create"),
     BROADCAST_READ("broadcast:read"),
+    // BroadcastController's delete route asked for broadcast:delete before this constant existed.
+    // hasAuthority compares raw strings, so that string failed closed: 403 for every role,
+    // including ADMIN, which is granted Permission.values().
+    BROADCAST_DELETE("broadcast:delete"),
 
     // Contact
+    // The inbox's reply and mark-as-read routes asked for contact:update, and delete for
+    // contact:delete, before either constant existed — so both failed closed with 403 for every
+    // role. Like contact:read, these stay ADMIN-only: MODERATOR holds no contact permission.
     CONTACT_READ("contact:read"),
+    CONTACT_UPDATE("contact:update"),
+    CONTACT_DELETE("contact:delete"),
 
     // Cart & Wishlist
     // CART_MANAGE means "manage your own cart" and is deliberately held by CUSTOMER — the
