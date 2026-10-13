@@ -326,12 +326,16 @@ class CheckoutStockBehaviourTest {
                     .paymentStatus(PaymentStatus.PENDING)
                     .items(new ArrayList<>())
                     .build();
+            Payment payment = paymentFor(cancelled);
 
-            deliverWebhook(true, 60L, paymentFor(cancelled));
+            deliverWebhook(true, 60L, payment);
 
             assertThat(cancelled.getStatus())
                     .as("an already-cancelled order stays cancelled")
                     .isEqualTo(OrderStatus.CANCELLED);
+            assertThat(payment.getStatus())
+                    .as("the captured money is still recorded, so ops can refund it")
+                    .isEqualTo(PaymentStatus.PAID);
         }
 
         /**
