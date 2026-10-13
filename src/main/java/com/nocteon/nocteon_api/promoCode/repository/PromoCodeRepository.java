@@ -5,7 +5,10 @@ import java.util.Optional;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+
+import jakarta.persistence.LockModeType;
 import org.springframework.data.repository.query.Param;
 
 import com.nocteon.nocteon_api.promoCode.entity.PromoCode;
@@ -45,6 +48,16 @@ List<PromoCode> searchPromoCodes(@Param("query") String query, Pageable pageable
     long countByActiveTrue();
 
     Optional<PromoCode> findByCodeIgnoreCase(String code);
+
+    /**
+     * Locked lookup for the checkout path. Validation and redemption happen in
+     * the same transaction, so holding a write lock from the usage-count check
+     * until commit serializes concurrent checkouts on the same code — two
+     * buyers presenting the last redemption cannot both slip through.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT pc FROM PromoCode pc WHERE LOWER(pc.code) = LOWER(:code)")
+    Optional<PromoCode> findByCodeIgnoreCaseForUpdate(@Param("code") String code);
 
     boolean existsByCodeIgnoreCase(String code);
 }

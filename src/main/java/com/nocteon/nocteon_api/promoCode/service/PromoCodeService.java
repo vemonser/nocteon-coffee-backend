@@ -176,7 +176,9 @@ public class PromoCodeService {
     public PromoCodeCalculationResult calculateDiscountForCart(
             String code, List<CartItem> cartItems, BigDecimal cartTotal, Long userId) {
 
-        PromoCode promoCode = promoCodeRepository.findByCodeIgnoreCase(code)
+        // Locked read: the only caller runs inside the checkout transaction, so
+        // the usage-count check below and the later redemption are atomic.
+        PromoCode promoCode = promoCodeRepository.findByCodeIgnoreCaseForUpdate(code)
                 .orElseThrow(PromoCodeNotFoundException::new);
 
         List<CartItem> eligibleItems = getEligibleCartItems(promoCode, cartItems);

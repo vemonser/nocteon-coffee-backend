@@ -407,7 +407,7 @@ class CheckoutStockBehaviourTest {
         @Test
         @DisplayName("a single-use code yields exactly one redemption")
         void singleUseCodeYieldsOneRedemption() {
-            when(promoCodeRepository.findByCodeIgnoreCase("SAVE10"))
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("SAVE10"))
                     .thenReturn(Optional.of(singleUsePromo()));
             // First buyer sees zero uses; second buyer sees the first buyer's.
             when(redemptionRepository.countByPromoCodeId(9L))
@@ -439,7 +439,7 @@ class CheckoutStockBehaviourTest {
         @Test
         @DisplayName("an accepted percentage code reduces the order total")
         void acceptedCodeReducesTotal() {
-            when(promoCodeRepository.findByCodeIgnoreCase("SAVE10"))
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("SAVE10"))
                     .thenReturn(Optional.of(tenPercentPromo()));
 
             var result = realPromoCodeService().calculateDiscountForCart(

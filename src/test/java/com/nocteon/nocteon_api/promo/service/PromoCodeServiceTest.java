@@ -99,7 +99,7 @@ class PromoCodeServiceTest {
 
         @Test
         void throwsWhenCodeDoesNotExist() {
-            when(promoCodeRepository.findByCodeIgnoreCase("MISSING")).thenReturn(Optional.empty());
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("MISSING")).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> promoCodeService.calculateDiscountForCart(
                     "MISSING", List.of(coffeeItem), BigDecimal.valueOf(300), 1L))
@@ -109,7 +109,7 @@ class PromoCodeServiceTest {
         @Test
         void throwsWhenCodeIsInactive() {
             PromoCode code = validGlobalCodeBuilder().active(false).build();
-            when(promoCodeRepository.findByCodeIgnoreCase("WELCOME10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("WELCOME10")).thenReturn(Optional.of(code));
 
             assertThatThrownBy(() -> promoCodeService.calculateDiscountForCart(
                     "WELCOME10", List.of(coffeeItem), BigDecimal.valueOf(300), 1L))
@@ -122,7 +122,7 @@ class PromoCodeServiceTest {
                     .validFrom(Instant.now().plus(1, ChronoUnit.DAYS))
                     .validUntil(Instant.now().plus(2, ChronoUnit.DAYS))
                     .build();
-            when(promoCodeRepository.findByCodeIgnoreCase("WELCOME10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("WELCOME10")).thenReturn(Optional.of(code));
 
             assertThatThrownBy(() -> promoCodeService.calculateDiscountForCart(
                     "WELCOME10", List.of(coffeeItem), BigDecimal.valueOf(300), 1L))
@@ -135,7 +135,7 @@ class PromoCodeServiceTest {
                     .validFrom(Instant.now().minus(10, ChronoUnit.DAYS))
                     .validUntil(Instant.now().minus(1, ChronoUnit.DAYS))
                     .build();
-            when(promoCodeRepository.findByCodeIgnoreCase("WELCOME10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("WELCOME10")).thenReturn(Optional.of(code));
 
             assertThatThrownBy(() -> promoCodeService.calculateDiscountForCart(
                     "WELCOME10", List.of(coffeeItem), BigDecimal.valueOf(300), 1L))
@@ -149,7 +149,7 @@ class PromoCodeServiceTest {
                     .validFrom(now.minus(1, ChronoUnit.SECONDS)) // just started
                     .validUntil(now.plus(1, ChronoUnit.DAYS))
                     .build();
-            when(promoCodeRepository.findByCodeIgnoreCase("WELCOME10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("WELCOME10")).thenReturn(Optional.of(code));
             lenient().when(redemptionRepository.countByPromoCodeIdAndUserId(1L, 1L)).thenReturn(0L);
 
             var result = promoCodeService.calculateDiscountForCart(
@@ -167,7 +167,7 @@ class PromoCodeServiceTest {
         @Test
         void globalScopeAppliesToAllItems() {
             PromoCode code = validGlobalCodeBuilder().build();
-            when(promoCodeRepository.findByCodeIgnoreCase("WELCOME10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("WELCOME10")).thenReturn(Optional.of(code));
             lenient().when(redemptionRepository.countByPromoCodeIdAndUserId(1L, 1L)).thenReturn(0L);
 
             var result = promoCodeService.calculateDiscountForCart(
@@ -183,7 +183,7 @@ class PromoCodeServiceTest {
                     .scopeType(PromoScopeType.CATEGORY)
                     .categories(List.of(coffeeCategory))
                     .build();
-            when(promoCodeRepository.findByCodeIgnoreCase("COFFEE10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("COFFEE10")).thenReturn(Optional.of(code));
             lenient().when(redemptionRepository.countByPromoCodeIdAndUserId(1L, 1L)).thenReturn(0L);
 
             var result = promoCodeService.calculateDiscountForCart(
@@ -199,7 +199,7 @@ class PromoCodeServiceTest {
                     .scopeType(PromoScopeType.CATEGORY)
                     .categories(List.of(equipmentCategory))
                     .build();
-            when(promoCodeRepository.findByCodeIgnoreCase("EQUIP10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("EQUIP10")).thenReturn(Optional.of(code));
 
             // Cart only has coffee, code targets equipment only
             assertThatThrownBy(() -> promoCodeService.calculateDiscountForCart(
@@ -218,7 +218,7 @@ class PromoCodeServiceTest {
             PromoCode code = validGlobalCodeBuilder()
                     .minOrderAmount(BigDecimal.valueOf(400))
                     .build();
-            when(promoCodeRepository.findByCodeIgnoreCase("WELCOME10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("WELCOME10")).thenReturn(Optional.of(code));
 
             // full cart total 300 < 400 -> should fail even though it's GLOBAL scope
             assertThatThrownBy(() -> promoCodeService.calculateDiscountForCart(
@@ -235,7 +235,7 @@ class PromoCodeServiceTest {
                     .categories(List.of(equipmentCategory))
                     .minOrderAmount(BigDecimal.valueOf(500))
                     .build();
-            when(promoCodeRepository.findByCodeIgnoreCase("EQUIP10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("EQUIP10")).thenReturn(Optional.of(code));
 
             // full cart total = 500 (300 coffee + 200 equipment), but eligible (equipment) = 200 < 500
             assertThatThrownBy(() -> promoCodeService.calculateDiscountForCart(
@@ -259,7 +259,7 @@ class PromoCodeServiceTest {
                     .categories(List.of(equipmentCategory))
                     .minOrderAmount(BigDecimal.valueOf(500))
                     .build();
-            when(promoCodeRepository.findByCodeIgnoreCase("EQUIP10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("EQUIP10")).thenReturn(Optional.of(code));
 
             // cart total = 490 (coffee) + 10 (equipment) = 500, but eligible (equipment) amount = 10
             assertThatThrownBy(() -> promoCodeService.calculateDiscountForCart(
@@ -278,7 +278,7 @@ class PromoCodeServiceTest {
             PromoCode code = validGlobalCodeBuilder()
                     .maxTotalRedemptions(100)
                     .build();
-            when(promoCodeRepository.findByCodeIgnoreCase("WELCOME10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("WELCOME10")).thenReturn(Optional.of(code));
             when(redemptionRepository.countByPromoCodeId(1L)).thenReturn(100L);
 
             assertThatThrownBy(() -> promoCodeService.calculateDiscountForCart(
@@ -291,7 +291,7 @@ class PromoCodeServiceTest {
             PromoCode code = validGlobalCodeBuilder()
                     .maxTotalRedemptions(100)
                     .build();
-            when(promoCodeRepository.findByCodeIgnoreCase("WELCOME10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("WELCOME10")).thenReturn(Optional.of(code));
             when(redemptionRepository.countByPromoCodeId(1L)).thenReturn(99L);
             when(redemptionRepository.countByPromoCodeIdAndUserId(1L, 1L)).thenReturn(0L);
 
@@ -306,7 +306,7 @@ class PromoCodeServiceTest {
             PromoCode code = validGlobalCodeBuilder()
                     .maxRedemptionsPerUser(1)
                     .build();
-            when(promoCodeRepository.findByCodeIgnoreCase("WELCOME10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("WELCOME10")).thenReturn(Optional.of(code));
             when(redemptionRepository.countByPromoCodeIdAndUserId(1L, 1L)).thenReturn(1L);
 
             assertThatThrownBy(() -> promoCodeService.calculateDiscountForCart(
@@ -319,7 +319,7 @@ class PromoCodeServiceTest {
             PromoCode code = validGlobalCodeBuilder()
                     .maxRedemptionsPerUser(1)
                     .build();
-            when(promoCodeRepository.findByCodeIgnoreCase("WELCOME10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("WELCOME10")).thenReturn(Optional.of(code));
             // user 2 has never redeemed
             when(redemptionRepository.countByPromoCodeIdAndUserId(1L, 2L)).thenReturn(0L);
 
@@ -341,7 +341,7 @@ class PromoCodeServiceTest {
                     .discountType(PromoCodeDiscountType.PERCENTAGE)
                     .discountValue(BigDecimal.valueOf(33.333))
                     .build();
-            when(promoCodeRepository.findByCodeIgnoreCase("WELCOME10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("WELCOME10")).thenReturn(Optional.of(code));
             lenient().when(redemptionRepository.countByPromoCodeIdAndUserId(1L, 1L)).thenReturn(0L);
 
             var result = promoCodeService.calculateDiscountForCart(
@@ -358,7 +358,7 @@ class PromoCodeServiceTest {
                     .discountType(PromoCodeDiscountType.FIXED_AMOUNT)
                     .discountValue(BigDecimal.valueOf(500))
                     .build();
-            when(promoCodeRepository.findByCodeIgnoreCase("WELCOME10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("WELCOME10")).thenReturn(Optional.of(code));
             lenient().when(redemptionRepository.countByPromoCodeIdAndUserId(1L, 1L)).thenReturn(0L);
 
             var result = promoCodeService.calculateDiscountForCart(
@@ -373,7 +373,7 @@ class PromoCodeServiceTest {
                     .discountType(PromoCodeDiscountType.FIXED_AMOUNT)
                     .discountValue(BigDecimal.valueOf(50))
                     .build();
-            when(promoCodeRepository.findByCodeIgnoreCase("WELCOME10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("WELCOME10")).thenReturn(Optional.of(code));
             lenient().when(redemptionRepository.countByPromoCodeIdAndUserId(1L, 1L)).thenReturn(0L);
 
             var result = promoCodeService.calculateDiscountForCart(
@@ -388,7 +388,7 @@ class PromoCodeServiceTest {
                     .discountType(PromoCodeDiscountType.FREE_SHIPPING)
                     .discountValue(null)
                     .build();
-            when(promoCodeRepository.findByCodeIgnoreCase("WELCOME10")).thenReturn(Optional.of(code));
+            when(promoCodeRepository.findByCodeIgnoreCaseForUpdate("WELCOME10")).thenReturn(Optional.of(code));
             lenient().when(redemptionRepository.countByPromoCodeIdAndUserId(1L, 1L)).thenReturn(0L);
 
             var result = promoCodeService.calculateDiscountForCart(
