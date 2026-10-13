@@ -152,8 +152,14 @@ public class OrderService {
                                                                         BigDecimal.valueOf(cartItem.getQuantity())))
                                                         .build());
 
-                        variant.setStockQuantity(variant.getStockQuantity() - cartItem.getQuantity());
-                        variantRepository.save(variant);
+                        int reserved = variantRepository.decrementStockIfAvailable(
+                                        variant.getId(), cartItem.getQuantity());
+                        if (reserved == 0) {
+                                // Someone else took the last units between our early check
+                                // and this reservation — report what is really left.
+                                throw new InsufficientStockException(
+                                                variantRepository.findStockById(variant.getId()));
+                        }
                 }
 
                 cartItemRepository.deleteByCartId(cart.getId());

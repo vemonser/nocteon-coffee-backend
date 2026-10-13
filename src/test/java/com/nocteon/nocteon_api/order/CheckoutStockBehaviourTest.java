@@ -3,6 +3,8 @@ package com.nocteon.nocteon_api.order;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -183,14 +185,8 @@ class CheckoutStockBehaviourTest {
         @DisplayName("exactly one of two simultaneous checkouts succeeds")
         void onlyOneCheckoutSucceeds() throws Exception {
             AtomicInteger stock = new AtomicInteger(1);
-            when(variantRepository.save(any(ProductVariant.class)))
-                    .thenAnswer(inv -> {
-                        ProductVariant v = inv.getArgument(0);
-                        if (!stock.compareAndSet(1, 0)) {
-                            throw new InsufficientStockException(stock.get());
-                        }
-                        return v;
-                    });
+            when(variantRepository.decrementStockIfAvailable(anyLong(), anyInt()))
+                    .thenAnswer(inv -> stock.compareAndSet(1, 0) ? 1 : 0);
 
             ExecutorService pool = Executors.newFixedThreadPool(2);
             CountDownLatch ready = new CountDownLatch(2);
@@ -233,10 +229,11 @@ class CheckoutStockBehaviourTest {
         @Test
         @DisplayName("the loser is rejected with a stock message, not a server error")
         void loserGetsStockRejection() {
-            when(variantRepository.save(any(ProductVariant.class)))
-                    .thenThrow(new InsufficientStockException(0));
+            UserPrincipal buyer = principal(1L);
+            stubSuccessfulCheckout(buyer, cartWithVariant(1L, 1));
+            when(variantRepository.decrementStockIfAvailable(anyLong(), anyInt())).thenReturn(0);
 
-            assertThatThrownBy(() -> checkout(principal(1L), cartWithVariant(1L, 1)))
+            assertThatThrownBy(() -> orderService.createOrder(codRequest(), buyer))
                     .isInstanceOf(InsufficientStockException.class);
         }
 
@@ -247,9 +244,7 @@ class CheckoutStockBehaviourTest {
         @DisplayName("the winner's cart is cleared after a successful order")
         void winnerCartIsCleared() {
             Cart cart = cartWithVariant(1L, 1);
-            stubSuccessfulCheckout(principal(1L), cart);
-
-            orderService.createOrder(codRequest(), principal(1L));
+            checkout(principal(1L), cart);
 
             verify(cartItemRepository).deleteByCartId(cart.getId());
         }
@@ -493,6 +488,7 @@ class CheckoutStockBehaviourTest {
     /** Runs a checkout and lets any rejection propagate to the caller. */
     private void checkout(UserPrincipal principal, Cart cart) {
         stubSuccessfulCheckout(principal, cart);
+        when(variantRepository.decrementStockIfAvailable(anyLong(), anyInt())).thenReturn(1);
         orderService.createOrder(codRequest(), principal);
     }
 

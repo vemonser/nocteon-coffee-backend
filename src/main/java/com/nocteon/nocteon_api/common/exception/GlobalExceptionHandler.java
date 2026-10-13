@@ -17,10 +17,12 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import jakarta.validation.ConstraintViolationException;
+import jakarta.persistence.OptimisticLockException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -256,6 +258,25 @@ public class GlobalExceptionHandler {
                                 ex.getMessageKey(), // fallback
                                 locale);
                 return ResponseEntity.status(ex.getStatus())
+                                .body(ApiResponse.error(message, null));
+        }
+
+        // ─── Concurrency conflicts → 409, not 500 ────────────────────────────
+
+        @ExceptionHandler({ OptimisticLockException.class, OptimisticLockingFailureException.class })
+        public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(RuntimeException ex) {
+                // A concurrent checkout won the race for the same row (stock,
+                // promo usage, …). The buyer's request is fine — someone else
+                // just got there first — so answer 409 with the stock message,
+                // never a generic 500.
+                log.warn("Optimistic lock conflict, likely a lost checkout race: {}", ex.getMessage());
+                Locale locale = LocaleContextHolder.getLocale();
+                String message = messageSource.getMessage(
+                                "error.product.insufficientStock",
+                                new Object[] { 0 },
+                                "error.product.insufficientStock",
+                                locale);
+                return ResponseEntity.status(HttpStatus.CONFLICT)
                                 .body(ApiResponse.error(message, null));
         }
 
