@@ -71,6 +71,14 @@ List<Order> searchOrders(@Param("query") String query, Pageable pageable);
 
         Optional<Order> findByIdAndUserId(Long id, Long userId);
 
+        /**
+         * Checkouts whose payment callback never arrived: still awaiting payment
+         * and older than the cutoff. The expiry sweep cancels these and gives
+         * their stock back to the shelf.
+         */
+        List<Order> findByStatusAndPaymentStatusAndCreatedAtBefore(
+                        OrderStatus status, PaymentStatus paymentStatus, Instant cutoff);
+
         @Query("""
                         SELECT DISTINCT o FROM Order o
                         LEFT JOIN o.items i

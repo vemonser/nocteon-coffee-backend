@@ -3,6 +3,7 @@ package com.nocteon.nocteon_api.order;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import java.math.BigDecimal;
@@ -115,6 +116,7 @@ class CheckoutStockBehaviourTest {
     private OrderService orderService;
     private PaymentService realPaymentService;
     private PromoCodeService realPromoCodeService;
+    private com.nocteon.nocteon_api.order.service.UnpaidOrderExpiryService expiryService;
 
     @BeforeEach
     void setUp() {
@@ -131,6 +133,9 @@ class CheckoutStockBehaviourTest {
         realPaymentService = new PaymentService(
                 new RestTemplate(), paymentRepository, orderRepository, eventPublisher());
         ReflectionTestUtils.setField(realPaymentService, "hmacSecret", HMAC_SECRET);
+
+        expiryService = new com.nocteon.nocteon_api.order.service.UnpaidOrderExpiryService(
+                orderRepository, variantRepository, paymentRepository);
 
         // Shared scaffolding: a cheap cart well below the free-shipping line.
         // Lenient: the webhook and promo tests never check out, so they never touch these.
@@ -280,33 +285,42 @@ class CheckoutStockBehaviourTest {
          * Stock must not be held forever by an order nobody is paying for.
          *
          * <p>The store's promise: a unit reserved by an abandoned checkout comes
-         * back to the shelf. Whether that happens via a scheduled sweep, a
-         * lazy timeout check, or an explicit cancel does not matter — what
-         * matters is that the stock returns.
+         * back to the shelf via the expiry sweep.
          */
         @Test
         @DisplayName("stock reserved by an unpaid order is eventually released")
         void abandonedOrderReleasesStock() {
-            Order pending = Order.builder()
+            ProductVariant variant = variant(1L, 0);
+            Order unpaid = Order.builder()
                     .id(50L)
                     .status(OrderStatus.PENDING)
                     .paymentStatus(PaymentStatus.PENDING)
-                    .items(List.of(
+                    .items(new ArrayList<>(List.of(
                             OrderItem.builder()
-                                    .productVariant(variant(1L, 0))
+                                    .productVariant(variant)
                                     .quantity(1)
-                                    .build()))
+                                    .build())))
                     .build();
+            Payment payment = paymentFor(unpaid);
+            when(orderRepository.findByStatusAndPaymentStatusAndCreatedAtBefore(
+                    eq(OrderStatus.PENDING), eq(PaymentStatus.PENDING), any(Instant.class)))
+                    .thenReturn(List.of(unpaid));
+            when(paymentRepository.findByOrderId(50L)).thenReturn(Optional.of(payment));
 
-            assertThat(OrderExpiryProbe.releasesStock(pending))
-                    .as("""
-                            A PENDING order whose payment callback never arrives must not \
-                            hold its stock indefinitely. The unit must come back to the \
-                            shelf — via a scheduled sweep, a lazy timeout, or an explicit \
-                            cancel. Without one, a buyer who closes the tab strands the \
-                            unit and the next customer sees "out of stock" for an item \
-                            the store still has.""")
-                    .isTrue();
+            int released = expiryService.cancelExpiredUnpaidOrders();
+
+            assertThat(released)
+                    .as("the sweep reports the checkout it released")
+                    .isEqualTo(1);
+            assertThat(unpaid.getStatus())
+                    .as("the abandoned checkout is cancelled")
+                    .isEqualTo(OrderStatus.CANCELLED);
+            assertThat(variant.getStockQuantity())
+                    .as("the unit comes back to the shelf")
+                    .isEqualTo(1);
+            assertThat(payment.getStatus())
+                    .as("the dangling payment is closed so it cannot be collected later")
+                    .isEqualTo(PaymentStatus.FAILED);
         }
 
         /**
@@ -608,22 +622,5 @@ class CheckoutStockBehaviourTest {
         return event -> {
             // no-op: these tests assert on repository state, not on events
         };
-    }
-}
-
-/**
- * Whether the codebase has any mechanism that releases an unpaid order's
- * stock. Kept as a separate top-level class so it can be replaced when a
- * mechanism lands, without touching the test above.
- */
-class OrderExpiryProbe {
-
-    static boolean mechanismExists() {
-        // A sweep for unpaid orders does not exist yet.
-        return false;
-    }
-
-    static boolean releasesStock(Order pendingOrder) {
-        return mechanismExists();
     }
 }
