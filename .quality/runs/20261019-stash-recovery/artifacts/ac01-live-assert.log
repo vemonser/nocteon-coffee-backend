@@ -1,0 +1,3 @@
+PASS: GET /api/dashboard/categories/deleted -> 200, paged trash listing (0 rows), not 'Category not found'
+PASS: transcript confirms HTTP 200
+RESULT: AC-01 PASS

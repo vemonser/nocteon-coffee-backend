@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261019-product-pagination",
+    "task": "Queue item #2: verify or refute the claim that ProductRepository.findAllDashboard paginates in memory (HHH90003004) because it combines LEFT JOIN FETCH p.pairings with a Pageable.",
+    "source": ".quality/runs/20261019-product-pagination/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "PP-01",
+      "statement": "Given the dashboard product listing is requested with a page size smaller than the catalog, when the issued SQL is inspected, then the row limit is applied by the database and no in-memory pagination warning is logged.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-product-pagination/CHANGE-CONTRACT.md",
+        "line": 76
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/product/repository/ProductRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/product/service/ProductService.java"
+      ],
+      "status": "PASS",
+      "notes": "Refutes the claim. Hibernate 7.4.1 emits: `... from (select distinct p1_0.* from products p1_0 left join product_translations ... order by p1_0.created_at desc offset ? rows fetch first ? rows only) p1_0 left join product_pairings ...` — the limit is inside the DISTINCT derived table, before the collection join, so the fetch-join multiplication applies to one page only. HHH90003004 occurs 0 times in the whole container log. page=1 (non-zero OFFSET) carries the same limit clause, which is the case in-memory pagination would hide.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-product-pagination/artifacts/pp-01-live.log",
+          "command": "python3 .quality/runs/20261019-product-pagination/artifacts/assert-pp.py PP-01",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T07:29:50.563Z"
+        }
+      ]
+    },
+    {
+      "id": "PP-02",
+      "statement": "Given any page, when the pages are walked, then their union is exactly the catalog with no duplicate and no skipped row.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-product-pagination/CHANGE-CONTRACT.md",
+        "line": 77
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/product/repository/ProductRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/product/service/ProductService.java"
+      ],
+      "status": "PASS",
+      "notes": "page=0/1/2 at size=3 over a 7-product catalog returned [1,2,3], [4,5,6], [7] with last=true on the final page — identical to the unpaged read of the same catalog, no duplicate and no gap. Recorded as a guard, not as discrimination: in-memory pagination would also return correct pages, which is why PP-01 asserts on the SQL instead.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-product-pagination/artifacts/pp-02-live.log",
+          "command": "python3 .quality/runs/20261019-product-pagination/artifacts/assert-pp.py PP-02",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T07:29:52.872Z"
+        }
+      ]
+    },
+    {
+      "id": "PP-03",
+      "statement": "Given the listing is filtered (category slug, search, active), when it is paged, then the limit is still applied by the database.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-product-pagination/CHANGE-CONTRACT.md",
+        "line": 78
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/product/repository/ProductRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/product/service/ProductService.java"
+      ],
+      "status": "PASS",
+      "notes": "categorySlug=coffee (2 of 4), search=e (2 of 5) and isActive=true (2 of 7) each issued a row query still carrying `offset ? rows fetch first ? rows only`.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-product-pagination/artifacts/pp-03-live.log",
+          "command": "python3 .quality/runs/20261019-product-pagination/artifacts/assert-pp.py PP-03",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T07:29:55.376Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

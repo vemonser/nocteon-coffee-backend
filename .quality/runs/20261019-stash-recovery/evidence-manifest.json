@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261019-stash-recovery",
+    "task": "Recover the lost catalog soft-delete / restore / trash-bin work (all 74 tracked files from the 2026-10-18 21:38 stash) and prove the trash endpoints work",
+    "source": ".quality/runs/20261019-stash-recovery/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-01",
+      "statement": "Given a soft-deleted category exists, when GET /api/dashboard/categories/deleted is called, then it returns a paged trash-bin listing instead of 'Category not found'.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-stash-recovery/CHANGE-CONTRACT.md",
+        "line": 50
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/category/controller/CategoryController.java",
+        "src/main/java/com/nocteon/nocteon_api/category/service/CategoryService.java",
+        "src/main/java/com/nocteon/nocteon_api/category/repository/CategoryRepository.java"
+      ],
+      "status": "PASS",
+      "notes": "Live against the recovered app on :8081 — HTTP 200, message 'Deleted categories retrieved', paged content. Before the recovery the same path resolved to GET /dashboard/categories/{slug} and answered 'Category not found'.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-stash-recovery/artifacts/ac01-live-assert.log",
+          "command": "python3 .quality/runs/20261019-stash-recovery/artifacts/assert-live-flow.py AC-01",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T06:34:48.086Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-02",
+      "statement": "Given a soft-deleted category, when PATCH /api/dashboard/categories/{id}/restore is called, then deleted_at is cleared and the row reappears in ordinary queries and leaves the trash bin.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-stash-recovery/CHANGE-CONTRACT.md",
+        "line": 51
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/category/controller/CategoryController.java",
+        "src/main/java/com/nocteon/nocteon_api/category/service/CategoryService.java",
+        "src/main/java/com/nocteon/nocteon_api/category/repository/CategoryRepository.java"
+      ],
+      "status": "PASS",
+      "notes": "Live: create -> soft delete -> appears in trash -> PATCH restore 200 'Category restored' -> absent from trash -> readable via GET /dashboard/categories/{slug}.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-stash-recovery/artifacts/ac02-live-assert.log",
+          "command": "python3 .quality/runs/20261019-stash-recovery/artifacts/assert-live-flow.py AC-02",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T06:34:48.155Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-03",
+      "statement": "Given a soft-deleted category, when DELETE /api/dashboard/categories/{id}/permanent is called, then the row is removed and no longer appears in the trash bin.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-stash-recovery/CHANGE-CONTRACT.md",
+        "line": 52
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/category/controller/CategoryController.java",
+        "src/main/java/com/nocteon/nocteon_api/category/service/CategoryService.java",
+        "src/main/java/com/nocteon/nocteon_api/category/repository/CategoryRepository.java"
+      ],
+      "status": "PASS",
+      "notes": "Live: soft delete -> DELETE /{id}/permanent 204 -> absent from the trash listing; verified in PostgreSQL that the probe row is gone.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-stash-recovery/artifacts/ac03-live-assert.log",
+          "command": "python3 .quality/runs/20261019-stash-recovery/artifacts/assert-live-flow.py AC-03",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T06:34:48.227Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-04",
+      "statement": "Given the recovered worktree, when the controllers are inspected, then every catalog the stash covered exposes GET /deleted, PATCH /{id}/restore and DELETE /{id}/permanent, plus journal and products.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-stash-recovery/CHANGE-CONTRACT.md",
+        "line": 53
+      },
+      "kind": "static-analysis",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/farm/controller/FarmController.java",
+        "src/main/java/com/nocteon/nocteon_api/origin/controller/OriginController.java",
+        "src/main/java/com/nocteon/nocteon_api/pairing/controller/PairingController.java",
+        "src/main/java/com/nocteon/nocteon_api/brewingMethod/controller/BrewingMethodController.java",
+        "src/main/java/com/nocteon/nocteon_api/processingMethod/controller/ProcessingMethodController.java",
+        "src/main/java/com/nocteon/nocteon_api/roastLevel/controller/RoastLevelController.java",
+        "src/main/java/com/nocteon/nocteon_api/tastingNote/controller/TastingNoteController.java",
+        "src/main/java/com/nocteon/nocteon_api/coffeeVariety/controller/CoffeeVarietyController.java",
+        "src/main/java/com/nocteon/nocteon_api/journal/controller/JournalController.java",
+        "src/main/java/com/nocteon/nocteon_api/product/controller/ProductController.java"
+      ],
+      "status": "PASS",
+      "notes": "42 trash-bin routes across 13 controllers (the 10 above plus categories, journal-categories, promo-codes, shipping-zones).",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261019-stash-recovery/artifacts/ac04-routes-assert.log",
+          "command": "python3 .quality/runs/20261019-stash-recovery/artifacts/assert-static.py AC-04",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T06:34:48.301Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-05",
+      "statement": "Given the restored files, when ./mvnw compile runs, then the project builds with no errors, proving the restored modified files are consistent with the already-on-disk new files.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-stash-recovery/CHANGE-CONTRACT.md",
+        "line": 54
+      },
+      "kind": "build",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/product/repository/ProductRepository.java",
+        "pom.xml"
+      ],
+      "status": "PASS",
+      "notes": "Required one repair: the stash left two @Query annotations on findAllDashboard (non-repeatable annotation on line 100), which aborted javac and cascaded into 414 Lombok 'cannot find symbol' errors. Removed the stale first annotation; the pairings fetch-join the stash intended is kept. Build must run under JDK 21.0.2 (.mise.toml), not JDK 27.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "build",
+          "path": ".quality/runs/20261019-stash-recovery/artifacts/ac05-compile.log",
+          "command": "./mvnw clean compile",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T06:35:16.156Z"
+        },
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-stash-recovery/artifacts/ac05-full-test-suite.log",
+          "command": "./mvnw test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T06:36:16.951Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-06",
+      "statement": "Given the pre-recovery worktree snapshot, when the preserved files are compared, then docker-compose.yml, pom.xml, Permission.java, the migrations and the message bundles are byte-identical, Role.java keeps MODERATOR's DASHBOARD_READ (stash) and AUDIT_READ (worktree) and keeps CUSTOMER's USER_READ/USER_UPDATE, and a CUSTOMER can still use /api/addresses.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-stash-recovery/CHANGE-CONTRACT.md",
+        "line": 55
+      },
+      "kind": "static-analysis",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/auth/enums/Role.java",
+        "docker-compose.yml",
+        "pom.xml",
+        "src/main/java/com/nocteon/nocteon_api/common/enums/Permission.java",
+        "src/main/resources/messages.properties"
+      ],
+      "status": "PASS",
+      "notes": "Role.java merged three-way: MODERATOR gained DASHBOARD_READ (stash) while keeping AUDIT_READ (worktree). The stash's removal of CUSTOMER's USER_READ/USER_UPDATE was deliberately NOT applied — AddressController gates the whole customer address book on those, so applying it 403s /api/addresses (adversarial review CRITICAL, fixed). Live: a CUSTOMER token reads /api/addresses 200.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261019-stash-recovery/artifacts/ac06-preserved-assert.log",
+          "command": "python3 .quality/runs/20261019-stash-recovery/artifacts/assert-static.py AC-06",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T06:34:48.372Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

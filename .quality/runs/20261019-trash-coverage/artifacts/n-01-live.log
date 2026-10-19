@@ -1,0 +1,4 @@
+=== N-01 — item #9 (live verification of remaining trash flows) ===
+  [PASS] all 13 controllers expose /deleted, /restore, /permanent — 13/13
+  [PASS] JournalController also exposes journal-categories trash endpoints
+=== N-01: PASS (0 failing assertion(s)) ===

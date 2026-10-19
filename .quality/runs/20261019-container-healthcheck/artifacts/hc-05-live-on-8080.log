@@ -1,0 +1,22 @@
+=== HC-05 — run 20261019-container-healthcheck ===
+  [PASS] without a token the route is still closed — HTTP 401
+    reset rate:register:ip:*: 1
+    reset rate:login:ip:*: 1
+    reset rate:login:id:trashprobe8080@local.test: 1
+  [PASS] the probe user registers — HTTP 200
+  [PASS] the probe user logs in — HTTP 200
+  [PASS] GET /api/dashboard/categories/deleted answers 200 (the user's original URL) — HTTP 200
+  [PASS] its message is the trash-bin listing, not `Category not found` — 'Deleted categories retrieved'
+  [PASS] an unknown slug of the same shape still falls through to GET /{slug} — HTTP 404 'Category not found'
+  [PASS] a throwaway category is created — HTTP 201 id=38 slug=zz-hc05-probe-1792394518
+  [PASS] soft delete answers 204 — HTTP 204
+  [PASS] the row is listed in the trash bin
+  [PASS] restore answers 200 with `Category restored` — HTTP 200 'Category restored'
+  [PASS] the restored row left the trash bin
+  [PASS] the restored row is readable through the ordinary route — HTTP 200
+  [PASS] permanent delete answers 204 — HTTP 204
+  [PASS] the row is gone from the trash bin after permanent delete
+    cleanup: 0 probe user(s), 0 probe category(ies) left
+  [PASS] the probe left no user behind — 0
+  [PASS] the probe left no category behind — 0
+=== HC-05: PASS (0 failing assertion(s)) ===

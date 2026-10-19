@@ -1,0 +1,88 @@
+$ docker compose up -d --build app
+(started 2026-10-19T10:45:56+03:00)
+ Image nocteon-backend-app Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 600B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile:
+#2 transferring dockerfile: 1.30kB done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/maven:3.9-eclipse-temurin-21
+#3 ...
+
+#4 [internal] load metadata for docker.io/library/eclipse-temurin:21-jre
+#4 DONE 1.3s
+
+#3 [internal] load metadata for docker.io/library/maven:3.9-eclipse-temurin-21
+#3 DONE 1.3s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 2B done
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 DONE 0.0s
+
+#7 [stage-1 1/3] FROM docker.io/library/eclipse-temurin:21-jre@sha256:227118764cccd3c3294617061aaa93a08309c63a395eefa83e6b35032992ea99
+#7 resolve docker.io/library/eclipse-temurin:21-jre@sha256:227118764cccd3c3294617061aaa93a08309c63a395eefa83e6b35032992ea99 0.1s done
+#7 DONE 0.1s
+
+#8 [build 1/6] FROM docker.io/library/maven:3.9-eclipse-temurin-21@sha256:99e61abcff91a9b1333463bd8451fb18495d6eba9250ac66a338b518f8278320
+#8 resolve docker.io/library/maven:3.9-eclipse-temurin-21@sha256:99e61abcff91a9b1333463bd8451fb18495d6eba9250ac66a338b518f8278320 0.1s done
+#8 DONE 0.1s
+
+#6 [internal] load build context
+#6 transferring context: 196.81kB 0.1s done
+#6 DONE 0.2s
+
+#9 [build 2/6] WORKDIR /build
+#9 CACHED
+
+#10 [build 3/6] COPY pom.xml .
+#10 CACHED
+
+#11 [build 4/6] RUN mvn dependency:go-offline -q
+#11 CACHED
+
+#12 [build 5/6] COPY src ./src
+#12 DONE 0.4s
+
+#13 [build 6/6] RUN mvn package -DskipTests -q
+#13 DONE 28.2s
+
+#14 [stage-1 2/3] WORKDIR /app
+#14 CACHED
+
+#15 [stage-1 3/3] COPY --from=build /build/target/*.jar /app/app.jar
+#15 DONE 0.1s
+
+#16 exporting to image
+#16 exporting layers
+#16 exporting layers 7.2s done
+#16 exporting manifest sha256:23a19f8c5cc6d41a43ff98505bdbe17fb6d4a006f5e19779881ba6991e5e5aa9 0.0s done
+#16 exporting config sha256:2c3181281447f319c26dd30f8c1360732592a2256501e242f81b251c3c07969a 0.0s done
+#16 exporting attestation manifest sha256:6a67aecd1e41dc24fc6d837dadccae194607fd96ff7815e60d196bf28b1b3e60 0.0s done
+#16 exporting manifest list sha256:f4edd8365e70d720d975d78b8e9d2497db79e20d7fd2784f28e8ff3030bce9c7 0.0s done
+#16 naming to docker.io/library/nocteon-backend-app:latest done
+#16 unpacking to docker.io/library/nocteon-backend-app:latest
+#16 unpacking to docker.io/library/nocteon-backend-app:latest 2.0s done
+#16 DONE 9.3s
+
+#17 resolving provenance for metadata file
+#17 DONE 0.0s
+ Image nocteon-backend-app Built 
+ Container nocteon-db Running 
+ Container nocteon-redis Running 
+ Container nocteon-app Recreate 
+ Container nocteon-app Recreated 
+ Container nocteon-db Waiting 
+ Container nocteon-redis Waiting 
+ Container nocteon-redis Healthy 
+ Container nocteon-db Healthy 
+ Container nocteon-app Starting 
+ Container nocteon-app Started 
+exit=0
+(finished 2026-10-19T10:46:38+03:00) exit=0

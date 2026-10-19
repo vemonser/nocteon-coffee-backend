@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261019-trash-coverage",
+    "task": "Item #9: live-verify the remaining trash flows (journal post enum cast, promo code, shipping zone) and confirm route presence for all 13 controllers.",
+    "source": ".quality/runs/20261019-trash-coverage/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "N-01",
+      "statement": "Given the 13 trash controllers, when inspected, then each exposes /deleted, /{id}/restore and /{id}/permanent.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-trash-coverage/CHANGE-CONTRACT.md",
+        "line": 38
+      },
+      "kind": "static-analysis",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/journal/controller/JournalController.java"
+      ],
+      "status": "PASS",
+      "notes": "13/13 controllers expose all three endpoints; JournalController also exposes the journal-categories variants.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-trash-coverage/artifacts/n-01-live.log",
+          "command": "python3 .quality/runs/20261019-trash-coverage/artifacts/assert-n.py N-01",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T08:26:10.930Z"
+        }
+      ]
+    },
+    {
+      "id": "N-02",
+      "statement": "Given a trashed journal post with status PUBLISHED, when the trash listing is called, then the row appears with status = PUBLISHED (enum cast succeeded).",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-trash-coverage/CHANGE-CONTRACT.md",
+        "line": 39
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/journal/service/JournalService.java"
+      ],
+      "status": "PASS",
+      "notes": "Seeded a DRAFT/PUBLISHED post via SQL, called the endpoint, status came back as 'PUBLISHED'. The JournalPostStatus.valueOf((String) row[4]) cast only fails on a real JDBC row, so this live check is the only way to prove it.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-trash-coverage/artifacts/n-02-live.log",
+          "command": "python3 .quality/runs/20261019-trash-coverage/artifacts/assert-n.py N-02",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T08:26:14.080Z"
+        }
+      ]
+    },
+    {
+      "id": "N-03",
+      "statement": "Given a trashed promo code, when the trash listing is called, then it appears and disappears correctly after restore.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-trash-coverage/CHANGE-CONTRACT.md",
+        "line": 40
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/promoCode/service/PromoCodeService.java"
+      ],
+      "status": "PASS",
+      "notes": "SAVE20 soft-deleted -> appeared in trash -> restored -> gone. Exercises the entity-pattern (not folded rows) trash listing.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-trash-coverage/artifacts/n-03-live.log",
+          "command": "python3 .quality/runs/20261019-trash-coverage/artifacts/assert-n.py N-03",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T08:26:17.111Z"
+        }
+      ]
+    },
+    {
+      "id": "N-04",
+      "statement": "Given a trashed shipping zone, when the trash listing is called, then it appears and disappears correctly after restore.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-trash-coverage/CHANGE-CONTRACT.md",
+        "line": 41
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/shippingZone/service/ShippingZoneService.java"
+      ],
+      "status": "PASS",
+      "notes": "Cairo Zone soft-deleted -> appeared in trash -> restored -> gone.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-trash-coverage/artifacts/n-04-live.log",
+          "command": "python3 .quality/runs/20261019-trash-coverage/artifacts/assert-n.py N-04",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T08:26:19.309Z"
+        }
+      ]
+    },
+    {
+      "id": "N-05",
+      "statement": "Given the 8 remaining trash entities (BrewingMethod, CoffeeVariety, Farm, Origin, Pairing, ProcessingMethod, RoastLevel, TastingNote), when inspected, then they follow the same safe pattern (SoftDeleteRowFolder.fold, only Number/String/Instant/Boolean casts, no enum valueOf).",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-trash-coverage/CHANGE-CONTRACT.md",
+        "line": 42
+      },
+      "kind": "static-analysis",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/brewingMethod/service/BrewingMethodService.java"
+      ],
+      "status": "PASS",
+      "notes": "8/8 follow the identical pattern; no enum casts, only Number/String/Instant/Boolean. The Journal enum cast (N-02) was separately proven live.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261019-trash-coverage/artifacts/n-05-safe-casts.log",
+          "command": "python3 .quality/runs/20261019-trash-coverage/artifacts/assert-n.py N-05",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T08:26:31.169Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

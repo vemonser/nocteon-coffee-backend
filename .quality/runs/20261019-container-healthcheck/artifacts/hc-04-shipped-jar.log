@@ -1,0 +1,12 @@
+=== HC-04 — run 20261019-container-healthcheck ===
+  [PASS] the running jar can be extracted from the container
+    /app/app.jar: 2026-10-19 07:14:42.000000000 +0000 189667620
+  [PASS] CategoryController is in the jar
+  [PASS] CategoryController carries '/dashboard/categories'
+  [PASS] CategoryController carries '/deleted'
+  [PASS] CategoryController carries 'restore'
+  [PASS] CategoryController carries 'permanent'
+    controllers exposing /deleted (13): BrewingMethodController, CategoryController, CoffeeVarietyController, FarmController, JournalController, OriginController, PairingController, ProcessingMethodController, ProductController, PromoCodeController, RoastLevelController, ShippingZoneController, TastingNoteController
+  [PASS] every catalog controller from the recovery shipped — 13 of 13
+  [PASS] the recovered SoftDeleteRowFolder helper shipped
+=== HC-04: PASS (0 failing assertion(s)) ===

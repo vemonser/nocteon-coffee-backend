@@ -1,0 +1,10 @@
+=== PP-02 — run 20261019-product-pagination ===
+    catalog: 7 product(s), totalElements=7
+  [PASS] the unpaged read returns the catalog — HTTP 200 n=7
+    page=0 size=3 -> [1, 2, 3] (last=False)
+    page=1 size=3 -> [4, 5, 6] (last=False)
+    page=2 size=3 -> [7] (last=True)
+  [PASS] no product is returned twice across pages — walked=[1, 2, 3, 4, 5, 6, 7]
+  [PASS] no product is skipped across pages — walked=[1, 2, 3, 4, 5, 6, 7] catalog=[1, 2, 3, 4, 5, 6, 7]
+  [PASS] page size is honoured — 7 rows over the walk
+=== PP-02: PASS (0 failing assertion(s)) ===

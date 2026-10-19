@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261019-trash-ordering",
+    "task": "Items #3 and #4: make the trash-bin listings deterministic (native queries got an ORDER BY created_at) and honour sort/direction where they previously ignored it; add the missing createdAt comparator for Product and PromoCode.",
+    "source": ".quality/runs/20261019-trash-ordering/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "TR-01",
+      "statement": "Given the native trash queries, when inspected, then every one of Product, Category, JournalPost and JournalCategory carries ORDER BY created_at.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-trash-ordering/CHANGE-CONTRACT.md",
+        "line": 49
+      },
+      "kind": "static-analysis",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/product/repository/ProductRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/category/repository/CategoryRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/journal/repository/JournalPostRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/journal/repository/JournalCategoryRepository.java"
+      ],
+      "status": "PASS",
+      "notes": "8 native trash queries (4 entities x 2: all + search) all gained `ORDER BY <entity>.created_at DESC, <translation>.language`.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261019-trash-ordering/artifacts/tr-01-native-orderby.log",
+          "command": "python3 .quality/runs/20261019-trash-ordering/artifacts/assert-tr.py TR-01",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T07:51:16.312Z"
+        }
+      ]
+    },
+    {
+      "id": "TR-02",
+      "statement": "Given the Product trash listing, when sort=createdAt is requested in either direction, then the result is ordered accordingly (newest-first by default, ascending reverses).",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-trash-ordering/CHANGE-CONTRACT.md",
+        "line": 50
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/product/service/ProductService.java",
+        "src/main/java/com/nocteon/nocteon_api/product/dto/response/DashboardProductResponse.java",
+        "src/main/java/com/nocteon/nocteon_api/product/mapper/DashboardProductMapper.java"
+      ],
+      "status": "PASS",
+      "notes": "Required projecting createdAt onto DashboardProductResponse (additive field) and populating it in both the trash mapper and the live mapper. With distinct timestamps, desc gave [aeropress, chemex-6cup, hario-v60] and asc gave the reverse.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-trash-ordering/artifacts/tr-02-createdat-sort.log",
+          "command": "python3 .quality/runs/20261019-trash-ordering/artifacts/assert-tr.py TR-02",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T07:51:20.288Z"
+        }
+      ]
+    },
+    {
+      "id": "TR-03",
+      "statement": "Given the Product trash listing, when the same request is issued twice, then the order is byte-identical (no repeat/drop).",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-trash-ordering/CHANGE-CONTRACT.md",
+        "line": 51
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/product/repository/ProductRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/product/service/ProductService.java"
+      ],
+      "status": "PASS",
+      "notes": "Two identical requests returned the same order; a size=2 page walk over a 3-row set returned each row exactly once. The ORDER BY on the native query is what makes this deterministic; previously the list came back in unspecified DB order.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-trash-ordering/artifacts/tr-03-determinism.log",
+          "command": "python3 .quality/runs/20261019-trash-ordering/artifacts/assert-tr.py TR-03",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T07:51:23.871Z"
+        }
+      ]
+    },
+    {
+      "id": "TR-04",
+      "statement": "Given the Journal-category trash listing, when sort/direction is supplied, then it is honoured (was previously ignored).",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-trash-ordering/CHANGE-CONTRACT.md",
+        "line": 52
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/journal/service/JournalService.java"
+      ],
+      "status": "PASS",
+      "notes": "getAllDeletedCategories now reads sort/direction and sorts by slug or createdAt, mirroring the post listing. Verified with a SQL-seeded trashed category (id 999, distinct created_at): createdAt desc/asc and slug asc all produced the expected order, then the seeded row was removed.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-trash-ordering/artifacts/tr-04-jc-sort.log",
+          "command": "python3 .quality/runs/20261019-trash-ordering/artifacts/assert-tr.py TR-04",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T07:51:26.260Z"
+        }
+      ]
+    },
+    {
+      "id": "TR-05",
+      "statement": "Given the changes, when ./mvnw compile and ./mvnw test run, then both pass.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-trash-ordering/CHANGE-CONTRACT.md",
+        "line": 53
+      },
+      "kind": "build",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/product/dto/response/DashboardProductResponse.java",
+        "src/main/java/com/nocteon/nocteon_api/product/mapper/DashboardProductMapper.java",
+        "src/main/java/com/nocteon/nocteon_api/product/service/ProductService.java",
+        "src/main/java/com/nocteon/nocteon_api/promoCode/dto/response/PromoCodeResponse.java",
+        "src/main/java/com/nocteon/nocteon_api/promoCode/service/PromoCodeService.java",
+        "src/main/java/com/nocteon/nocteon_api/journal/service/JournalService.java"
+      ],
+      "status": "PASS",
+      "notes": "compile exit 0; full suite 555 tests, 0 failures, 0 errors.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "build",
+          "path": ".quality/runs/20261019-trash-ordering/artifacts/tr-05-compile.log",
+          "command": "env JAVA_HOME=/home/abdelrhman/.local/share/mise/installs/java/21.0.2 ./mvnw compile -q",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T07:51:30.293Z"
+        },
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-trash-ordering/artifacts/tr-05-test.log",
+          "command": "env JAVA_HOME=/home/abdelrhman/.local/share/mise/installs/java/21.0.2 ./mvnw test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T07:52:16.524Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

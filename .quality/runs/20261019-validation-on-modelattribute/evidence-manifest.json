@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261019-validation-on-modelattribute",
+    "task": "Item #5: add @Valid to every @ModelAttribute filter param (54 usages) and a BindException handler, so invalid filter params answer 400 instead of 500.",
+    "source": ".quality/runs/20261019-validation-on-modelattribute/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "V-01",
+      "statement": "Given invalid params (page=-1, size=0, size=101), when a /deleted endpoint is called, then it answers 400 with a field error naming the offending field.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-validation-on-modelattribute/CHANGE-CONTRACT.md",
+        "line": 42
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/exception/GlobalExceptionHandler.java",
+        "src/main/java/com/nocteon/nocteon_api/category/controller/CategoryController.java"
+      ],
+      "status": "PASS",
+      "notes": "page=-1 -> 400 'must be greater than or equal to 0'; size=0 -> 400 'must be greater than or equal to 1'; size=101 -> 400 'must be less than or equal to 100'. Before the fix these returned 500.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-validation-on-modelattribute/artifacts/v-01-invalid-params.log",
+          "command": "python3 .quality/runs/20261019-validation-on-modelattribute/artifacts/assert-v.py V-01",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T08:11:48.841Z"
+        }
+      ]
+    },
+    {
+      "id": "V-02",
+      "statement": "Given valid params, when the same endpoint is called, then it answers 200.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-validation-on-modelattribute/CHANGE-CONTRACT.md",
+        "line": 43
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/category/controller/CategoryController.java"
+      ],
+      "status": "PASS",
+      "notes": "page=0&size=5 -> 200 'Deleted categories retrieved'.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-validation-on-modelattribute/artifacts/v-02-valid-params.log",
+          "command": "python3 .quality/runs/20261019-validation-on-modelattribute/artifacts/assert-v.py V-02",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T08:11:51.694Z"
+        }
+      ]
+    },
+    {
+      "id": "V-03",
+      "statement": "Given the codebase, when inspected, then every @ModelAttribute is preceded by @Valid, every such controller imports jakarta.validation.Valid, and GlobalExceptionHandler handles BindException.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-validation-on-modelattribute/CHANGE-CONTRACT.md",
+        "line": 44
+      },
+      "kind": "static-analysis",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/exception/GlobalExceptionHandler.java"
+      ],
+      "status": "PASS",
+      "notes": "54 @ModelAttribute usages across 22 files, all now preceded by @Valid; @Valid imported in all 21 controllers that use it; BindException imported and handled (400 with field errors).",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261019-validation-on-modelattribute/artifacts/v-03-static-scan.log",
+          "command": "python3 .quality/runs/20261019-validation-on-modelattribute/artifacts/assert-v.py V-03",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T08:11:51.861Z"
+        }
+      ]
+    },
+    {
+      "id": "V-04",
+      "statement": "Given the changes, when ./mvnw compile and ./mvnw test run, then both pass.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-validation-on-modelattribute/CHANGE-CONTRACT.md",
+        "line": 45
+      },
+      "kind": "build",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/exception/GlobalExceptionHandler.java"
+      ],
+      "status": "PASS",
+      "notes": "compile exit 0; full suite 555 tests, 0 failures, 0 errors.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "build",
+          "path": ".quality/runs/20261019-validation-on-modelattribute/artifacts/v-04-compile.log",
+          "command": "env JAVA_HOME=/home/abdelrhman/.local/share/mise/installs/java/21.0.2 ./mvnw compile -q",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T08:11:57.717Z"
+        },
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-validation-on-modelattribute/artifacts/v-04-test.log",
+          "command": "env JAVA_HOME=/home/abdelrhman/.local/share/mise/installs/java/21.0.2 ./mvnw test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T08:13:05.055Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

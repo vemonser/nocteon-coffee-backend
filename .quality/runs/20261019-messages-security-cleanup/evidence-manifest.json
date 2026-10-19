@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261019-messages-security-cleanup",
+    "task": "Items #6, #7, #8: correct the roast-level/pairing not-found message keys, close the /api/dashboard/users hole for CUSTOMER by splitting address permissions, and remove the duplicate import + stale comment.",
+    "source": ".quality/runs/20261019-messages-security-cleanup/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "M-01",
+      "statement": "Given a missing roast level or pairing on the dashboard, then the message is 'Roast profile not found' / 'Pairing not found' (not 'Farm'/'Brewing method').",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-messages-security-cleanup/CHANGE-CONTRACT.md",
+        "line": 38
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/exception/notFound/RoastLevelNotFoundException.java",
+        "src/main/java/com/nocteon/nocteon_api/common/exception/notFound/PairingNotFoundException.java"
+      ],
+      "status": "PASS",
+      "notes": "RoastLevelNotFoundException now uses error.roastLevel.notFound; PairingNotFoundException uses error.pairing.notFound (both already present in messages.properties and messages_ar.properties).",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-messages-security-cleanup/artifacts/m-01-messages.log",
+          "command": "python3 .quality/runs/20261019-messages-security-cleanup/artifacts/assert-msc.py M-01",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T08:21:46.333Z"
+        }
+      ]
+    },
+    {
+      "id": "S-01",
+      "statement": "Given a CUSTOMER token, /api/addresses answers 200 and /api/dashboard/users answers 403; given an ADMIN token, /api/dashboard/users answers 200.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-messages-security-cleanup/CHANGE-CONTRACT.md",
+        "line": 39
+      },
+      "kind": "security",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/enums/Permission.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/enums/Role.java",
+        "src/main/java/com/nocteon/nocteon_api/address/controller/AddressController.java"
+      ],
+      "status": "PASS",
+      "notes": "Added ADDRESS_READ/ADDRESS_UPDATE; CUSTOMER now holds those instead of USER_READ/USER_UPDATE; AddressController re-gated on address:*; AdminUserController stays on user:read (admin/mod only).",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-messages-security-cleanup/artifacts/s-01-permissions.log",
+          "command": "python3 .quality/runs/20261019-messages-security-cleanup/artifacts/assert-msc.py S-01",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T08:21:49.518Z"
+        }
+      ]
+    },
+    {
+      "id": "C-01",
+      "statement": "Given the codebase, FarmService imports EntityInUseException once and JournalService no longer references SoftDeleteRepositoryIntegrationTest.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-messages-security-cleanup/CHANGE-CONTRACT.md",
+        "line": 40
+      },
+      "kind": "static-analysis",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/farm/service/FarmService.java",
+        "src/main/java/com/nocteon/nocteon_api/journal/service/JournalService.java"
+      ],
+      "status": "PASS",
+      "notes": "Duplicate import removed; stale comment rewritten to describe the real reason (native-query cast can only fail on a real JDBC row).",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261019-messages-security-cleanup/artifacts/c-01-static.log",
+          "command": "python3 .quality/runs/20261019-messages-security-cleanup/artifacts/assert-msc.py C-01",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T08:21:49.596Z"
+        }
+      ]
+    },
+    {
+      "id": "B-01",
+      "statement": "Given the changes, ./mvnw compile and ./mvnw test pass.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-messages-security-cleanup/CHANGE-CONTRACT.md",
+        "line": 41
+      },
+      "kind": "build",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/enums/Permission.java"
+      ],
+      "status": "PASS",
+      "notes": "compile exit 0; full suite 555 tests, 0 failures, 0 errors.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "build",
+          "path": ".quality/runs/20261019-messages-security-cleanup/artifacts/b-01-compile.log",
+          "command": "env JAVA_HOME=/home/abdelrhman/.local/share/mise/installs/java/21.0.2 ./mvnw compile -q",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T08:21:53.678Z"
+        },
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-messages-security-cleanup/artifacts/b-01-test.log",
+          "command": "env JAVA_HOME=/home/abdelrhman/.local/share/mise/installs/java/21.0.2 ./mvnw test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T08:22:41.792Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

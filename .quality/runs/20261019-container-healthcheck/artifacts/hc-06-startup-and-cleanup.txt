@@ -1,0 +1,17 @@
+=== container startup (from docker logs) ===
+84:[2m07:15:18[0;39m [32m INFO[0;39m [2m[           main][0;39m [36mFlywayExecutor                [0;39m [2m:[0;39m Database: jdbc:postgresql://db:5432/nocteon_db (PostgreSQL 16.15)
+85:[2m07:15:18[0;39m [32m INFO[0;39m [2m[           main][0;39m [36mDbValidate                    [0;39m [2m:[0;39m Successfully validated 19 migrations (execution time 00:00.149s)
+87:[2m07:15:18[0;39m [32m INFO[0;39m [2m[           main][0;39m [36mDbMigrate                     [0;39m [2m:[0;39m Schema "public" is up to date. No migration necessary.
+114:[2m07:15:40[0;39m [32mDEBUG[0;39m [2m[           main][0;39m [36mDefaultSecurityFilterChain    [0;39m [2m:[0;39m Will secure any request with filters: DisableEncodeUrlFilter, WebAsyncManagerIntegrationFilter, SecurityContextHolderFilter, HeaderWriterFilter, CorsFilter, LogoutFilter, OAuth2AuthorizationRequestRedirectFilter, OAuth2LoginAuthenticationFilter, JwtAuthFilter, RateLimitFilter, UserActivityTrackingFilter, RequestCacheAwareFilter, SecurityContextHolderAwareRequestFilter, AnonymousAuthenticationFilter, SessionManagementFilter, ExceptionTranslationFilter, AuthorizationFilter
+116:[2m07:15:43[0;39m [32m INFO[0;39m [2m[           main][0;39m [36mTomcatWebServer               [0;39m [2m:[0;39m Tomcat started on port 8080 (http) with context path '/'
+117:[2m07:15:43[0;39m [32m INFO[0;39m [2m[           main][0;39m [36mNocteonApiApplication         [0;39m [2m:[0;39m Started NocteonApiApplication in 41.424 seconds (process running for 43.878)
+
+=== any ERROR/WARN in the log tail? ===
+0
+(count of ERROR lines above)
+
+=== DB state after the probe ===
+trash categories: 0
+probe users: 0
+probe categories: 0
+users total: 10

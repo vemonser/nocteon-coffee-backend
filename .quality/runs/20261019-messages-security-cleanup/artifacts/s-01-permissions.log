@@ -1,0 +1,5 @@
+=== S-01 — items #6/#7/#8 ===
+  [PASS] CUSTOMER GET /api/addresses -> 200 — HTTP 200
+  [PASS] CUSTOMER GET /api/dashboard/users -> 403 (hole closed) — HTTP 403
+  [PASS] ADMIN GET /api/dashboard/users -> 200 — HTTP 200
+=== S-01: PASS (0 failing assertion(s)) ===

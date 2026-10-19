@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261015-permanent",
+    "task": "Permanent delete endpoints; Cloudinary deletion only on permanent delete",
+    "source": ".quality/runs/20261015-permanent/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-01",
+      "statement": "Given an item with an image, when it is soft-deleted, then the image URL stays on the row and Cloudinary is never called",
+      "sourceRef": {
+        "path": ".quality/runs/20261015-permanent/CHANGE-CONTRACT.md",
+        "line": 1
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/category/service/CategoryService.java",
+        "src/main/java/com/nocteon/nocteon_api/journal/service/JournalService.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": "target/surefire-reports/com.nocteon.nocteon_api.softdelete.SoftDeletePermanentDeletionUnitTest.txt",
+          "command": "./mvnw test -Dtest=SoftDeletePermanentDeletionUnitTest",
+          "exitCode": 0,
+          "recordedAt": "2026-10-15T07:19:25.001Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-02",
+      "statement": "Given a restored item, when it is read back, then it carries the same image URL it had before deletion",
+      "sourceRef": {
+        "path": ".quality/runs/20261015-permanent/CHANGE-CONTRACT.md",
+        "line": 1
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/category/service/CategoryService.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": "target/surefire-reports/com.nocteon.nocteon_api.softdelete.SoftDeletePermanentDeletionTest.txt",
+          "command": "./mvnw test -Dtest=SoftDeletePermanentDeletionTest",
+          "exitCode": 0,
+          "recordedAt": "2026-10-15T07:19:59.892Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-03",
+      "statement": "Given a trashed item, when permanent-delete is called, then its row is gone from the database and its Cloudinary assets were deleted in the same operation",
+      "sourceRef": {
+        "path": ".quality/runs/20261015-permanent/CHANGE-CONTRACT.md",
+        "line": 1
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/product/service/ProductMutationService.java",
+        "src/main/java/com/nocteon/nocteon_api/journal/service/JournalService.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": "target/surefire-reports/com.nocteon.nocteon_api.softdelete.SoftDeletePermanentDeletionTest.txt",
+          "command": "./mvnw test -Dtest=SoftDeletePermanentDeletionTest",
+          "exitCode": 0,
+          "recordedAt": "2026-10-15T07:20:45.297Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-04",
+      "statement": "Given a live or unknown id, when permanent-delete is called, then it fails with not-found and deletes nothing",
+      "sourceRef": {
+        "path": ".quality/runs/20261015-permanent/CHANGE-CONTRACT.md",
+        "line": 1
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/promoCode/service/PromoCodeService.java",
+        "src/main/java/com/nocteon/nocteon_api/shippingZone/service/ShippingZoneService.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": "target/surefire-reports/com.nocteon.nocteon_api.softdelete.SoftDeletePermanentDeletionTest.txt",
+          "command": "./mvnw test -Dtest=SoftDeletePermanentDeletionTest",
+          "exitCode": 0,
+          "recordedAt": "2026-10-15T07:21:21.251Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-05",
+      "statement": "Given the trash endpoints, when their PreAuthorize strings are resolved, then every one including permanent is gated on a permission CUSTOMER does not hold",
+      "sourceRef": {
+        "path": ".quality/runs/20261015-permanent/CHANGE-CONTRACT.md",
+        "line": 1
+      },
+      "kind": "security",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/test/java/com/nocteon/nocteon_api/auth/AuthorizationConfigTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": "target/surefire-reports/com.nocteon.nocteon_api.auth.AuthorizationConfigTest.txt",
+          "command": "./mvnw test -Dtest=AuthorizationConfigTest",
+          "exitCode": 0,
+          "recordedAt": "2026-10-15T07:21:28.018Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-06",
+      "statement": "Given a hard delete refused by a foreign key, when the 409 is rendered, then the message says the item is still in use rather than claiming a duplicate",
+      "sourceRef": {
+        "path": ".quality/runs/20261015-permanent/CHANGE-CONTRACT.md",
+        "line": 1
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/exception/GlobalExceptionHandler.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": "target/surefire-reports/com.nocteon.nocteon_api.common.exception.GlobalExceptionHandlerConflictTest.txt",
+          "command": "./mvnw test -Dtest=GlobalExceptionHandlerConflictTest",
+          "exitCode": 0,
+          "recordedAt": "2026-10-15T08:07:31.697Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

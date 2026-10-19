@@ -1,0 +1,15 @@
+app health HTTP 401 after 60 polls
+--- register customer probe
+HTTP 200
+customer id=35
+login HTTP 200
+customer token acquired
+
+--- AC-06 live: GET /api/addresses as CUSTOMER (would be 403 if CUSTOMER lacked user:read)
+HTTP 200
+success: True | message: Addresses retrieved
+
+--- control: CUSTOMER must NOT reach the staff trash bin (category:delete)
+HTTP 403
+success: False | message: You don't have permission to perform this action
+=== done ===

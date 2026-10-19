@@ -1,0 +1,31 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.nocteon:nocteon-api >-----------------------
+[INFO] Building  0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.5.0:clean (default-clean) @ nocteon-api ---
+[INFO] Deleting /home/abdelrhman/Developments/2026/side-projects/nocteon/nocteon-backend/target
+[INFO] 
+[INFO] --- resources:3.5.0:resources (default-resources) @ nocteon-api ---
+[INFO] Copying 1 resource from src/main/resources to target/classes
+[INFO] Copying 35 resources from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.15.0:compile (default-compile) @ nocteon-api ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 562 source files with javac [debug parameters release 21] to target/classes
+[WARNING] /home/abdelrhman/Developments/2026/side-projects/nocteon/nocteon-backend/src/main/java/com/nocteon/nocteon_api/product/entity/ProductVariant.java:[53,37] @SuperBuilder will ignore the initializing expression entirely. If you want the initializing expression to serve as default, add @Builder.Default. If it is not supposed to be settable during building, make the field final.
+[WARNING] /home/abdelrhman/Developments/2026/side-projects/nocteon/nocteon-backend/src/main/java/com/nocteon/nocteon_api/product/entity/ProductOptionValue.java:[47,48] @SuperBuilder will ignore the initializing expression entirely. If you want the initializing expression to serve as default, add @Builder.Default. If it is not supposed to be settable during building, make the field final.
+[WARNING] /home/abdelrhman/Developments/2026/side-projects/nocteon/nocteon-backend/src/main/java/com/nocteon/nocteon_api/product/entity/ProductOption.java:[39,43] @SuperBuilder will ignore the initializing expression entirely. If you want the initializing expression to serve as default, add @Builder.Default. If it is not supposed to be settable during building, make the field final.
+[WARNING] /home/abdelrhman/Developments/2026/side-projects/nocteon/nocteon-backend/src/main/java/com/nocteon/nocteon_api/product/entity/ProductOption.java:[42,37] @SuperBuilder will ignore the initializing expression entirely. If you want the initializing expression to serve as default, add @Builder.Default. If it is not supposed to be settable during building, make the field final.
+[WARNING] /home/abdelrhman/Developments/2026/side-projects/nocteon/nocteon-backend/src/main/java/com/nocteon/nocteon_api/product/entity/ProductOption.java:[45,26] @SuperBuilder will ignore the initializing expression entirely. If you want the initializing expression to serve as default, add @Builder.Default. If it is not supposed to be settable during building, make the field final.
+[WARNING] /home/abdelrhman/Developments/2026/side-projects/nocteon/nocteon-backend/src/main/java/com/nocteon/nocteon_api/product/entity/Product.java:[81,36] @SuperBuilder will ignore the initializing expression entirely. If you want the initializing expression to serve as default, add @Builder.Default. If it is not supposed to be settable during building, make the field final.
+[INFO] /home/abdelrhman/Developments/2026/side-projects/nocteon/nocteon-backend/src/main/java/com/nocteon/nocteon_api/auth/oauth2/CookieOAuth2AuthorizationRequestRepository.java: /home/abdelrhman/Developments/2026/side-projects/nocteon/nocteon-backend/src/main/java/com/nocteon/nocteon_api/auth/oauth2/CookieOAuth2AuthorizationRequestRepository.java uses or overrides a deprecated API.
+[INFO] /home/abdelrhman/Developments/2026/side-projects/nocteon/nocteon-backend/src/main/java/com/nocteon/nocteon_api/auth/oauth2/CookieOAuth2AuthorizationRequestRepository.java: Recompile with -Xlint:deprecation for details.
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  16.336 s
+[INFO] Finished at: 2026-10-19T09:35:16+03:00
+[INFO] ------------------------------------------------------------------------

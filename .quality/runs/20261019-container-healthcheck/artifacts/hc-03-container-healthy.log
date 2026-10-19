@@ -1,0 +1,10 @@
+=== HC-03 — run 20261019-container-healthcheck ===
+    status=healthy failingStreak=0
+      2026-10-19T10:19:17.764454985+03:00 exit=0 2026-10-19 07:19:17 URL:http://localhost:8080/api/settings [282] -> "/dev/null" [1]
+      2026-10-19T10:19:47.824794122+03:00 exit=0 2026-10-19 07:19:47 URL:http://localhost:8080/api/settings [282] -> "/dev/null" [1]
+      2026-10-19T10:20:17.918598407+03:00 exit=0 2026-10-19 07:20:17 URL:http://localhost:8080/api/settings [282] -> "/dev/null" [1]
+  [PASS] health status is `healthy` — healthy
+  [PASS] no consecutive probe failures — streak=0
+  [PASS] the last probes all recorded exit 0
+  [PASS] the container has not had to restart — restarts=0
+=== HC-03: PASS (0 failing assertion(s)) ===

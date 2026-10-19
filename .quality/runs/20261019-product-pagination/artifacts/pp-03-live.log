@@ -1,0 +1,11 @@
+=== PP-03 — run 20261019-product-pagination ===
+    category slug filter: HTTP 200 returned=2 totalElements=4
+  [PASS] category slug filter: answers 200 — HTTP 200
+  [PASS] category slug filter: the limit is still in SQL — offset ? rows fetch first ? rows only
+    search filter: HTTP 200 returned=2 totalElements=5
+  [PASS] search filter: answers 200 — HTTP 200
+  [PASS] search filter: the limit is still in SQL — offset ? rows fetch first ? rows only
+    active filter: HTTP 200 returned=2 totalElements=7
+  [PASS] active filter: answers 200 — HTTP 200
+  [PASS] active filter: the limit is still in SQL — offset ? rows fetch first ? rows only
+=== PP-03: PASS (0 failing assertion(s)) ===

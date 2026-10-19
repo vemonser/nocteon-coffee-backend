@@ -1,0 +1,12 @@
+=== route precedence, authenticated ===
+$ GET /api/dashboard/categories/definitely-not-a-slug  (must still fall through to GET /{slug})
+HTTP 404
+success: False | message: 'Category not found'
+
+$ GET /api/dashboard/categories/deleted  (the same verb+shape, but a real route)
+HTTP 200
+success: True | message: 'Deleted categories retrieved'
+
+--- cleanup
+DELETE 1
+probe users left: 0

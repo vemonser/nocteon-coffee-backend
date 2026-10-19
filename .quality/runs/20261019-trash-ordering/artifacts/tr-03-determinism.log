@@ -1,0 +1,6 @@
+=== TR-03 — trash-listing ordering (items #3/#4) ===
+    run 1 -> ['aeropress', 'chemex-6cup', 'hario-v60']
+    run 2 -> ['aeropress', 'chemex-6cup', 'hario-v60']
+  [PASS] Product: identical requests return byte-identical order — ['aeropress', 'chemex-6cup', 'hario-v60']
+  [PASS] Product: page walk has no duplicate or gap — ['aeropress', 'chemex-6cup', 'hario-v60']
+=== TR-03: PASS (0 failing assertion(s)) ===

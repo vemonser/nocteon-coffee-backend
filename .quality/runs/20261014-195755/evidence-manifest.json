@@ -1,0 +1,227 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261014-195755",
+    "task": "Add soft-delete trash-bin listing and restore to dashboard endpoints",
+    "source": ".quality/runs/20261014-195755/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-01",
+      "statement": "Given a trashed row exists, when GET /dashboard/{entity}/deleted is called, then the response contains that row",
+      "sourceRef": {
+        "path": ".quality/runs/20261014-195755/CHANGE-CONTRACT.md",
+        "line": 1
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/test/java/com/nocteon/nocteon_api/softdelete/SoftDeleteQueryIntegrationTest.java",
+        "src/main/java/com/nocteon/nocteon_api/common/service/SoftDeleteRowFolder.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": "target/surefire-reports/com.nocteon.nocteon_api.softdelete.SoftDeleteQueryIntegrationTest.txt",
+          "command": "./mvnw test -Dtest=SoftDeleteQueryIntegrationTest",
+          "exitCode": 0,
+          "recordedAt": "2026-10-14T17:16:42.272Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-02",
+      "statement": "Given a trashed row, when PATCH /dashboard/{entity}/{id}/restore is called, then deleted_at is null and the row reappears in ordinary queries",
+      "sourceRef": {
+        "path": ".quality/runs/20261014-195755/CHANGE-CONTRACT.md",
+        "line": 1
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/journal/service/JournalService.java",
+        "src/main/java/com/nocteon/nocteon_api/journal/repository/JournalPostRepository.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": "target/surefire-reports/com.nocteon.nocteon_api.softdelete.SoftDeleteRepositoryIntegrationTest.txt",
+          "command": "./mvnw test -Dtest=SoftDeleteRepositoryIntegrationTest",
+          "exitCode": 0,
+          "recordedAt": "2026-10-14T17:17:02.923Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-03",
+      "statement": "Given the listings use native SQL, when each query executes against PostgreSQL, then it is valid SQL and returns the column width its mapper reads",
+      "sourceRef": {
+        "path": ".quality/runs/20261014-195755/CHANGE-CONTRACT.md",
+        "line": 1
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/journal/repository/JournalPostRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/category/repository/CategoryRepository.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": "target/surefire-reports/com.nocteon.nocteon_api.softdelete.SoftDeleteQueryIntegrationTest.txt",
+          "command": "./mvnw test -Dtest=SoftDeleteQueryIntegrationTest",
+          "exitCode": 0,
+          "recordedAt": "2026-10-14T17:17:23.213Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-04",
+      "statement": "Given no new permission is introduced, when any trash endpoint's PreAuthorize string is resolved, then it matches a real Permission constant",
+      "sourceRef": {
+        "path": ".quality/runs/20261014-195755/CHANGE-CONTRACT.md",
+        "line": 1
+      },
+      "kind": "security",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/enums/Permission.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": "target/surefire-reports/com.nocteon.nocteon_api.auth.AuthorizationConfigTest.txt",
+          "command": "./mvnw test -Dtest=AuthorizationConfigTest",
+          "exitCode": 0,
+          "recordedAt": "2026-10-14T17:17:28.273Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-05",
+      "statement": "Given CUSTOMER holds the catalog read permissions and the dashboard namespace is merely authenticated, when a customer calls a trash endpoint, then access is denied",
+      "sourceRef": {
+        "path": ".quality/runs/20261014-195755/CHANGE-CONTRACT.md",
+        "line": 1
+      },
+      "kind": "security",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/pairing/controller/PairingController.java",
+        "src/main/java/com/nocteon/nocteon_api/journal/controller/JournalController.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/config/SecurityConfig.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": "target/surefire-reports/com.nocteon.nocteon_api.auth.AuthorizationConfigTest.txt",
+          "command": "./mvnw test -Dtest=AuthorizationConfigTest",
+          "exitCode": 0,
+          "recordedAt": "2026-10-14T17:17:33.335Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-06",
+      "statement": "Given a trashed entity has N translations, when the listing is called, then the entity appears exactly once, carrying all N translations",
+      "sourceRef": {
+        "path": ".quality/runs/20261014-195755/CHANGE-CONTRACT.md",
+        "line": 1
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/service/SoftDeleteRowFolder.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": "target/surefire-reports/com.nocteon.nocteon_api.softdelete.SoftDeleteFoldingIntegrationTest.txt",
+          "command": "./mvnw test -Dtest=SoftDeleteFoldingIntegrationTest",
+          "exitCode": 0,
+          "recordedAt": "2026-10-14T17:17:53.929Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-07",
+      "statement": "Given a caller requests a page past the end of the result set, when the listing is called, then an empty page is returned rather than an error",
+      "sourceRef": {
+        "path": ".quality/runs/20261014-195755/CHANGE-CONTRACT.md",
+        "line": 1
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/journal/service/JournalService.java",
+        "src/main/java/com/nocteon/nocteon_api/product/service/ProductService.java",
+        "src/main/java/com/nocteon/nocteon_api/shippingZone/service/ShippingZoneService.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": "target/surefire-reports/com.nocteon.nocteon_api.softdelete.SoftDeleteRepositoryIntegrationTest.txt",
+          "command": "./mvnw test -Dtest=SoftDeleteRepositoryIntegrationTest",
+          "exitCode": 0,
+          "recordedAt": "2026-10-14T17:18:14.557Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-08",
+      "statement": "Given Order and Review are out of scope, when their controllers are inspected, then they declare no trash endpoint",
+      "sourceRef": {
+        "path": ".quality/runs/20261014-195755/CHANGE-CONTRACT.md",
+        "line": 1
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/order/controller/OrderController.java",
+        "src/main/java/com/nocteon/nocteon_api/review/controller/ReviewController.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": "target/surefire-reports/com.nocteon.nocteon_api.softdelete.SoftDeleteQueryIntegrationTest.txt",
+          "command": "./mvnw test -Dtest=SoftDeleteQueryIntegrationTest",
+          "exitCode": 0,
+          "recordedAt": "2026-10-14T17:18:34.273Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

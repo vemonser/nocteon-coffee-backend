@@ -1,0 +1,49 @@
+=== 2026-10-19T10:18:05+03:00 HC-05 against http://localhost:8080 (the rebuilt dev container) ===
+
+--- control 1: no token -> the route must still be closed
+HTTP 401
+
+--- control 2: an unknown slug still routes to GET /{slug} (the OLD behaviour of 'deleted')
+HTTP 401
+hc05-00-unauth.json                success=False message='Authentication required. Please log in.'
+hc05-00b-unknown-slug.json         success=False message='Authentication required. Please log in.'
+
+--- cleanup any leftover probe user, then register a fresh one
+register HTTP 200
+--- promote to ADMIN + enable (the API only issues CUSTOMER registrations)
+UPDATE 1
+--- login
+login HTTP 200
+token acquired (len 516)
+
+--- HC-05 GET /api/dashboard/categories/deleted  <-- the user's original URL
+HTTP 200
+success: True | message: 'Deleted categories retrieved'
+trash rows: 0
+
+--- create throwaway category: ZZ HC05 Probe 1792394287
+create HTTP 201
+created id=35 slug=zz-hc05-probe-1792394287
+--- soft delete
+soft DELETE HTTP 204
+--- trash must contain id=35
+trash HTTP 200
+trash ids: [35] | contains probe: True
+--- restore
+PATCH restore HTTP 200
+success: True | message: 'Category restored'
+--- disappeared from trash + readable via the ordinary route
+trash HTTP 200
+trash ids: [] | still contains probe: False
+GET /{slug} HTTP 200
+--- soft delete again, then permanent delete
+soft HTTP 204
+permanent HTTP 204
+trash HTTP 200
+trash ids: [] | probe present: False
+
+--- cleanup: drop the probe user and anything it left behind
+DELETE 1
+leftover probe categories in trash: 0
+
+=== done ===

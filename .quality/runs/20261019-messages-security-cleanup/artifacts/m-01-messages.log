@@ -1,0 +1,6 @@
+=== M-01 — items #6/#7/#8 ===
+  [PASS] RoastLevel not found -> 404 — HTTP 404
+  [PASS] message is 'Roast profile not found' (not 'Farm not found') — 'Roast profile not found'
+  [PASS] Pairing not found -> 404 — HTTP 404
+  [PASS] message is 'Pairing not found' (not 'Brewing method not found') — 'Pairing not found'
+=== M-01: PASS (0 failing assertion(s)) ===

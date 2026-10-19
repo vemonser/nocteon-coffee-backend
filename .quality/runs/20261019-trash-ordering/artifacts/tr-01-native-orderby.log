@@ -1,0 +1,11 @@
+=== TR-01 — trash-listing ordering (items #3/#4) ===
+  native trash queries and their ORDER BY clause:
+    Product          trash-queries=2 ordered=2
+  [PASS] Product: every trash query has ORDER BY ... created_at — 2/2
+    Category         trash-queries=2 ordered=2
+  [PASS] Category: every trash query has ORDER BY ... created_at — 2/2
+    JournalPost      trash-queries=2 ordered=2
+  [PASS] JournalPost: every trash query has ORDER BY ... created_at — 2/2
+    JournalCategory  trash-queries=2 ordered=2
+  [PASS] JournalCategory: every trash query has ORDER BY ... created_at — 2/2
+=== TR-01: PASS (0 failing assertion(s)) ===

@@ -1,0 +1,3 @@
+PASS: permanently deleted id=34 is absent from the trash listing
+PASS: transcript confirms DELETE /{id}/permanent -> 204
+RESULT: AC-03 PASS

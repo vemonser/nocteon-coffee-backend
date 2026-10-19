@@ -1,0 +1,39 @@
+=== 2026-10-19T08:56:22+03:00 live verification against http://localhost:8081 ===
+login HTTP 200
+token acquired (len 511)
+
+--- AC-01 GET /api/dashboard/categories/deleted (before)
+HTTP 200
+success: True | message: Deleted categories retrieved
+content length: 0
+
+--- create throwaway category: ZZ Trash Probe 1792389384
+HTTP 201
+created id=34 slug=zz-trash-probe-1792389384
+
+--- DELETE /api/dashboard/categories/zz-trash-probe-1792389384 (soft delete)
+HTTP 204
+
+--- AC-02a GET /deleted must now contain id=34
+HTTP 200
+trash ids: [34]
+contains probe id: True
+
+--- AC-02 PATCH /api/dashboard/categories/34/restore
+HTTP 200
+{"data":null,"errors":null,"message":"Category restored","success":true,"timestamp":"2026-10-19T05:56:24.854410766Z"}
+--- AC-02b trash must no longer contain id=34
+HTTP 200
+trash ids: [] | still contains probe: False
+--- AC-02c restored row is readable through the ordinary route
+HTTP 200
+success: True | slug: zz-trash-probe-1792389384
+
+--- AC-03 soft delete again, then DELETE /permanent
+soft HTTP 204
+permanent HTTP 204
+--- AC-03b trash must not contain id=34 after permanent delete
+HTTP 200
+trash ids: [] | probe present: False
+
+=== done ===

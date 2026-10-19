@@ -1,0 +1,3 @@
+PASS: 7 independently-edited files are byte-identical to pre-recovery
+PASS: Role.java: MODERATOR has DASHBOARD_READ + AUDIT_READ; CUSTOMER keeps USER_READ/USER_UPDATE so /api/addresses still works
+RESULT: AC-06 PASS

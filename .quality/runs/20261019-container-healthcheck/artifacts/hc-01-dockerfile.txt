@@ -1,0 +1,7 @@
+$ awk '/^HEALTHCHECK/{f=1} f{print; if(++n==2) exit}' Dockerfile
+  CMD wget --no-verbose --tries=1 -O /dev/null http://localhost:8080/api/settings || exit 1
+
+--- assertions on the effective healthcheck line ---
+contains --spider: no (PASS)
+forces a real GET via -O /dev/null: yes (PASS)
+probe url unchanged: /api/settings (PASS)

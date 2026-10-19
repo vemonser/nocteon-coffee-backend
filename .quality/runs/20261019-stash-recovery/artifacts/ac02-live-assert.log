@@ -1,0 +1,5 @@
+PASS: soft-deleted id=34 appears in the trash listing
+PASS: PATCH /{id}/restore -> 200 'Category restored'
+PASS: restored row left the trash listing
+PASS: restored row is readable through GET /api/dashboard/categories/{slug}
+RESULT: AC-02 PASS
