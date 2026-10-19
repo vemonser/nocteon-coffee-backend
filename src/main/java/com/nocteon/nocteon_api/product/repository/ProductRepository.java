@@ -86,11 +86,22 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
        
         
 
-        @Query("""
+        @Query(value = """
                         SELECT DISTINCT p FROM Product p
                         LEFT JOIN p.translations t
                         LEFT JOIN p.category c
                         LEFT JOIN FETCH p.pairings
+                        WHERE (:search IS NULL OR COALESCE(:search, '') = ''
+                               OR  LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
+                        AND (:categorySlug IS NULL OR c.slug = :categorySlug)
+                        AND (:productType IS NULL OR p.productType = :productType)
+                        AND (:isActive IS NULL OR p.isActive = :isActive)
+                        AND (:featured IS NULL OR p.featured = :featured)
+                        """,
+                countQuery = """
+                        SELECT COUNT(DISTINCT p.id) FROM Product p
+                        LEFT JOIN p.translations t
+                        LEFT JOIN p.category c
                         WHERE (:search IS NULL OR COALESCE(:search, '') = ''
                                OR  LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
                         AND (:categorySlug IS NULL OR c.slug = :categorySlug)
