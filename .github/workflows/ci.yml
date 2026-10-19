@@ -18,6 +18,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: nocteon_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nocteon_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -32,10 +56,8 @@ jobs:
           java-version: '21'
           cache: maven
 
-      # The same exclusion the project runs with locally (docs/ai-golden-queries.md):
-      #   NocteonApiApplicationTests.contextLoads  boots the whole context and
-      #     needs a migrated PostgreSQL *with pgvector* plus Redis. This job has
-      #     neither, so it is excluded rather than made to pass against a stub.
-      #   ShippingZoneServiceTest*  is excluded defensively, upstream of CI.
+      # PostgreSQL 16 with pgvector and Redis 7 are provided by the service
+      # containers above, so the context-loading and integration tests (which
+      # need a migrated schema) can run here instead of being excluded.
       - name: Verify
-        run: ./mvnw -B verify -Dtest='!ShippingZoneServiceTest*,!NocteonApiApplicationTests'
+        run: ./mvnw -B verify
