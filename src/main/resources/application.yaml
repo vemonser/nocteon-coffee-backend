@@ -27,6 +27,10 @@ spring:
     hibernate:
       ddl-auto: validate
     show-sql: false
+    properties:
+      hibernate:
+        query:
+          fail_on_pagination_over_collection_fetch: true
 
   flyway:
     enabled: true
