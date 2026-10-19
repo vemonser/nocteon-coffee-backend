@@ -92,4 +92,6 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
         boolean hasUserPurchasedProduct(
                         @Param("userId") Long userId,
                         @Param("productSlug") String productSlug);
+
+        Long countByIsApprovedFalse();
 }

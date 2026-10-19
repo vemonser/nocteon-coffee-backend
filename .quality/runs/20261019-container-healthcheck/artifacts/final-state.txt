@@ -1,0 +1,16 @@
+=== final environment state (2026-10-19T10:22:14+03:00) ===
+nocteon-app	Up 7 minutes (healthy)	nocteon-backend-app
+nocteon-redis	Up 2 hours (healthy)	redis:7-alpine
+nocteon-db	Up 2 hours (healthy)	pgvector/pgvector:pg16
+
+--- DB residue ---
+probe users: 0
+probe categories (incl. soft-deleted): 0
+trashed categories: 0
+users total: 10
+
+--- ERROR lines in the container log since the rebuild ---
+0
+
+--- the user's original URL, one last time (401 = route exists but needs a token) ---
+GET /api/dashboard/categories/deleted -> HTTP 401

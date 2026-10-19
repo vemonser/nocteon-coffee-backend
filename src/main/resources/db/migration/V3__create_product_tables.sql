@@ -150,11 +150,13 @@ CREATE TABLE product_pairings (
 CREATE TABLE store_settings (
     id BIGSERIAL PRIMARY KEY,
     free_shipping_threshold NUMERIC(10,2),
+    currency VARCHAR(3) NOT NULL DEFAULT 'EGP',
+    is_free_shipping_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-INSERT INTO store_settings (id, free_shipping_threshold) VALUES (1, 500.00);
+INSERT INTO store_settings (id, free_shipping_threshold, currency, is_free_shipping_active) VALUES (1, 500.00, 'EGP', true);
 -- =========================================================
 -- Indexes
 -- =========================================================

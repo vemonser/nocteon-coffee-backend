@@ -1,5 +1,7 @@
 package com.nocteon.nocteon_api.pairing.service;
 
+import java.time.Instant;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -14,6 +16,7 @@ import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.PairingNotFoundException;
+import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.pairing.dto.request.PairingRequest;
 import com.nocteon.nocteon_api.pairing.dto.request.PairingTranslationRequest;
@@ -40,7 +43,7 @@ public class PairingService {
 
 
         @Transactional
-        public PairingResponse create(PairingRequest request, MultipartFile image) {
+        public PairingResponseDashboard create(PairingRequest request, MultipartFile image) {
                 helper.validateTranslations(request.getTranslations());
 
                 String englishName = request.getTranslations().stream()
@@ -71,11 +74,14 @@ public class PairingService {
                 }
                 translationRepository.saveAll(translations);
 
-                return buildResponse(pairing, LocaleContextHolder.getLocale().getLanguage());
+                var reloaded = pairingRepository.findBySlugWithTranslations(slug).orElse(pairing);
+
+
+                return buildResponse(reloaded);
         }
 
         @Transactional
-        public PairingResponse update(String slug, PairingRequest request, MultipartFile image) {
+        public PairingResponseDashboard update(String slug, PairingRequest request, MultipartFile image) {
                 Pairing pairing = pairingRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(PairingNotFoundException::new);
 
@@ -104,11 +110,13 @@ public class PairingService {
                 }
 
                 pairingRepository.save(pairing);
-                return buildResponse(pairing, LocaleContextHolder.getLocale().getLanguage());
+                var reloaded = pairingRepository.findBySlugWithTranslations(pairing.getSlug()).orElse(pairing);
+
+                return buildResponse(reloaded);
         }
 
         @Transactional
-        public PairingResponse uploadImage(String slug, MultipartFile file) {
+        public PairingResponseDashboard uploadImage(String slug, MultipartFile file) {
                 Pairing pairing = pairingRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(PairingNotFoundException::new);
 
@@ -116,14 +124,16 @@ public class PairingService {
                 pairing.setImageUrl(helper.uploadMedia(file, "pairings", MediaType.IMAGE));
                 pairingRepository.save(pairing);
 
-                return buildResponse(pairing, LocaleContextHolder.getLocale().getLanguage());
+                var reloaded = pairingRepository.findBySlugWithTranslations(slug).orElse(pairing);
+
+
+                return buildResponse(reloaded);
         }
 
         @Transactional
         public void delete(String slug) {
                 Pairing pairing = pairingRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(PairingNotFoundException::new);
-                helper.deleteMediaIfExists(pairing.getImageUrl());
                 pairing.softDelete();
                 pairingRepository.save(pairing);
         }
@@ -196,5 +206,116 @@ public class PairingService {
                                                                                 .build())
                                                                 .toList())
                                 .build();
+        }
+
+        /**
+         * Trashed Pairings for the dashboard's deleted-items table.
+         *
+         * <p>Paged in memory rather than in SQL. {@code @SQLRestriction} hides trashed rows from
+         * every JPQL and derived query, so the rows have to come from a native query that also
+         * bypasses {@code LIMIT}/{@code OFFSET} pagination. That is cheap while the trash is small
+         * and degrades linearly as it grows — acceptable for an admin recovery screen, and the same
+         * trade the Category listing already makes.
+         *
+         * <p>Folds the per-language rows onto one response per entity. The native query returns one
+         * row per translation, so mapping rows directly would list a deleted item once per
+         * translation and report a row count as its total — which also splits one item's
+         * translations across two pages. See {@link SoftDeleteRowFolder}.
+         */
+        public PageResponse<PairingResponseDashboard> getAllDeleted(LookupFilterRequest filter) {
+                String search = Objects.requireNonNullElse(filter.getSearch(), "");
+                int pageNum = filter.getPage();
+                int size = filter.getSize();
+                String sort = filter.getSort();
+                String direction = filter.getDirection();
+
+                List<Object[]> rawResults = pairingRepository.findDeletedBySearchNative(search);
+
+                List<PairingResponseDashboard> allResults = SoftDeleteRowFolder.fold(
+                                rawResults,
+                                row -> ((Number) row[0]).longValue(),
+                                this::mapToPairingResponseDashboard,
+                                (response, row) -> response.getTranslations()
+                                                .add(buildTranslation(row)));
+
+                if (sort != null) {
+                        allResults.sort((a, b) -> {
+                                int result = switch (sort) {
+                                        case "slug" -> a.getSlug().compareToIgnoreCase(b.getSlug());
+                                        case "createdAt" -> a.getCreatedAt().compareTo(b.getCreatedAt());
+                                        default -> 0;
+                                };
+                                return direction.equalsIgnoreCase("desc") ? -result : result;
+                        });
+                }
+
+                int fromIndex = pageNum * size;
+                if (fromIndex > allResults.size()) {
+                        fromIndex = allResults.size();
+                }
+                int toIndex = Math.min(fromIndex + size, allResults.size());
+                List<PairingResponseDashboard> pagedResults = allResults.subList(fromIndex, toIndex);
+
+                Page<PairingResponseDashboard> page = new org.springframework.data.domain.PageImpl<>(
+                                pagedResults,
+                                org.springframework.data.domain.PageRequest.of(pageNum, size),
+                                allResults.size());
+                return PageResponse.of(page);
+        }
+
+        private PairingResponseDashboard mapToPairingResponseDashboard(Object[] row) {
+                return PairingResponseDashboard.builder()
+                                .id(((Number) row[0]).longValue())
+                                .slug((String) row[1])
+                                .imageUrl((String) row[2])
+                                .createdAt((Instant) row[3])
+                                .translations(new ArrayList<>())
+                                .build();
+        }
+
+        private TranslationResponse buildTranslation(Object[] row) {
+                return TranslationResponse.builder()
+                                .language((String) row[4])
+                                .name((String) row[5])
+                                .description((String) row[6])
+
+                                .build();
+        }
+
+        /**
+         * Un-delete a Pairing.
+         *
+         * <p>Reads through {@code findDeletedById}, so an id that is live or unknown raises
+         * {@link PairingNotFoundException} rather than reporting a restore that changed nothing.
+         */
+        @Transactional
+        public void restore(Long id) {
+                Pairing pairing = pairingRepository.findDeletedById(id)
+                                .orElseThrow(PairingNotFoundException::new);
+                pairing.setDeletedAt(null);
+                pairingRepository.save(pairing);
+                log.info("Pairing restored: {}", pairing.getSlug());
+        }
+
+        /**
+         * Permanently deletes a trashed Pairing: removes its image from Cloudinary, then the row itself.
+         *
+         * <p>Deletes the row — and flushes, so a foreign-key conflict surfaces here — <em>before</em>
+         * touching Cloudinary. If the database refuses the delete, the trashed row and its image
+         * are both untouched and the admin can retry; the reverse order would strand a restored
+         * item without its picture.
+         *
+         * <p>Trash-only: reads through {@code findDeletedById}, so a live or unknown id raises
+         * {@link PairingNotFoundException} instead of deleting anything. Soft-delete first — this never touches live
+         * rows.
+         */
+        @Transactional
+        public void permanentDelete(Long id) {
+                Pairing pairing = pairingRepository.findDeletedById(id)
+                                .orElseThrow(PairingNotFoundException::new);
+                pairingRepository.delete(pairing);
+                pairingRepository.flush();
+                helper.deleteMediaIfExists(pairing.getImageUrl());
+                log.info("Pairing permanently deleted: {}", pairing.getSlug());
         }
 }

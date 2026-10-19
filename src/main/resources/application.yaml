@@ -208,9 +208,9 @@ spring:
 
 nocteon:
   ai:
-    enabled: ${AI_ENABLED:false}
-    search-enabled: ${AI_SEARCH_ENABLED:false}
-    chatbot-enabled: ${AI_CHATBOT_ENABLED:false}
+    enabled: ${AI_ENABLED:true}
+    search-enabled: ${AI_SEARCH_ENABLED:true}
+    chatbot-enabled: ${AI_CHATBOT_ENABLED:true}
   mail:
     from: ${MAIL_FROM:nocteoncoffee@gmail.com}
     from-name: Nocteon Coffee

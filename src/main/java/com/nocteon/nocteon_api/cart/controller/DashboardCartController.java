@@ -1,5 +1,6 @@
 package com.nocteon.nocteon_api.cart.controller;
 
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,6 +29,7 @@ public class DashboardCartController {
     @GetMapping
     @PreAuthorize("hasAuthority('cart:read_all')")
     public ResponseEntity<ApiResponse<PageResponse<DashboardCartResponse>>> getAll(
+            @Valid
             @ModelAttribute DashboardCartFilterRequest filter) {
         return ResponseEntity.ok(ApiResponse.success(
                 PageResponse.of(dashboardCartService.getAll(filter)),

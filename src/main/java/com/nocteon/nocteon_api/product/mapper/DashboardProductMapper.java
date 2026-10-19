@@ -111,6 +111,7 @@ public class DashboardProductMapper {
 
                 return DashboardProductResponse.builder()
                                 .id(product.getId())
+                                .createdAt(product.getCreatedAt())
                                 .slug(product.getSlug())
                                 .categorySlug(product.getCategory().getSlug())
                                 .originSlug(product.getOrigin() != null

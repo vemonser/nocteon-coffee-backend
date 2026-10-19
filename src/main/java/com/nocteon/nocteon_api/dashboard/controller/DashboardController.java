@@ -10,6 +10,7 @@ import org.springframework.validation.annotation.Validated;
 
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.dashboard.dto.DashboardOverviewResponse;
+import com.nocteon.nocteon_api.dashboard.dto.DashboardOverviewWithPreviousResponse;
 import com.nocteon.nocteon_api.dashboard.service.DashboardService;
 import com.nocteon.nocteon_api.promoCode.dto.response.PromoCodeAnalyticsResponse;
 import com.nocteon.nocteon_api.promoCode.service.PromoCodeAnalyticsService;
@@ -32,11 +33,33 @@ public class DashboardController {
         return ResponseEntity.ok(ApiResponse.success(dashboardService.getOverview(days), "Overview retrieved"));
     }
 
+    @GetMapping("/stats/overview/compare")
+    @PreAuthorize("hasAuthority('dashboard:read')")
+    public ResponseEntity<ApiResponse<DashboardOverviewWithPreviousResponse>> getOverviewWithPrevious(
+            @RequestParam(defaultValue = "30") int days) {
+        return ResponseEntity.ok(ApiResponse.success(
+                dashboardService.getOverviewWithPrevious(days), "Overview with previous period retrieved"));
+    }
+
     @GetMapping("/promo-codes/analytics")
     @PreAuthorize("hasAuthority('promo:read')")
     public ResponseEntity<ApiResponse<PromoCodeAnalyticsResponse>> getAnalytics(
             @RequestParam(defaultValue = "30") int days) {
         return ResponseEntity
                 .ok(ApiResponse.success(promoCodeAnalyticsService.getAnalytics(days), "Analytics retrieved"));
+    }
+
+    @GetMapping("/stats/pending-reviews-count")
+    @PreAuthorize("hasAuthority('review:read')")
+    public ResponseEntity<ApiResponse<Long>> getPendingReviewsCount() {
+        return ResponseEntity.ok(ApiResponse.success(
+                dashboardService.getPendingReviewsCount(), "Pending reviews count retrieved"));
+    }
+
+    @GetMapping("/stats/unread-contact-count")
+    @PreAuthorize("hasAuthority('contact:read')")
+    public ResponseEntity<ApiResponse<Long>> getUnreadContactCount() {
+        return ResponseEntity.ok(ApiResponse.success(
+                dashboardService.getUnreadContactMessagesCount(), "Unread contact messages count retrieved"));
     }
 }

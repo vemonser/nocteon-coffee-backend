@@ -6,7 +6,7 @@ import com.nocteon.nocteon_api.common.exception.BaseApiException;
 
 public class RoastLevelNotFoundException extends BaseApiException{
     public RoastLevelNotFoundException() {
-        super("error.farm.notFound", HttpStatus.NOT_FOUND);
+        super("error.roastLevel.notFound", HttpStatus.NOT_FOUND);
     
 }
 }

@@ -6,6 +6,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -38,6 +39,7 @@ public class BroadcastController {
     @GetMapping("/api/dashboard/broadcasts")
     @PreAuthorize("hasAuthority('broadcast:read')")
     public ResponseEntity<ApiResponse<PageResponse<BroadcastResponse>>> getAll(
+            @Valid
             @ModelAttribute BaseFilterRequest filter) {
         return ResponseEntity.ok(ApiResponse.success(broadcastCreationService.getAll(filter), "Broadcasts retrieved"));
     }
@@ -46,5 +48,12 @@ public class BroadcastController {
     @PreAuthorize("hasAuthority('broadcast:read')")
     public ResponseEntity<ApiResponse<BroadcastResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(broadcastCreationService.getById(id), "Broadcast retrieved"));
+    }
+
+    @DeleteMapping("/api/dashboard/broadcasts/{id}")
+    @PreAuthorize("hasAuthority('broadcast:delete')")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        broadcastCreationService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 }

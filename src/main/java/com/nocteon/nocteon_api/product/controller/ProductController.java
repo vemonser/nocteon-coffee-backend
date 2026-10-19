@@ -21,6 +21,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
+import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.product.dto.request.ProductFilterRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductMediaRequest;
@@ -48,6 +49,7 @@ public class ProductController {
 
         @GetMapping("/products")
         public ResponseEntity<ApiResponse<PageResponse<ProductCardResponse>>> getAll(
+                        @Valid
                         @ModelAttribute ProductFilterRequest filter) {
 
                 return ResponseEntity.ok(
@@ -68,6 +70,7 @@ public class ProductController {
 
         @GetMapping("/products/available-options")
         public ResponseEntity<ApiResponse<List<ProductOptionOptionResponse>>> getAvailableOptions(
+                        @Valid
                         @ModelAttribute ProductFilterRequest filter) {
 
                 return ResponseEntity.ok(
@@ -82,12 +85,23 @@ public class ProductController {
         @GetMapping("/dashboard/products")
         @PreAuthorize("hasAuthority('product:read')")
         public ResponseEntity<ApiResponse<PageResponse<ProductCardResponse>>> getAllDashboard(
+                        @Valid
                         @ModelAttribute ProductFilterRequest filter) {
 
                 return ResponseEntity.ok(
                                 ApiResponse.success(
                                                 productService.getAllDashboard(filter),
                                                 "Products retrieved"));
+        }
+
+        @GetMapping("/dashboard/products/active-count")
+        @PreAuthorize("hasAuthority('product:read')")
+        public ResponseEntity<ApiResponse<Long>> getActiveCount() {
+
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                productService.getActiveCount(),
+                                                "Active products count retrieved"));
         }
 
         @GetMapping("/dashboard/products/{slug}")
@@ -103,7 +117,7 @@ public class ProductController {
 
         @PostMapping(value = "/dashboard/products", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
         @PreAuthorize("hasAuthority('product:create')")
-        public ResponseEntity<ApiResponse<ProductResponse>> create(
+        public ResponseEntity<ApiResponse<DashboardProductResponse>> create(
                         @Valid @RequestPart("request") ProductRequest request,
                         @RequestPart(value = "files", required = false) List<MultipartFile> files) {
 
@@ -152,7 +166,7 @@ public class ProductController {
 
         @PostMapping(value = "/dashboard/products/{slug}/media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
         @PreAuthorize("hasAuthority('product:update')")
-        public ResponseEntity<ApiResponse<ProductResponse>> uploadMedia(
+        public ResponseEntity<ApiResponse<DashboardProductResponse>> uploadMedia(
                         @PathVariable String slug,
                         @RequestPart("media") List<ProductMediaRequest> media,
                         @RequestPart(value = "files", required = false) List<MultipartFile> files) {
@@ -187,5 +201,42 @@ public class ProductController {
                                 ApiResponse.success(
                                                 null,
                                                 "Product deleted"));
+        }
+
+        @GetMapping("/dashboard/products/deleted")
+        @PreAuthorize("hasAuthority('product:delete')")
+        public ResponseEntity<ApiResponse<PageResponse<DashboardProductResponse>>> getAllDeleted(
+                        @Valid
+                        @ModelAttribute LookupFilterRequest filter) {
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                productService.getAllDeleted(filter),
+                                                "Deleted products retrieved"));
+        }
+
+        @PatchMapping("/dashboard/products/{id}/restore")
+        @PreAuthorize("hasAuthority('product:delete')")
+        public ResponseEntity<ApiResponse<Void>> restore(
+                        @PathVariable Long id) {
+
+                productService.restore(id);
+
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                null,
+                                                "Product restored"));
+        }
+
+        /**
+         * Permanently deletes a trashed Product permanently deleted. The row must already be soft-deleted — restoring
+         * is still possible until this is called, and after it nothing is recoverable. Cloudinary
+         * assets are removed here and only here; the soft delete keeps them so a restore brings
+         * the item back intact.
+         */
+        @DeleteMapping("/dashboard/products/{id}/permanent")
+        @PreAuthorize("hasAuthority('product:delete')")
+        public ResponseEntity<Void> permanentDelete(@PathVariable Long id) {
+                productService.permanentDelete(id);
+                return ResponseEntity.noContent().build();
         }
 }

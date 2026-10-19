@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -38,6 +39,7 @@ public class BrewingMethodController {
     // Public
     @GetMapping("/brewing-methods")
     public ResponseEntity<ApiResponse<PageResponse<BrewingMethodResponse>>> getAll(
+            @Valid
             @ModelAttribute LookupFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(brewingMethodService.getAll(filter), "Brewing method retrieved"));
@@ -74,6 +76,7 @@ public class BrewingMethodController {
     @GetMapping("/dashboard/brewing-methods")
     @PreAuthorize("hasAuthority('brewing_method:read')")
     public ResponseEntity<ApiResponse<PageResponse<BrewingMethodResponseDashboard>>> getAllDashboard(
+            @Valid
             @ModelAttribute LookupFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(brewingMethodService.getAllDashboard(filter), "Brewing method retrieved"));
@@ -81,7 +84,7 @@ public class BrewingMethodController {
 
     @PostMapping("/dashboard/brewing-methods")
     @PreAuthorize("hasAuthority('brewing_method:create')")
-    public ResponseEntity<ApiResponse<BrewingMethodResponse>> create(
+    public ResponseEntity<ApiResponse<BrewingMethodResponseDashboard>> create(
             @Valid @RequestBody BrewingMethodRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(brewingMethodService.create(request), "Brewing method created"));
@@ -89,7 +92,7 @@ public class BrewingMethodController {
 
     @PutMapping("/dashboard/brewing-methods/{slug}")
     @PreAuthorize("hasAuthority('brewing_method:update')")
-    public ResponseEntity<ApiResponse<BrewingMethodResponse>> update(
+    public ResponseEntity<ApiResponse<BrewingMethodResponseDashboard>> update(
             @PathVariable String slug,
             @Valid @RequestBody BrewingMethodRequest request) {
         return ResponseEntity
@@ -102,4 +105,39 @@ public class BrewingMethodController {
         brewingMethodService.delete(slug);
         return ResponseEntity.noContent().build();
     }
+
+        @GetMapping("/dashboard/brewing-methods/deleted")
+        @PreAuthorize("hasAuthority('brewing_method:delete')")
+        public ResponseEntity<ApiResponse<PageResponse<BrewingMethodResponseDashboard>>> getAllDeleted(
+                        @Valid
+                        @ModelAttribute LookupFilterRequest filter) {
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                brewingMethodService.getAllDeleted(filter),
+                                                "Deleted brewing methods retrieved"));
+        }
+
+        @PatchMapping("/dashboard/brewing-methods/{id}/restore")
+        @PreAuthorize("hasAuthority('brewing_method:delete')")
+        public ResponseEntity<ApiResponse<Void>> restore(
+                        @PathVariable Long id) {
+                brewingMethodService.restore(id);
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                null,
+                                                "Brewing method restored"));
+        }
+
+        /**
+         * Permanently deletes a trashed Brewing method permanently deleted. The row must already be soft-deleted — restoring
+         * is still possible until this is called, and after it nothing is recoverable. Cloudinary
+         * assets are removed here and only here; the soft delete keeps them so a restore brings
+         * the item back intact.
+         */
+        @DeleteMapping("/dashboard/brewing-methods/{id}/permanent")
+        @PreAuthorize("hasAuthority('brewing_method:delete')")
+        public ResponseEntity<Void> permanentDelete(@PathVariable Long id) {
+                brewingMethodService.permanentDelete(id);
+                return ResponseEntity.noContent().build();
+        }
 }

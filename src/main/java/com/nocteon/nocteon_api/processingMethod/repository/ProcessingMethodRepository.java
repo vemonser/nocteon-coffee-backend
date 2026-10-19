@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.processingMethod.repository;
 
 import java.util.Optional;
+import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -57,4 +58,28 @@ public interface ProcessingMethodRepository extends JpaRepository<ProcessingMeth
     Optional<ProcessingMethod> findBySlug(String slug);
 
     boolean existsBySlug(String slug);
+
+    @Query(value = """
+        SELECT e.id, e.slug, e.created_at,
+               et.language, et.name, et.description
+        FROM processing_methods e
+        JOIN processing_method_translations et ON e.id = et.processing_method_id
+        WHERE e.deleted_at IS NOT NULL
+        GROUP BY e.id, e.slug, e.created_at, et.language, et.name, et.description
+        """, nativeQuery = true)
+    List<Object[]> findAllDeletedNative();
+
+    @Query(value = """
+        SELECT e.id, e.slug, e.created_at,
+               et.language, et.name, et.description
+        FROM processing_methods e
+        JOIN processing_method_translations et ON e.id = et.processing_method_id
+        WHERE e.deleted_at IS NOT NULL
+        AND (LOWER(et.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(e.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+        GROUP BY e.id, e.slug, e.created_at, et.language, et.name, et.description
+        """, nativeQuery = true)
+    List<Object[]> findDeletedBySearchNative(@Param("search") String search);
+
+    @Query(value = "SELECT e.* FROM processing_methods e WHERE e.id = :id AND e.deleted_at IS NOT NULL", nativeQuery = true)
+    Optional<ProcessingMethod> findDeletedById(@Param("id") Long id);
 }

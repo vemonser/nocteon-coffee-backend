@@ -28,12 +28,14 @@ import com.nocteon.nocteon_api.product.dto.response.DashboardProductResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.entity.ProductMedia;
+import com.nocteon.nocteon_api.product.entity.ProductVariant;
 import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.enums.ProductType;
 import com.nocteon.nocteon_api.product.mapper.DashboardProductMapper;
 import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
 import com.nocteon.nocteon_api.product.repository.ProductMediaRepository;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
+import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
 import com.nocteon.nocteon_api.product.repository.ProductTranslationRepository;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +57,7 @@ public class ProductMutationService {
     private final FarmRepository farmRepository;
     private final LookupServiceHelper helper;
     private final ProductMediaService productMediaService;
+    private final ProductVariantRepository productVariantRepository;
     private final ProductResponseMapper productResponseMapper;
     private final DashboardProductMapper dashboardProductMapper;
     private final ProductVariantService productVariantService;
@@ -63,7 +66,7 @@ public class ProductMutationService {
     private final ProductIndexingService productIndexingService;
 
     @Transactional
-    public ProductResponse create(ProductRequest request, List<MultipartFile> files) {
+    public DashboardProductResponse create(ProductRequest request, List<MultipartFile> files) {
         helper.validateTranslations(request.getTranslations());
         productMediaService.validateMediaRequest(request.getMedia(), files);
         validateProductType(request);
@@ -108,10 +111,9 @@ public class ProductMutationService {
         // Registered last, so the hook fires once every relation is on the product: the indexer
         // re-reads it after the commit and would otherwise embed a product with no translations.
         scheduleIndexUpsert(product.getId(), slug);
-        return productResponseMapper.buildDetailResponse(
-                productRepository.findBySlugAndLanguage(slug, LocaleContextHolder.getLocale().getLanguage())
-                        .orElseThrow(ProductNotFoundException::new),
-                LocaleContextHolder.getLocale().getLanguage());
+        return dashboardProductMapper.buildDashboardResponse(
+                productRepository.findBySlug(slug)
+                        .orElseThrow(ProductNotFoundException::new));
     }
 
     @Transactional
@@ -167,18 +169,17 @@ public class ProductMutationService {
     }
 
     @Transactional
-    public ProductResponse uploadMedia(
+    public DashboardProductResponse uploadMedia(
             String slug,
             List<ProductMediaRequest> mediaRequests,
             List<MultipartFile> files) {
 
-        String language = LocaleContextHolder.getLocale().getLanguage();
-        Product product = productRepository.findBySlugAndLanguage(slug, language)
+        Product product = productRepository.findBySlug(slug)
                 .orElseThrow(ProductNotFoundException::new);
 
         productMediaService.saveMedia(product, mediaRequests, files);
 
-        return productResponseMapper.buildDetailResponse(product, language);
+        return dashboardProductMapper.buildDashboardResponse(product);
     }
 
     @Transactional
@@ -197,6 +198,43 @@ public class ProductMutationService {
         productRepository.save(product);
         log.info("Product soft deleted: {}", slug);
         scheduleIndexRemoval(slug);
+    }
+
+    /**
+     * Permanently deletes a trashed product: its variants, then the product row itself —
+     * translations, details and relations follow through the cascades — and only afterwards its
+     * media assets on Cloudinary.
+     *
+     * <p>Trash-only: reads through {@code findDeletedById}, so a live or unknown id raises
+     * {@link ProductNotFoundException} instead of deleting anything. Soft-delete first — this
+     * never touches live rows.
+     *
+     * <p>Variants are removed explicitly rather than through the cascade: {@code ProductVariant}
+     * carries {@code @SQLRestriction}, so already-soft-deleted variants are invisible to collection
+     * loading and the cascade would miss them, failing on the foreign key instead.
+     *
+     * <p>Deletes the rows — and flushes, so a foreign-key conflict surfaces here — <em>before</em>
+     * touching Cloudinary. If the database refuses the delete (a review, an order history row,
+     * anything still referencing the product), the trashed product and every asset are untouched
+     * and the admin can retry; the reverse order would strand a restored product without pictures.
+     */
+    @Transactional
+    public void permanentDelete(Long id) {
+        Product product = productRepository.findDeletedById(id)
+                .orElseThrow(ProductNotFoundException::new);
+        List<String> mediaUrls = new ArrayList<>(product.getMedia()).stream()
+                .map(ProductMedia::getUrl)
+                .toList();
+        for (ProductVariant variant : productVariantRepository.findAllByProductIdIncludingDeleted(id)) {
+            productVariantRepository.delete(variant);
+        }
+        productRepository.delete(product);
+        productRepository.flush();
+        for (String url : mediaUrls) {
+            helper.deleteMediaIfExists(url);
+        }
+        log.info("Product permanently deleted: {}", product.getSlug());
+        scheduleIndexRemoval(product.getSlug());
     }
 
     /**
@@ -224,6 +262,17 @@ public class ProductMutationService {
                         productId, slug, e.getMessage());
             }
         });
+    }
+
+    /**
+     * Re-embeds a restored product once the transaction that revived it has committed.
+     *
+     * <p>Soft {@code delete} schedules the document's removal and {@code permanentDelete} does too,
+     * so without this a restored product would stay out of semantic search until the nightly
+     * rebuild. Same after-commit, failure-tolerant semantics as {@link #scheduleIndexUpsert}.
+     */
+    public void scheduleIndexUpsertAfterRestore(Long productId, String slug) {
+        scheduleIndexUpsert(productId, slug);
     }
 
     /**

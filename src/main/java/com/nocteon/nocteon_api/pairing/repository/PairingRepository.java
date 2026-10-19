@@ -71,4 +71,28 @@ public interface PairingRepository extends JpaRepository<Pairing, Long> {
     List<Pairing> findBySlugIn(List<String> slugs);
 
     boolean existsBySlug(String slug);
+
+        @Query(value = """
+                SELECT e.id, e.slug, e.image_url, e.created_at, et.language, et.name, et.description
+                FROM pairings e
+                JOIN pairing_translations et ON e.id = et.pairing_id
+                WHERE e.deleted_at IS NOT NULL
+                GROUP BY e.id, e.slug, e.image_url, e.created_at, et.language, et.name, et.description
+                """, nativeQuery = true)
+        List<Object[]> findAllDeletedNative();
+
+        @Query(value = """
+                SELECT e.id, e.slug, e.image_url, e.created_at, et.language, et.name, et.description
+                FROM pairings e
+                JOIN pairing_translations et ON e.id = et.pairing_id
+                WHERE e.deleted_at IS NOT NULL
+                AND (LOWER(et.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                     OR LOWER(e.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+                GROUP BY e.id, e.slug, e.image_url, e.created_at, et.language, et.name, et.description
+                """, nativeQuery = true)
+        List<Object[]> findDeletedBySearchNative(@Param("search") String search);
+
+        @Query(value = "SELECT e.* FROM pairings e WHERE e.id = :id AND e.deleted_at IS NOT NULL", nativeQuery = true)
+        Optional<Pairing> findDeletedById(@Param("id") Long id);
+
 }

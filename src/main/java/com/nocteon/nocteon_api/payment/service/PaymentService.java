@@ -127,6 +127,8 @@ public class PaymentService {
         }
 
         Order order = payment.getOrder();
+        boolean orderTerminal = order.getStatus() == OrderStatus.CANCELLED
+                || order.getStatus() == OrderStatus.DELIVERED;
 
         if (txn.isSuccess()) {
             payment.setStatus(PaymentStatus.PAID);
@@ -134,21 +136,41 @@ public class PaymentService {
             payment.setPaymentMethod(
                     txn.getSourceData() != null ? txn.getSourceData().getSubType() : null);
             payment.setPaidAt(Instant.now());
-            order.setStatus(OrderStatus.CONFIRMED);
-            order.setPaymentStatus(PaymentStatus.PAID);
-            eventPublisher.publishEvent(new PaymentSucceededEvent(order.getId(), payment.getAmount()));
+            if (orderTerminal) {
+                // Money was captured but the order is already dead (cancelled by an
+                // admin, or already delivered). Record the money truth, keep the
+                // order untouched, and let ops refund manually — resurrecting it
+                // would ship something already written off, on stock that the
+                // cancellation already gave back to the shelf.
+                order.setPaymentStatus(PaymentStatus.PAID);
+                log.warn("Late success webhook for terminal order {} (status {}). "
+                        + "Payment recorded as PAID, order left untouched — manual refund may be needed.",
+                        order.getId(), order.getStatus());
+            } else {
+                order.setStatus(OrderStatus.CONFIRMED);
+                order.setPaymentStatus(PaymentStatus.PAID);
+                eventPublisher.publishEvent(new PaymentSucceededEvent(order.getId(), payment.getAmount()));
+            }
 
         } else {
             payment.setStatus(PaymentStatus.FAILED);
             payment.setFailureReason(
                     txn.getData() != null ? txn.getData().getMessage() : "Payment failed");
-            order.setStatus(OrderStatus.CANCELLED);
-            order.setPaymentStatus(PaymentStatus.FAILED);
+            if (!orderTerminal) {
+                order.setStatus(OrderStatus.CANCELLED);
+                order.setPaymentStatus(PaymentStatus.FAILED);
 
-            order.getItems().forEach(item -> {
-                ProductVariant variant = item.getProductVariant();
-                variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity());
-            });
+                order.getItems().forEach(item -> {
+                    ProductVariant variant = item.getProductVariant();
+                    variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity());
+                });
+            } else {
+                // Already dead: record the payment failure, but the stock that a
+                // previous cancellation restored must not be restored twice.
+                log.warn("Failure webhook for already-terminal order {} (status {}). "
+                        + "Payment marked FAILED, stock left untouched.",
+                        order.getId(), order.getStatus());
+            }
         }
 
         paymentRepository.save(payment);

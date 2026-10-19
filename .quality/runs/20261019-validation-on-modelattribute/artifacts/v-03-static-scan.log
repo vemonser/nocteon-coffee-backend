@@ -1,0 +1,6 @@
+=== V-03 — item #5 (@Valid on @ModelAttribute) ===
+  [PASS] every @ModelAttribute is preceded by @Valid — 0 un-validated
+  [PASS] BindException is imported
+  [PASS] BindException has a handler
+  [PASS] @Valid imported in every controller using @ModelAttribute — 0 missing
+=== V-03: PASS (0 failing assertion(s)) ===

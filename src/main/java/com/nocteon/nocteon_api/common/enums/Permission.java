@@ -101,7 +101,12 @@ public enum Permission {
     // deliberately does not hold. Only ADMIN carries this one.
     USER_CHANGE_ROLE("user:change_role"),
     USER_DELETE("user:delete"),
-    
+
+    // address (self-service address book; split from user:read/update so that CUSTOMER can manage
+    // its own addresses without gaining read access to /api/dashboard/users)
+    ADDRESS_READ("address:read"),
+    ADDRESS_UPDATE("address:update"),
+
     // dashboard
     SETTINGS_READ("settings:read"),
     SETTINGS_UPDATE("settings:update"),
@@ -123,9 +128,18 @@ public enum Permission {
     // Broadcast
     BROADCAST_CREATE("broadcast:create"),
     BROADCAST_READ("broadcast:read"),
+    // BroadcastController's delete route asked for broadcast:delete before this constant existed.
+    // hasAuthority compares raw strings, so that string failed closed: 403 for every role,
+    // including ADMIN, which is granted Permission.values().
+    BROADCAST_DELETE("broadcast:delete"),
 
     // Contact
+    // The inbox's reply and mark-as-read routes asked for contact:update, and delete for
+    // contact:delete, before either constant existed — so both failed closed with 403 for every
+    // role. Like contact:read, these stay ADMIN-only: MODERATOR holds no contact permission.
     CONTACT_READ("contact:read"),
+    CONTACT_UPDATE("contact:update"),
+    CONTACT_DELETE("contact:delete"),
 
     // Cart & Wishlist
     // CART_MANAGE means "manage your own cart" and is deliberately held by CUSTOMER — the
@@ -136,6 +150,7 @@ public enum Permission {
     CART_MANAGE("cart:manage"),
     CART_READ_ALL("cart:read_all"),
     WISHLIST_MANAGE("wishlist:manage"),
+    AUDIT_READ("audit:read"),
 
     // AI
     // Rebuilding the vector index re-embeds the whole catalog, so it is not gated behind

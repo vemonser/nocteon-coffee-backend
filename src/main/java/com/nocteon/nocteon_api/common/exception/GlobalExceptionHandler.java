@@ -17,10 +17,13 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import jakarta.validation.ConstraintViolationException;
+import jakarta.persistence.OptimisticLockException;
+import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -119,14 +122,6 @@ public class GlobalExceptionHandler {
                                 .body(ApiResponse.error(message, null));
         }
 
-        @ExceptionHandler(IllegalArgumentException.class)
-        public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
-                Locale locale = LocaleContextHolder.getLocale();
-                String message = messageSource.getMessage("error.validation.failed", null, locale);
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                                .body(ApiResponse.error(message, null));
-        }
-
         @ExceptionHandler(MethodArgumentTypeMismatchException.class)
         public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
                 Locale locale = LocaleContextHolder.getLocale();
@@ -140,6 +135,22 @@ public class GlobalExceptionHandler {
         }
 
         // ─── 400: Validation ───────────────────────────────────────────────────
+
+        @ExceptionHandler(BindException.class)
+        public ResponseEntity<ApiResponse<Void>> handleBindException(BindException ex) {
+                Locale locale = LocaleContextHolder.getLocale();
+                String message = messageSource.getMessage("error.validation.failed", null, locale);
+
+                List<ApiFieldError> errors = ex.getBindingResult().getFieldErrors().stream()
+                                .map(err -> ApiFieldError.builder()
+                                                .field(err.getField())
+                                                .message(err.getDefaultMessage())
+                                                .build())
+                                .toList();
+
+                return ResponseEntity.badRequest()
+                                .body(ApiResponse.error(message, errors));
+        }
 
         @ExceptionHandler(MethodArgumentNotValidException.class)
         public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
@@ -215,7 +226,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(
                         HttpRequestMethodNotSupportedException ex) {
                 Locale locale = LocaleContextHolder.getLocale();
-                String message = messageSource.getMessage("error.unsupported.media.type",
+                String message = messageSource.getMessage("error.method.not.allowed",
                                 new Object[] { ex.getMethod() },
                                 "HTTP method not supported", locale);
                 return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
@@ -232,10 +243,16 @@ public class GlobalExceptionHandler {
                                 ? ex.getRootCause().getMessage()
                                 : ex.getMessage();
                 String messageKey;
-                if (rootMessage != null && rootMessage.contains("slug")) {
+                if (rootMessage != null
+                                && rootMessage.toLowerCase(java.util.Locale.ROOT).contains("foreign key")) {
+                        // A hard delete refused because something still references the row — most
+                        // commonly a permanent delete of a category, origin or farm that products
+                        // still point at. This must be checked before the slug/translation branches:
+                        // a foreign-key message names tables and constraints, which can contain
+                        // those words for unrelated reasons.
+                        messageKey = "error.delete.referenced";
+                } else if (rootMessage != null && rootMessage.contains("slug")) {
                         messageKey = "error.duplicate.slug";
-                } else if (rootMessage != null && rootMessage.contains("uk_category_name_language")) {
-                        messageKey = "error.duplicate.translation";
                 } else {
                         messageKey = "error.duplicate.entry";
                 }
@@ -256,6 +273,25 @@ public class GlobalExceptionHandler {
                                 ex.getMessageKey(), // fallback
                                 locale);
                 return ResponseEntity.status(ex.getStatus())
+                                .body(ApiResponse.error(message, null));
+        }
+
+        // ─── Concurrency conflicts → 409, not 500 ────────────────────────────
+
+        @ExceptionHandler({ OptimisticLockException.class, OptimisticLockingFailureException.class })
+        public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(RuntimeException ex) {
+                // A concurrent checkout won the race for the same row (stock,
+                // promo usage, …). The buyer's request is fine — someone else
+                // just got there first — so answer 409 with the stock message,
+                // never a generic 500.
+                log.warn("Optimistic lock conflict, likely a lost checkout race: {}", ex.getMessage());
+                Locale locale = LocaleContextHolder.getLocale();
+                String message = messageSource.getMessage(
+                                "error.product.insufficientStock",
+                                new Object[] { 0 },
+                                "error.product.insufficientStock",
+                                locale);
+                return ResponseEntity.status(HttpStatus.CONFLICT)
                                 .body(ApiResponse.error(message, null));
         }
 

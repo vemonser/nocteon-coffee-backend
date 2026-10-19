@@ -4,10 +4,13 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import com.nocteon.nocteon_api.auth.entity.User;
@@ -17,6 +20,7 @@ import com.nocteon.nocteon_api.cart.repository.CartRepository;
 import com.nocteon.nocteon_api.category.entity.Category;
 import com.nocteon.nocteon_api.category.repository.CategoryRepository;
 import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
+import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.product.CartEmptyException;
 import com.nocteon.nocteon_api.order.entity.Order;
@@ -41,9 +45,11 @@ import com.nocteon.nocteon_api.promoCode.repository.PromoCodeRepository;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PromoCodeService {
 
     private final PromoCodeRepository promoCodeRepository;
@@ -142,6 +148,79 @@ public class PromoCodeService {
         promoCodeRepository.save(promoCode);
     }
 
+    /**
+     * Permanently deletes a trashed promo code: the row itself (category links go with it through
+     * the join table).
+     *
+     * <p>Trash-only: reads through {@code findDeletedById}, so a live or unknown id raises
+     * {@link PromoCodeNotFoundException} instead of deleting anything. Soft-delete first — this
+     * never touches live rows.
+     */
+    @Transactional
+    public void permanentDelete(Long id) {
+        PromoCode promoCode = promoCodeRepository.findDeletedById(id)
+                .orElseThrow(PromoCodeNotFoundException::new);
+        promoCodeRepository.delete(promoCode);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<PromoCodeResponse> getAllDeleted(LookupFilterRequest filter) {
+        String search = Objects.requireNonNullElse(filter.getSearch(), "");
+        int pageNum = filter.getPage();
+        int size = filter.getSize();
+        String sort = filter.getSort();
+        String direction = filter.getDirection();
+
+        List<PromoCode> entities;
+        if (search != null && !search.isEmpty()) {
+            entities = promoCodeRepository.findDeletedBySearchNative(search);
+        } else {
+            entities = promoCodeRepository.findAllDeletedNative();
+        }
+
+        List<PromoCodeResponse> allResults = entities.stream()
+                .map(this::buildResponse)
+                .collect(Collectors.toList());
+
+        int totalElements = allResults.size();
+
+        if (sort != null) {
+            allResults.sort((a, b) -> {
+                int result = 0;
+                switch (sort) {
+                    case "code":
+                        result = a.getCode().compareToIgnoreCase(b.getCode());
+                        break;
+                    case "createdAt":
+                        result = a.getCreatedAt().compareTo(b.getCreatedAt());
+                        break;
+                    default:
+                        result = 0;
+                }
+                return direction.equalsIgnoreCase("desc") ? -result : result;
+            });
+        }
+
+        int fromIndex = pageNum * size;
+        int toIndex = Math.min(fromIndex + size, allResults.size());
+        if (fromIndex > allResults.size()) {
+            fromIndex = allResults.size();
+        }
+        List<PromoCodeResponse> pagedResults = allResults.subList(fromIndex, toIndex);
+
+        Page<PromoCodeResponse> pageObj = new PageImpl<>(pagedResults, PageRequest.of(pageNum, size), allResults.size());
+        return PageResponse.of(pageObj);
+    }
+
+    @Transactional
+    public void restore(Long id) {
+        PromoCode promoCode = promoCodeRepository.findDeletedById(id)
+                .orElseThrow(PromoCodeNotFoundException::new);
+        promoCode.setDeletedAt(null);
+        promoCodeRepository.save(promoCode);
+        log.info("PromoCode restored: {}", promoCode.getCode());
+    }
+
     private List<Category> resolveCategories(PromoCodeRequest request) {
         if (request.getScopeType() == PromoScopeType.GLOBAL) {
             return List.of();
@@ -176,7 +255,9 @@ public class PromoCodeService {
     public PromoCodeCalculationResult calculateDiscountForCart(
             String code, List<CartItem> cartItems, BigDecimal cartTotal, Long userId) {
 
-        PromoCode promoCode = promoCodeRepository.findByCodeIgnoreCase(code)
+        // Locked read: the only caller runs inside the checkout transaction, so
+        // the usage-count check below and the later redemption are atomic.
+        PromoCode promoCode = promoCodeRepository.findByCodeIgnoreCaseForUpdate(code)
                 .orElseThrow(PromoCodeNotFoundException::new);
 
         List<CartItem> eligibleItems = getEligibleCartItems(promoCode, cartItems);
@@ -270,6 +351,7 @@ public class PromoCodeService {
 
         return PromoCodeResponse.builder()
                 .id(promoCode.getId())
+                .createdAt(promoCode.getCreatedAt())
                 .code(promoCode.getCode())
                 .discountType(promoCode.getDiscountType())
                 .discountValue(promoCode.getDiscountValue())

@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,6 +36,7 @@ public class CoffeeVarietyController {
 
     @GetMapping("/coffee-varieties")
     public ResponseEntity<ApiResponse<PageResponse<CoffeeVarietyResponse>>> getAll(
+        @Valid
         @ModelAttribute LookupFilterRequest filter
 
     ) {
@@ -51,6 +53,7 @@ public class CoffeeVarietyController {
     @GetMapping("/dashboard/coffee-varieties")
     @PreAuthorize("hasAuthority('coffee_variety:read')")
     public ResponseEntity<ApiResponse<PageResponse<CoffeeVarietyResponseDashboard>>> getAllDashboard(
+            @Valid
             @ModelAttribute LookupFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(coffeeVarietyService.getAllDashboard(filter), "Brewing method retrieved"));
@@ -66,7 +69,7 @@ public class CoffeeVarietyController {
 
     @PostMapping("/dashboard/coffee-varieties")
     @PreAuthorize("hasAuthority('coffee_variety:create')")
-    public ResponseEntity<ApiResponse<CoffeeVarietyResponse>> create(
+    public ResponseEntity<ApiResponse<CoffeeVarietyResponseDashboard>> create(
             @Valid @RequestBody CoffeeVarietyRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(coffeeVarietyService.create(request), "Coffee variety created"));
@@ -74,7 +77,7 @@ public class CoffeeVarietyController {
 
     @PutMapping("/dashboard/coffee-varieties/{slug}")
     @PreAuthorize("hasAuthority('coffee_variety:update')")
-    public ResponseEntity<ApiResponse<CoffeeVarietyResponse>> update(
+    public ResponseEntity<ApiResponse<CoffeeVarietyResponseDashboard>> update(
             @PathVariable String slug,
             @Valid @RequestBody CoffeeVarietyRequest request) {
         return ResponseEntity.ok(ApiResponse.success(coffeeVarietyService.update(slug, request), "Coffee variety updated"));
@@ -86,4 +89,39 @@ public class CoffeeVarietyController {
         coffeeVarietyService.delete(slug);
         return ResponseEntity.noContent().build();
     }
+
+        @GetMapping("/dashboard/coffee-varieties/deleted")
+        @PreAuthorize("hasAuthority('coffee_variety:delete')")
+        public ResponseEntity<ApiResponse<PageResponse<CoffeeVarietyResponseDashboard>>> getAllDeleted(
+                        @Valid
+                        @ModelAttribute LookupFilterRequest filter) {
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                coffeeVarietyService.getAllDeleted(filter),
+                                                "Deleted coffee varieties retrieved"));
+        }
+
+        @PatchMapping("/dashboard/coffee-varieties/{id}/restore")
+        @PreAuthorize("hasAuthority('coffee_variety:delete')")
+        public ResponseEntity<ApiResponse<Void>> restore(
+                        @PathVariable Long id) {
+                coffeeVarietyService.restore(id);
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                null,
+                                                "Coffee variety restored"));
+        }
+
+        /**
+         * Permanently deletes a trashed Coffee variety permanently deleted. The row must already be soft-deleted — restoring
+         * is still possible until this is called, and after it nothing is recoverable. Cloudinary
+         * assets are removed here and only here; the soft delete keeps them so a restore brings
+         * the item back intact.
+         */
+        @DeleteMapping("/dashboard/coffee-varieties/{id}/permanent")
+        @PreAuthorize("hasAuthority('coffee_variety:delete')")
+        public ResponseEntity<Void> permanentDelete(@PathVariable Long id) {
+                coffeeVarietyService.permanentDelete(id);
+                return ResponseEntity.noContent().build();
+        }
 }

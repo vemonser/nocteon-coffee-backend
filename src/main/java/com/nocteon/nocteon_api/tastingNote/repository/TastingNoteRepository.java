@@ -57,4 +57,28 @@ public interface TastingNoteRepository extends JpaRepository<TastingNote, Long> 
     List<TastingNote> findBySlugIn(List<String> slugs);
 
     boolean existsBySlug(String slug);
+
+        @Query(value = """
+                SELECT e.id, e.slug, e.created_at, et.language, et.name
+                FROM tasting_notes e
+                JOIN tasting_note_translations et ON e.id = et.tasting_note_id
+                WHERE e.deleted_at IS NOT NULL
+                GROUP BY e.id, e.slug, e.created_at, et.language, et.name
+                """, nativeQuery = true)
+        List<Object[]> findAllDeletedNative();
+
+        @Query(value = """
+                SELECT e.id, e.slug, e.created_at, et.language, et.name
+                FROM tasting_notes e
+                JOIN tasting_note_translations et ON e.id = et.tasting_note_id
+                WHERE e.deleted_at IS NOT NULL
+                AND (LOWER(et.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                     OR LOWER(e.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+                GROUP BY e.id, e.slug, e.created_at, et.language, et.name
+                """, nativeQuery = true)
+        List<Object[]> findDeletedBySearchNative(@Param("search") String search);
+
+        @Query(value = "SELECT e.* FROM tasting_notes e WHERE e.id = :id AND e.deleted_at IS NOT NULL", nativeQuery = true)
+        Optional<TastingNote> findDeletedById(@Param("id") Long id);
+
 }

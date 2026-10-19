@@ -1,0 +1,6 @@
+=== N-03 — item #9 (live verification of remaining trash flows) ===
+  [PASS] promo code soft-delete -> 2xx — HTTP 204
+  [PASS] promo code appears in trash — ['SAVE20']
+  [PASS] promo code restore -> 2xx — HTTP 200
+  [PASS] promo code gone from trash after restore — []
+=== N-03: PASS (0 failing assertion(s)) ===

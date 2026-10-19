@@ -1,0 +1,9 @@
+=== HC-01 — run 20261019-container-healthcheck ===
+effectively-probed command, from the Dockerfile:
+  [PASS] Dockerfile declares a HEALTHCHECK
+    HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \   CMD wget --no-verbose --tries=1 -O /dev/null http://localhost:8080/api/settings || exit 1
+  [PASS] the probe no longer uses `--spider` (HEAD)
+  [PASS] the probe forces a real GET via `-O /dev/null`
+  [PASS] the probed URL is unchanged
+  [PASS] interval/timeout/start-period/retries untouched
+=== HC-01: PASS (0 failing assertion(s)) ===

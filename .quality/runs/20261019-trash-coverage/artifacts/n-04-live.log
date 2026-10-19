@@ -1,0 +1,6 @@
+=== N-04 — item #9 (live verification of remaining trash flows) ===
+  [PASS] shipping zone soft-delete -> 2xx — HTTP 204
+  [PASS] shipping zone appears in trash — ['Cairo Zone']
+  [PASS] shipping zone restore -> 2xx — HTTP 200
+  [PASS] shipping zone gone from trash after restore — []
+=== N-04: PASS (0 failing assertion(s)) ===

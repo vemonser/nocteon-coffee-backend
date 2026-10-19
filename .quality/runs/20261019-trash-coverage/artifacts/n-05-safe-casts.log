@@ -1,0 +1,3 @@
+=== N-05 — item #9 (live verification of remaining trash flows) ===
+  [PASS] the 8 remaining entities follow the safe trash pattern — 8/8 (no enum casts, only Number/String/Instant/Boolean)
+=== N-05: PASS (0 failing assertion(s)) ===

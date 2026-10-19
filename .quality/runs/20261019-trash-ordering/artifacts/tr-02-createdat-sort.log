@@ -1,0 +1,7 @@
+=== TR-02 — trash-listing ordering (items #3/#4) ===
+    desc -> ['aeropress', 'chemex-6cup', 'hario-v60']
+    asc  -> ['hario-v60', 'chemex-6cup', 'aeropress']
+  [PASS] Product: createdAt desc yields newest-first — ['aeropress', 'chemex-6cup', 'hario-v60']
+  [PASS] Product: createdAt asc reverses the order — ['hario-v60', 'chemex-6cup', 'aeropress']
+  [PASS] Product: slug asc sorts alphabetically
+=== TR-02: PASS (0 failing assertion(s)) ===

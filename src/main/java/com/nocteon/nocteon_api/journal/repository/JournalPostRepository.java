@@ -132,4 +132,60 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
                         @Param("language") String language);
 
         boolean existsBySlug(String slug);
+
+        /**
+         * Trashed posts for the dashboard's deleted-items table.
+         *
+         * <p>Native because {@code @SQLRestriction} on {@code SoftDeletableEntity} filters
+         * {@code deleted_at IS NOT NULL} out of every JPQL and derived query, so there is no way
+         * to ask for these rows through the entity manager.
+         *
+         * <p>The post body, excerpt and SEO pair are not projected. A deleted-posts list renders
+         * titles, and pulling every post body to fill a table of names is the same cost as loading
+         * the storefront. {@code JournalPostResponseDashboard} is shaped to match.
+         *
+         * <p>{@code GROUP BY} collapses the one-row-per-language join back to one row per
+         * (post, language) pair, which is the granularity the DTO's translation list wants.
+         */
+        @Query(value = """
+                SELECT p.id, p.slug, p.cover_image_url, p.featured, p.status, p.created_at,
+                       t.language, t.title
+                FROM journal_posts p
+                JOIN journal_post_translations t ON p.id = t.journal_post_id
+                WHERE p.deleted_at IS NOT NULL
+                GROUP BY p.id, p.slug, p.cover_image_url, p.featured, p.status, p.created_at,
+                         t.language, t.title
+                ORDER BY p.created_at DESC, t.language
+                """, nativeQuery = true)
+        List<Object[]> findAllDeletedNative();
+
+        /**
+         * The trashed-post subset matching a search term, on title or slug.
+         *
+         * <p>An empty {@code search} matches every trashed post, which is what the controller
+         * passes on an unfiltered page load — that is why this is the only list query the service
+         * issues rather than a branch between "all" and "searched".
+         */
+        @Query(value = """
+                SELECT p.id, p.slug, p.cover_image_url, p.featured, p.status, p.created_at,
+                       t.language, t.title
+                FROM journal_posts p
+                JOIN journal_post_translations t ON p.id = t.journal_post_id
+                WHERE p.deleted_at IS NOT NULL
+                AND (LOWER(t.title) LIKE LOWER(CONCAT('%', :search, '%'))
+                     OR LOWER(p.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+                GROUP BY p.id, p.slug, p.cover_image_url, p.featured, p.status, p.created_at,
+                         t.language, t.title
+                ORDER BY p.created_at DESC, t.language
+                """, nativeQuery = true)
+        List<Object[]> findDeletedBySearchNative(@Param("search") String search);
+
+        /**
+         * One trashed post by id, for the restore path.
+         *
+         * <p>Native for the same {@code @SQLRestriction} reason as the list queries.
+         */
+        @Query(value = "SELECT p.* FROM journal_posts p WHERE p.id = :id AND p.deleted_at IS NOT NULL",
+                nativeQuery = true)
+        Optional<JournalPost> findDeletedById(@Param("id") Long id);
 }

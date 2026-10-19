@@ -1,0 +1,9 @@
+=== TR-04 — trash-listing ordering (items #3/#4) ===
+    desc -> ['zz-trashed-cat', 'brewing-guides']
+    asc  -> ['brewing-guides', 'zz-trashed-cat']
+    slug -> ['brewing-guides', 'zz-trashed-cat']
+  [PASS] JournalCategory: createdAt desc yields newest-first — ['zz-trashed-cat', 'brewing-guides']
+  [PASS] JournalCategory: createdAt asc reverses — ['brewing-guides', 'zz-trashed-cat']
+  [PASS] JournalCategory: slug asc sorts alphabetically — ['brewing-guides', 'zz-trashed-cat']
+  [PASS] JournalCategory: determinism
+=== TR-04: PASS (0 failing assertion(s)) ===

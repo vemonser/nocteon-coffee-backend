@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.product.dto.response;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 import com.nocteon.nocteon_api.product.enums.ProductType;
@@ -14,6 +15,7 @@ import lombok.Setter;
 @Builder
 public class DashboardProductResponse {
     private Long id;
+    private Instant createdAt;
     private String slug;
     private String categorySlug;
     private String originSlug;

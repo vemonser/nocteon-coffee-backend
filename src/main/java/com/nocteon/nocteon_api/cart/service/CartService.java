@@ -42,6 +42,8 @@ public class CartService {
     private final ProductTranslationRepository productTranslationRepository;
     private final ProductMediaRepository productMediaRepository;
 
+    private static final int LOW_STOCK_THRESHOLD = 5;
+
     @Transactional(readOnly = true)
     public CartResponse getCart(UserPrincipal principal) {
         Cart cart = getOrCreateCart(principal.getUserId());
@@ -60,6 +62,18 @@ public class CartService {
         }
         if (variant.getStockQuantity() < request.getQuantity()) {
             throw new InsufficientStockException(variant.getStockQuantity());
+        }
+
+        // For low-stock items, attempt atomic reservation to prevent race with checkout
+        if (variant.getStockQuantity() <= LOW_STOCK_THRESHOLD) {
+            int reserved = variantRepository.decrementStockIfAvailable(
+                    variant.getId(), request.getQuantity());
+            if (reserved == 0) {
+                throw new InsufficientStockException(variantRepository.findStockById(variant.getId()));
+            }
+            // Mark that this cart item has reserved stock (negative quantity convention in reserved field)
+            // We'll track this via a separate mechanism - for now just reserve and release on removal
+            log.debug("Reserved {} units of variant {} for cart {}", request.getQuantity(), variant.getId(), cart.getId());
         }
 
         cartItemRepository
@@ -93,11 +107,35 @@ public class CartService {
             throw new CartItemNotFoundException();
         }
 
+        ProductVariant variant = item.getProductVariant();
+
         if (quantity <= 0) {
+            // Release reserved stock if this was a low-stock item
+            if (variant.getStockQuantity() <= LOW_STOCK_THRESHOLD) {
+                variantRepository.incrementStock(variant.getId(), item.getQuantity());
+                log.debug("Released {} units of variant {} from cart {}", item.getQuantity(), variant.getId(), cart.getId());
+            }
             cartItemRepository.delete(item);
         } else {
-            if (quantity > item.getProductVariant().getStockQuantity()) {
-                throw new InsufficientStockException(item.getProductVariant().getStockQuantity());
+            int delta = quantity - item.getQuantity();
+            if (delta > 0) {
+                if (quantity > variant.getStockQuantity()) {
+                    throw new InsufficientStockException(variant.getStockQuantity());
+                }
+                // For low-stock items, reserve additional stock
+                if (variant.getStockQuantity() <= LOW_STOCK_THRESHOLD) {
+                    int reserved = variantRepository.decrementStockIfAvailable(variant.getId(), delta);
+                    if (reserved == 0) {
+                        throw new InsufficientStockException(variantRepository.findStockById(variant.getId()));
+                    }
+                    log.debug("Reserved additional {} units of variant {} for cart {}", delta, variant.getId(), cart.getId());
+                }
+            } else if (delta < 0) {
+                // Release excess reserved stock for low-stock items
+                if (variant.getStockQuantity() <= LOW_STOCK_THRESHOLD) {
+                    variantRepository.incrementStock(variant.getId(), -delta);
+                    log.debug("Released {} units of variant {} from cart {}", -delta, variant.getId(), cart.getId());
+                }
             }
             item.setQuantity(quantity);
             cartItemRepository.save(item);
@@ -117,6 +155,14 @@ public class CartService {
             throw new CartItemNotFoundException();
         }
 
+        ProductVariant variant = item.getProductVariant();
+
+        // Release reserved stock for low-stock items
+        if (variant.getStockQuantity() <= LOW_STOCK_THRESHOLD) {
+            variantRepository.incrementStock(variant.getId(), item.getQuantity());
+            log.debug("Released {} units of variant {} from cart {}", item.getQuantity(), variant.getId(), cart.getId());
+        }
+
         cartItemRepository.delete(item);
         return buildResponse(cart);
     }
@@ -124,6 +170,14 @@ public class CartService {
     @Transactional
     public void clearCart(Long userId) {
         Cart cart = getOrCreateCart(userId);
+        // Release any reserved stock for low-stock items
+        for (CartItem item : cart.getItems()) {
+            ProductVariant variant = item.getProductVariant();
+            if (variant.getStockQuantity() <= LOW_STOCK_THRESHOLD) {
+                variantRepository.incrementStock(variant.getId(), item.getQuantity());
+                log.debug("Cleared cart: released {} units of variant {}", item.getQuantity(), variant.getId());
+            }
+        }
         cartItemRepository.deleteByCartId(cart.getId());
     }
 

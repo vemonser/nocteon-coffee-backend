@@ -1,0 +1,4 @@
+=== V-02 — item #5 (@Valid on @ModelAttribute) ===
+  [PASS] valid params -> HTTP 200 — HTTP 200
+  [PASS] message is the trash listing — 'Deleted categories retrieved'
+=== V-02: PASS (0 failing assertion(s)) ===

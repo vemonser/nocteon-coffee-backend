@@ -165,10 +165,10 @@ class ProductMutationServiceReindexTest {
                 .thenReturn(Optional.of(Origin.builder().build()));
         when(helper.generateUniqueSlug(eq("Yirgacheffe"), any())).thenReturn("yirgacheffe");
         when(productRepository.save(any(Product.class))).thenReturn(saved);
-        when(productRepository.findBySlugAndLanguage(eq("yirgacheffe"), anyString()))
+        when(productRepository.findBySlug(eq("yirgacheffe")))
                 .thenReturn(Optional.of(saved));
-        when(productResponseMapper.buildDetailResponse(any(Product.class), anyString()))
-                .thenReturn(ProductResponse.builder().build());
+        when(dashboardProductMapper.buildDashboardResponse(any(Product.class)))
+                .thenReturn(DashboardProductResponse.builder().build());
 
         beginTransaction();
         service.create(request, List.of());
@@ -329,7 +329,7 @@ class ProductMutationServiceReindexTest {
     /** Unrelated mutations must not drag the vector store into the picture. */
     @Test
     void mediaChangesDoNotReindexAnything() {
-        when(productRepository.findBySlugAndLanguage(eq("yirgacheffe"), anyString()))
+        when(productRepository.findBySlug(eq("yirgacheffe")))
                 .thenReturn(Optional.of(product(7L, "yirgacheffe")));
 
         beginTransaction();

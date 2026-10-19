@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.shippingZone.repository;
 
 import java.util.Optional;
+import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -20,4 +21,13 @@ public interface ShippingZoneRepository extends JpaRepository<ShippingZone, Long
     boolean existsByCitiesContainingAndIdNot(String city, Long excludeId);
 
     boolean existsByCitiesContaining(String city);
+
+    @Query(value = "SELECT e.* FROM shipping_zones e WHERE e.deleted_at IS NOT NULL", nativeQuery = true)
+    List<ShippingZone> findAllDeletedNative();
+
+    @Query(value = "SELECT e.* FROM shipping_zones e WHERE e.deleted_at IS NOT NULL AND (LOWER(e.name) LIKE LOWER(CONCAT('%', :search, '%')))", nativeQuery = true)
+    List<ShippingZone> findDeletedBySearchNative(@Param("search") String search);
+
+    @Query(value = "SELECT e.* FROM shipping_zones e WHERE e.id = :id AND e.deleted_at IS NOT NULL", nativeQuery = true)
+    Optional<ShippingZone> findDeletedById(@Param("id") Long id);
 }

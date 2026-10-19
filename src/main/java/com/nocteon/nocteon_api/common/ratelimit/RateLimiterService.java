@@ -107,6 +107,62 @@ public class RateLimiterService {
                 .build();
     }
 
+    public boolean tryConsumeForgotPassword(String ip) {
+        Bucket bucket = proxyManager.builder().build("rate:forgot-password:ip:" + ip, this::forgotPasswordBucketConfig);
+        return bucket.tryConsume(1);
+    }
+
+    private BucketConfiguration forgotPasswordBucketConfig() {
+        return BucketConfiguration.builder()
+                .addLimit(Bandwidth.builder()
+                        .capacity(3)
+                        .refillIntervally(3, Duration.ofHours(1))
+                        .build())
+                .build();
+    }
+
+    public boolean tryConsumeResetPassword(String ip) {
+        Bucket bucket = proxyManager.builder().build("rate:reset-password:ip:" + ip, this::resetPasswordBucketConfig);
+        return bucket.tryConsume(1);
+    }
+
+    private BucketConfiguration resetPasswordBucketConfig() {
+        return BucketConfiguration.builder()
+                .addLimit(Bandwidth.builder()
+                        .capacity(5)
+                        .refillIntervally(5, Duration.ofHours(1))
+                        .build())
+                .build();
+    }
+
+    public boolean tryConsumeResendVerification(String ip) {
+        Bucket bucket = proxyManager.builder().build("rate:resend-verification:ip:" + ip, this::resendVerificationBucketConfig);
+        return bucket.tryConsume(1);
+    }
+
+    private BucketConfiguration resendVerificationBucketConfig() {
+        return BucketConfiguration.builder()
+                .addLimit(Bandwidth.builder()
+                        .capacity(3)
+                        .refillIntervally(3, Duration.ofHours(1))
+                        .build())
+                .build();
+    }
+
+    public boolean tryConsumeNewsletterSubscribe(String ip) {
+        Bucket bucket = proxyManager.builder().build("rate:newsletter:ip:" + ip, this::newsletterSubscribeBucketConfig);
+        return bucket.tryConsume(1);
+    }
+
+    private BucketConfiguration newsletterSubscribeBucketConfig() {
+        return BucketConfiguration.builder()
+                .addLimit(Bandwidth.builder()
+                        .capacity(5)
+                        .refillIntervally(5, Duration.ofHours(1))
+                        .build())
+                .build();
+    }
+
     public boolean tryConsumeGeneral(String identifier) {
         Bucket bucket = proxyManager.builder().build("rate:general:" + identifier, this::generalBucketConfig);
         return bucket.tryConsume(1);

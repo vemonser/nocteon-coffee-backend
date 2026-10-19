@@ -1,0 +1,7 @@
+=== V-01 — item #5 (@Valid on @ModelAttribute) ===
+  [PASS] page=-1 -> HTTP 400 (was 500) — HTTP 400
+  [PASS] a field error names 'page' — [{'field': 'page', 'message': 'must be greater than or equal to 0'}]
+  [PASS] size=0 -> HTTP 400 — HTTP 400
+  [PASS] a field error names 'size' — [{'field': 'size', 'message': 'must be greater than or equal to 1'}]
+  [PASS] size=101 -> HTTP 400 — HTTP 400
+=== V-01: PASS (0 failing assertion(s)) ===

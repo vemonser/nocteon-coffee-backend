@@ -38,6 +38,7 @@ public class ProductOptionController {
     @GetMapping("/dashboard/product-options")
     @PreAuthorize("hasAuthority('product:read')")
     public ResponseEntity<ApiResponse<PageResponse<ProductOptionResponseDashboard>>> getAllDashboard(
+            @Valid
             @ModelAttribute LookupFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(productOptionService.getAllDashboard(filter), "Options retrieved"));

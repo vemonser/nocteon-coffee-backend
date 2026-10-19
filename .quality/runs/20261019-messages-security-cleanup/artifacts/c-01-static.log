@@ -1,0 +1,4 @@
+=== C-01 — items #6/#7/#8 ===
+  [PASS] FarmService no longer imports EntityInUseException twice
+  [PASS] JournalService no longer references the non-existent SoftDeleteRepositoryIntegrationTest
+=== C-01: PASS (0 failing assertion(s)) ===

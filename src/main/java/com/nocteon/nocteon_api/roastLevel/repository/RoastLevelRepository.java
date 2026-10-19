@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.roastLevel.repository;
 
 import java.util.Optional;
+import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -46,4 +47,34 @@ public interface RoastLevelRepository extends JpaRepository<RoastLevel, Long> {
     Optional<RoastLevel> findBySlug(@Param("slug") String slug);
 
     boolean existsBySlug(String slug);
+
+    @Query("SELECT r FROM RoastLevel r LEFT JOIN FETCH r.translations")
+    List<RoastLevel> findAllWithTranslations();
+
+    @Query("SELECT r FROM RoastLevel r LEFT JOIN FETCH r.translations WHERE r.slug IN :slugs")
+    List<RoastLevel> findBySlugInWithTranslations(@Param("slugs") List<String> slugs);
+
+    @Query(value = """
+        SELECT e.id, e.slug, e.color, e.created_at, e.updated_at,
+               et.language, et.name, et.description
+        FROM roast_levels e
+        JOIN roast_level_translations et ON e.id = et.roast_level_id
+        WHERE e.deleted_at IS NOT NULL
+        GROUP BY e.id, e.slug, e.color, e.created_at, e.updated_at, et.language, et.name, et.description
+        """, nativeQuery = true)
+    List<Object[]> findAllDeletedNative();
+
+    @Query(value = """
+        SELECT e.id, e.slug, e.color, e.created_at, e.updated_at,
+               et.language, et.name, et.description
+        FROM roast_levels e
+        JOIN roast_level_translations et ON e.id = et.roast_level_id
+        WHERE e.deleted_at IS NOT NULL
+        AND (LOWER(et.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(e.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+        GROUP BY e.id, e.slug, e.color, e.created_at, e.updated_at, et.language, et.name, et.description
+        """, nativeQuery = true)
+    List<Object[]> findDeletedBySearchNative(@Param("search") String search);
+
+    @Query(value = "SELECT e.* FROM roast_levels e WHERE e.id = :id AND e.deleted_at IS NOT NULL", nativeQuery = true)
+    Optional<RoastLevel> findDeletedById(@Param("id") Long id);
 }

@@ -1,5 +1,7 @@
 package com.nocteon.nocteon_api.origin.service;
 
+import java.time.Instant;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -14,7 +16,9 @@ import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
+import com.nocteon.nocteon_api.common.exception.invalid.EntityInUseException;
 import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException;
+import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.origin.dto.request.OriginRequest;
 import com.nocteon.nocteon_api.origin.dto.request.OriginTranslationRequest;
@@ -56,7 +60,7 @@ public class OriginService {
         }
 
         @Transactional
-        public OriginResponse create(OriginRequest request, MultipartFile image) {
+        public DashboardOriginResponse create(OriginRequest request, MultipartFile image) {
                 helper.validateTranslations(request.getTranslations());
 
                 String englishName = request.getTranslations().stream()
@@ -89,11 +93,13 @@ public class OriginService {
                 translationRepository.saveAll(translations);
 
                 log.info("Origin created with slug: {}", slug);
-                return buildResponse(origin, LocaleContextHolder.getLocale().getLanguage());
+                var reloaded = originRepository.findBySlugWithTranslations(slug).orElse(origin);
+
+                return buildResponse(reloaded);
         }
 
         @Transactional
-        public OriginResponse update(String slug, OriginRequest request, MultipartFile image) {
+        public DashboardOriginResponse update(String slug, OriginRequest request, MultipartFile image) {
                 Origin origin = originRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(OriginNotFoundException::new);
 
@@ -125,11 +131,13 @@ public class OriginService {
                 }
 
                 originRepository.save(origin);
-                return buildResponse(origin, LocaleContextHolder.getLocale().getLanguage());
+                var reloaded = originRepository.findBySlugWithTranslations(origin.getSlug()).orElse(origin);
+
+                return buildResponse(reloaded);
         }
 
         @Transactional
-        public OriginResponse uploadImage(String slug, MultipartFile file) {
+        public DashboardOriginResponse uploadImage(String slug, MultipartFile file) {
                 Origin origin = originRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(OriginNotFoundException::new);
 
@@ -137,7 +145,10 @@ public class OriginService {
                 origin.setImageUrl(helper.uploadMedia(file, "origins", MediaType.IMAGE));
                 originRepository.save(origin);
 
-                return buildResponse(origin, LocaleContextHolder.getLocale().getLanguage());
+                var reloaded = originRepository.findBySlugWithTranslations(slug).orElse(origin);
+
+
+                return buildResponse(reloaded);
         }
 
         @Transactional
@@ -145,7 +156,10 @@ public class OriginService {
                 Origin origin = originRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(OriginNotFoundException::new);
 
-                helper.deleteMediaIfExists(origin.getImageUrl());
+                if (productRepository.countByOriginId(origin.getId()) > 0) {
+                        throw new EntityInUseException();
+                }
+
                 origin.softDelete();
                 originRepository.save(origin);
                 log.info("Origin soft deleted: {}", slug);
@@ -250,4 +264,115 @@ public class OriginService {
                                 .build();
         }
 
+        /**
+         * Trashed Origins for the dashboard's deleted-items table.
+         *
+         * <p>Paged in memory rather than in SQL. {@code @SQLRestriction} hides trashed rows from
+         * every JPQL and derived query, so the rows have to come from a native query that also
+         * bypasses {@code LIMIT}/{@code OFFSET} pagination. That is cheap while the trash is small
+         * and degrades linearly as it grows — acceptable for an admin recovery screen, and the same
+         * trade the Category listing already makes.
+         *
+         * <p>Folds the per-language rows onto one response per entity. The native query returns one
+         * row per translation, so mapping rows directly would list a deleted item once per
+         * translation and report a row count as its total — which also splits one item's
+         * translations across two pages. See {@link SoftDeleteRowFolder}.
+         */
+        public PageResponse<DashboardOriginResponse> getAllDeleted(LookupFilterRequest filter) {
+                String search = Objects.requireNonNullElse(filter.getSearch(), "");
+                int pageNum = filter.getPage();
+                int size = filter.getSize();
+                String sort = filter.getSort();
+                String direction = filter.getDirection();
+
+                List<Object[]> rawResults = originRepository.findDeletedBySearchNative(search);
+
+                List<DashboardOriginResponse> allResults = SoftDeleteRowFolder.fold(
+                                rawResults,
+                                row -> ((Number) row[0]).longValue(),
+                                this::mapToDashboardOriginResponse,
+                                (response, row) -> response.getTranslations()
+                                                .add(buildTranslation(row)));
+
+                if (sort != null) {
+                        allResults.sort((a, b) -> {
+                                int result = switch (sort) {
+                                        case "slug" -> a.getSlug().compareToIgnoreCase(b.getSlug());
+                                        case "createdAt" -> a.getCreatedAt().compareTo(b.getCreatedAt());
+                                        default -> 0;
+                                };
+                                return direction.equalsIgnoreCase("desc") ? -result : result;
+                        });
+                }
+
+                int fromIndex = pageNum * size;
+                if (fromIndex > allResults.size()) {
+                        fromIndex = allResults.size();
+                }
+                int toIndex = Math.min(fromIndex + size, allResults.size());
+                List<DashboardOriginResponse> pagedResults = allResults.subList(fromIndex, toIndex);
+
+                Page<DashboardOriginResponse> page = new org.springframework.data.domain.PageImpl<>(
+                                pagedResults,
+                                org.springframework.data.domain.PageRequest.of(pageNum, size),
+                                allResults.size());
+                return PageResponse.of(page);
+        }
+
+        private DashboardOriginResponse mapToDashboardOriginResponse(Object[] row) {
+                return DashboardOriginResponse.builder()
+                                .id(((Number) row[0]).longValue())
+                                .slug((String) row[1])
+                                .code((String) row[2])
+                                .imageUrl((String) row[3])
+                                .createdAt((Instant) row[4])
+                                .translations(new ArrayList<>())
+                                .build();
+        }
+
+        private TranslationResponse buildTranslation(Object[] row) {
+                return TranslationResponse.builder()
+                                .language((String) row[5])
+                                .name((String) row[6])
+                                .description((String) row[7])
+
+                                .build();
+        }
+
+        /**
+         * Un-delete a Origin.
+         *
+         * <p>Reads through {@code findDeletedById}, so an id that is live or unknown raises
+         * {@link OriginNotFoundException} rather than reporting a restore that changed nothing.
+         */
+        @Transactional
+        public void restore(Long id) {
+                Origin origin = originRepository.findDeletedById(id)
+                                .orElseThrow(OriginNotFoundException::new);
+                origin.setDeletedAt(null);
+                originRepository.save(origin);
+                log.info("Origin restored: {}", origin.getSlug());
+        }
+
+        /**
+         * Permanently deletes a trashed Origin: removes its image from Cloudinary, then the row itself.
+         *
+         * <p>Deletes the row — and flushes, so a foreign-key conflict surfaces here — <em>before</em>
+         * touching Cloudinary. If the database refuses the delete, the trashed row and its image
+         * are both untouched and the admin can retry; the reverse order would strand a restored
+         * item without its picture.
+         *
+         * <p>Trash-only: reads through {@code findDeletedById}, so a live or unknown id raises
+         * {@link OriginNotFoundException} instead of deleting anything. Soft-delete first — this never touches live
+         * rows.
+         */
+        @Transactional
+        public void permanentDelete(Long id) {
+                Origin origin = originRepository.findDeletedById(id)
+                                .orElseThrow(OriginNotFoundException::new);
+                originRepository.delete(origin);
+                originRepository.flush();
+                helper.deleteMediaIfExists(origin.getImageUrl());
+                log.info("Origin permanently deleted: {}", origin.getSlug());
+        }
 }

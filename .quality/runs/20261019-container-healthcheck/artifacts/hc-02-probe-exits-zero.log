@@ -1,0 +1,8 @@
+=== HC-02 — run 20261019-container-healthcheck ===
+    new probe  -> exit 0: 2026-10-19 07:20:27 URL:http://localhost:8080/api/settings [282] -> "/dev/null" [1]
+  [PASS] the new probe exits 0 inside the container — exit=0
+    old probe  -> exit 6: Username/Password Authentication Failed.   (informational: documents why the container used to be unhealthy)
+  [PASS] GET /api/settings answers 200 from the host too — HTTP 200
+    new probe vs a non-2xx URL -> exit 6: Username/Password Authentication Failed.
+  [PASS] the probe still fails on a non-2xx response (not vacuous) — exit=6
+=== HC-02: PASS (0 failing assertion(s)) ===

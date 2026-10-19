@@ -158,14 +158,24 @@ public class AuthController {
 
     @PostMapping("/resend-verification")
     public ResponseEntity<ApiResponse<Void>> resendVerification(
-            @RequestParam String email) {
+            @RequestParam String email,
+            HttpServletRequest httpRequest) {
+        String ip = httpRequest.getRemoteAddr();
+        if (!rateLimiterService.tryConsumeResendVerification(ip)) {
+            throw new RateLimitExceededException();
+        }
         emailVerificationService.resendVerificationEmail(email);
         return ResponseEntity.ok(ApiResponse.success(null, "Verification email resent"));
     }
 
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiResponse<Void>> forgotPassword(
-            @Valid @RequestBody ForgotPasswordRequest request) {
+            @Valid @RequestBody ForgotPasswordRequest request,
+            HttpServletRequest httpRequest) {
+        String ip = httpRequest.getRemoteAddr();
+        if (!rateLimiterService.tryConsumeForgotPassword(ip)) {
+            throw new RateLimitExceededException();
+        }
         passwordResetService.forgotPassword(request);
         return ResponseEntity.ok(
                 ApiResponse.success(null, "If an account exists with this email, a reset code has been sent"));
@@ -173,7 +183,12 @@ public class AuthController {
 
     @PostMapping("/reset-password")
     public ResponseEntity<ApiResponse<Void>> resetPassword(
-            @Valid @RequestBody ResetPasswordRequest request) {
+            @Valid @RequestBody ResetPasswordRequest request,
+            HttpServletRequest httpRequest) {
+        String ip = httpRequest.getRemoteAddr();
+        if (!rateLimiterService.tryConsumeResetPassword(ip)) {
+            throw new RateLimitExceededException();
+        }
         passwordResetService.resetPassword(request);
         return ResponseEntity.ok(ApiResponse.success(null, "Password reset successfully"));
     }

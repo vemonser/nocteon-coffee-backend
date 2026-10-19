@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,6 +39,7 @@ public class PairingController {
 
     @GetMapping("/pairings")
     public ResponseEntity<ApiResponse<PageResponse<PairingResponse>>> getAll(
+            @Valid
             @ModelAttribute LookupFilterRequest filter
 
     ) {
@@ -47,6 +49,7 @@ public class PairingController {
     @GetMapping("/dashboard/pairings")
     @PreAuthorize("hasAuthority('pairing:read')")
     public ResponseEntity<ApiResponse<PageResponse<PairingResponseDashboard>>> getAllDashboard(
+            @Valid
             @ModelAttribute LookupFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(pairingService.getAllDashboard(filter), "Pairings retrieved"));
@@ -66,7 +69,7 @@ public class PairingController {
 
     @PostMapping(value = "/dashboard/pairings", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('pairing:create')")
-    public ResponseEntity<ApiResponse<PairingResponse>> create(
+    public ResponseEntity<ApiResponse<PairingResponseDashboard>> create(
             @Valid @RequestPart("data") PairingRequest request,
             @RequestPart(value = "image", required = false) MultipartFile image) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -75,7 +78,7 @@ public class PairingController {
 
     @PutMapping(value = "/dashboard/pairings/{slug}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('pairing:update')")
-    public ResponseEntity<ApiResponse<PairingResponse>> update(
+    public ResponseEntity<ApiResponse<PairingResponseDashboard>> update(
             @PathVariable String slug,
             @Valid @RequestPart("data") PairingRequest request,
             @RequestPart(value = "image", required = false) MultipartFile image) {
@@ -84,7 +87,7 @@ public class PairingController {
 
     @PostMapping("/dashboard/pairings/{slug}/image")
     @PreAuthorize("hasAuthority('pairing:update')")
-    public ResponseEntity<ApiResponse<PairingResponse>> uploadImage(
+    public ResponseEntity<ApiResponse<PairingResponseDashboard>> uploadImage(
             @PathVariable String slug,
             @RequestParam("file") MultipartFile file) {
         return ResponseEntity.ok(ApiResponse.success(pairingService.uploadImage(slug, file), "Image uploaded"));
@@ -96,4 +99,39 @@ public class PairingController {
         pairingService.delete(slug);
         return ResponseEntity.noContent().build();
     }
+
+        @GetMapping("/dashboard/pairings/deleted")
+        @PreAuthorize("hasAuthority('pairing:delete')")
+        public ResponseEntity<ApiResponse<PageResponse<PairingResponseDashboard>>> getAllDeleted(
+                        @Valid
+                        @ModelAttribute LookupFilterRequest filter) {
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                pairingService.getAllDeleted(filter),
+                                                "Deleted pairings retrieved"));
+        }
+
+        @PatchMapping("/dashboard/pairings/{id}/restore")
+        @PreAuthorize("hasAuthority('pairing:delete')")
+        public ResponseEntity<ApiResponse<Void>> restore(
+                        @PathVariable Long id) {
+                pairingService.restore(id);
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                null,
+                                                "Pairing restored"));
+        }
+
+        /**
+         * Permanently deletes a trashed Pairing permanently deleted. The row must already be soft-deleted — restoring
+         * is still possible until this is called, and after it nothing is recoverable. Cloudinary
+         * assets are removed here and only here; the soft delete keeps them so a restore brings
+         * the item back intact.
+         */
+        @DeleteMapping("/dashboard/pairings/{id}/permanent")
+        @PreAuthorize("hasAuthority('pairing:delete')")
+        public ResponseEntity<Void> permanentDelete(@PathVariable Long id) {
+                pairingService.permanentDelete(id);
+                return ResponseEntity.noContent().build();
+        }
 }

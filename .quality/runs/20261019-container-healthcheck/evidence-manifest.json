@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261019-container-healthcheck",
+    "task": "Item #1 of the post-recovery queue: the dev container on :8080 was stale (built before the stash recovery) and permanently unhealthy (the HEALTHCHECK probed with HEAD against a GET-only public path). Fix the probe, rebuild, and prove :8080 serves the recovered trash-bin endpoints.",
+    "source": ".quality/runs/20261019-container-healthcheck/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "HC-01",
+      "statement": "Given the Dockerfile, when the HEALTHCHECK is read, then the probe uses a real GET (no `--spider`, i.e. no HEAD) while leaving the probed URL and the interval/timeout/start-period/retries untouched.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-container-healthcheck/CHANGE-CONTRACT.md",
+        "line": 55
+      },
+      "kind": "static-analysis",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "Dockerfile"
+      ],
+      "status": "PASS",
+      "notes": "`wget --spider` issues a HEAD request; SecurityConfig line 107 permits PUBLIC_READ_PATHS for HttpMethod.GET only, so HEAD fell through to anyRequest().authenticated() and the probe got 401 on every tick (health log: 193 consecutive failures, all exit 1, all 'Username/Password Authentication Failed.'). The fix is `-O /dev/null` on the unchanged URL: one line, no application-code change.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261019-container-healthcheck/artifacts/hc-01-healthcheck-is-get.log",
+          "command": "python3 .quality/runs/20261019-container-healthcheck/artifacts/assert-hc.py HC-01",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T07:20:27.058Z"
+        }
+      ]
+    },
+    {
+      "id": "HC-02",
+      "statement": "Given the recreated container and its running app, when the new probe command runs inside the container, then it exits 0 for the 200 from /api/settings and still exits non-zero for a non-2xx URL.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-container-healthcheck/CHANGE-CONTRACT.md",
+        "line": 56
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "Dockerfile"
+      ],
+      "status": "PASS",
+      "notes": "New probe exits 0 ('URL:http://localhost:8080/api/settings [282] -> /dev/null'). The same container still fails the old `--spider` command with exit 6, which is the defect reproduced side by side. A non-2xx URL makes the new probe exit 6, so the replacement is not a vacuous always-pass probe.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-container-healthcheck/artifacts/hc-02-probe-exits-zero.log",
+          "command": "python3 .quality/runs/20261019-container-healthcheck/artifacts/assert-hc.py HC-02",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T07:20:27.404Z"
+        }
+      ]
+    },
+    {
+      "id": "HC-03",
+      "statement": "Given the recreated container, when Docker's health state is inspected, then the status is `healthy` with a zero failing streak, exit 0 on the recent probes, and no container restarts.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-container-healthcheck/CHANGE-CONTRACT.md",
+        "line": 57
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "Dockerfile"
+      ],
+      "status": "PASS",
+      "notes": "The container went starting -> healthy at 10:15:58 +03, ~45 s after start, and stayed healthy across every 30 s probe afterwards.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-container-healthcheck/artifacts/hc-03-container-healthy.log",
+          "command": "python3 .quality/runs/20261019-container-healthcheck/artifacts/assert-hc.py HC-03",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T07:20:27.562Z"
+        }
+      ]
+    },
+    {
+      "id": "HC-04",
+      "statement": "Given the rebuilt image, when the jar the container is actually running is opened, then it is the post-recovery build and it carries the trash-bin routes for all 13 catalog controllers plus the SoftDeleteRowFolder helper.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-container-healthcheck/CHANGE-CONTRACT.md",
+        "line": 58
+      },
+      "kind": "static-analysis",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "Dockerfile",
+        "src/main/java/com/nocteon/nocteon_api/category/controller/CategoryController.java",
+        "src/main/java/com/nocteon/nocteon_api/common/service/SoftDeleteRowFolder.java"
+      ],
+      "status": "PASS",
+      "notes": "The stale image was built 08:09 +03 and its jar byte-rose to 189625600; the rebuilt jar is 189667620 bytes, dated 07:14:42Z (= 10:14:42 +03, i.e. during the rebuild), and `COPY src`/`mvn package` were not cache hits. 13 controllers in the jar carry the `/deleted` constant.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261019-container-healthcheck/artifacts/hc-04-shipped-jar.log",
+          "command": "python3 .quality/runs/20261019-container-healthcheck/artifacts/assert-hc.py HC-04",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T07:20:31.733Z"
+        }
+      ]
+    },
+    {
+      "id": "HC-05",
+      "statement": "Given a token, when GET /api/dashboard/categories/deleted is called on :8080, then it answers 200 with `Deleted categories retrieved` instead of falling through to GET /{slug} and answering `Category not found`, and the full soft-delete -> trash -> restore -> permanent cycle behaves.",
+      "sourceRef": {
+        "path": ".quality/runs/20261019-container-healthcheck/CHANGE-CONTRACT.md",
+        "line": 59
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/category/controller/CategoryController.java",
+        "src/main/java/com/nocteon/nocteon_api/category/service/CategoryService.java",
+        "src/main/java/com/nocteon/nocteon_api/category/repository/CategoryRepository.java"
+      ],
+      "status": "PASS",
+      "notes": "Route precedence is proven by contrast on the same port with the same token: /api/dashboard/categories/deleted -> 200 'Deleted categories retrieved' while /api/dashboard/categories/definitely-not-a-slug -> 404 'Category not found' (the exact old behaviour of the word 'deleted'). Without a token the route still answers 401. The probe user and its rows are deleted in a finally block; the run ends with 0 probe users, 0 probe categories and 0 trashed categories. The harness clears only the probe's own Bucket4j counters first (rate:register:ip:*, rate:login:ip:*, rate:login:id:<probe>) because POST /api/auth/register allows 3 per 10 minutes per IP, which a second run of the criterion would otherwise be blocked by; an earlier attempt did fail with HTTP 429 for exactly that reason and was rerun after the reset.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261019-container-healthcheck/artifacts/hc-05-live-on-8080.log",
+          "command": "python3 .quality/runs/20261019-container-healthcheck/artifacts/assert-hc.py HC-05",
+          "exitCode": 0,
+          "recordedAt": "2026-10-19T07:21:59.530Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

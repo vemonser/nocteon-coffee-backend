@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.cart.service;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
@@ -44,8 +45,15 @@ public class DashboardCartService {
                 // rows as omitting it: DashboardCartFilterRequest bound the parameter, and
                 // CartRepository.findAllForDashboard already handles all three states
                 // (null / true / false), but nothing ever passed the value through.
+                //
+                // Normalise a missing search term to "" before it reaches the query, exactly like
+                // UserService and ProductService do. Passing a raw null makes Hibernate bind
+                // :search with no concrete type, which PostgreSQL cannot resolve in the
+                // lower()/`||` text context (COALESCE(:search, '') is not enough — the null bind
+                // itself fails with "function lower(bytea) does not exist").
+                String search = Objects.requireNonNullElse(filter.getSearch(), "");
                 return cartRepository
-                                .findAllForDashboard(filter.getSearch(), filter.getHasItems(),
+                                .findAllForDashboard(search, filter.getHasItems(),
                                                 filter.toPageable())
                                 .map(this::buildDashboardResponse);
         }

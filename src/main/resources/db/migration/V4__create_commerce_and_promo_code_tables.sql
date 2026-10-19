@@ -84,6 +84,7 @@ CREATE TABLE
         id BIGSERIAL PRIMARY KEY,
         user_id BIGINT NOT NULL REFERENCES users (id),
         address_id BIGINT NOT NULL REFERENCES addresses (id),
+        order_number VARCHAR(50) UNIQUE,
         status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
         payment_status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
         payment_method VARCHAR(50) NOT NULL DEFAULT 'ONLINE',
@@ -96,6 +97,11 @@ CREATE TABLE
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW (),
         deleted_at TIMESTAMPTZ
     );
+
+CREATE INDEX idx_orders_order_number ON orders(order_number);
+
+-- Create a sequence for order numbers per year
+CREATE SEQUENCE IF NOT EXISTS order_number_seq;
 
 CREATE TABLE
     order_items (

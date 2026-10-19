@@ -123,7 +123,8 @@ public class DashboardStatsBuilder {
     List<RevenueByOriginDto> buildRevenueByOrigin(Instant since, BigDecimal totalRevenue, String language) {
             List<Object[]> rows = orderItemRepository.getRevenueByOrigin(PaymentStatus.PAID, since);
 
-            List<Origin> origins = originRepository.findAll();
+            List<String> slugs = rows.stream().map(row -> (String) row[0]).toList();
+            List<Origin> origins = originRepository.findBySlugInWithTranslations(slugs);
             Map<String, Origin> originBySlug = origins.stream()
                             .collect(Collectors.toMap(Origin::getSlug, o -> o));
 
@@ -163,7 +164,8 @@ public class DashboardStatsBuilder {
                     String language) {
             List<Object[]> rows = orderItemRepository.getRevenueByRoastLevel(PaymentStatus.PAID, since);
 
-            List<RoastLevel> roastLevels = roastLevelRepository.findAll();
+            List<String> slugs = rows.stream().map(row -> (String) row[0]).toList();
+            List<RoastLevel> roastLevels = roastLevelRepository.findBySlugInWithTranslations(slugs);
             Map<String, RoastLevel> roastLevelBySlug = roastLevels.stream()
                             .collect(Collectors.toMap(RoastLevel::getSlug, r -> r));
 
