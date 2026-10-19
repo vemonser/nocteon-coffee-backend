@@ -53,6 +53,7 @@ public class ContactController {
     @GetMapping("/dashboard/contact-messages")
     @PreAuthorize("hasAuthority('contact:read')")
     public ResponseEntity<ApiResponse<PageResponse<ContactResponse>>> getAll(
+            @Valid
             @ModelAttribute BaseFilterRequest filter) {
         return ResponseEntity.ok(ApiResponse.success(contactService.getAll(filter), "Contact messages retrieved"));
     }
@@ -60,6 +61,7 @@ public class ContactController {
     @GetMapping("/dashboard/contact-messages/unread")
     @PreAuthorize("hasAuthority('contact:read')")
     public ResponseEntity<ApiResponse<PageResponse<ContactResponse>>> getAllUnread(
+            @Valid
             @ModelAttribute BaseFilterRequest filter) {
         return ResponseEntity.ok(ApiResponse.success(contactService.getAllUnread(filter), "Unread messages retrieved"));
     }

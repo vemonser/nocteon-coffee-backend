@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -36,6 +37,7 @@ public class RoastLevelController {
     // RoastLevelController
     @GetMapping("/roast-levels")
     public ResponseEntity<ApiResponse<PageResponse<RoastLevelResponse>>> getAll(
+            @Valid
             @ModelAttribute LookupFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(roastLevelService.getAll(filter), "Roast levels retrieved"));
@@ -44,6 +46,7 @@ public class RoastLevelController {
     @GetMapping("/dashboard/roast-levels")
     @PreAuthorize("hasAuthority('roast_level:read')")
     public ResponseEntity<ApiResponse<PageResponse<DashboardRoastLevelResponse>>> getAllDashboard(
+            @Valid
             @ModelAttribute LookupFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(roastLevelService.getAllDashboard(filter), "Roast levels retrieved"));
@@ -58,7 +61,7 @@ public class RoastLevelController {
 
     @PostMapping("/dashboard/roast-levels")
     @PreAuthorize("hasAuthority('roast_level:create')")
-    public ResponseEntity<ApiResponse<RoastLevelResponse>> create(
+    public ResponseEntity<ApiResponse<DashboardRoastLevelResponse>> create(
             @Valid @RequestBody RoastLevelRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(roastLevelService.create(request), "Roast level created"));
@@ -66,7 +69,7 @@ public class RoastLevelController {
 
     @PutMapping("/dashboard/roast-levels/{slug}")
     @PreAuthorize("hasAuthority('roast_level:update')")
-    public ResponseEntity<ApiResponse<RoastLevelResponse>> update(
+    public ResponseEntity<ApiResponse<DashboardRoastLevelResponse>> update(
             @PathVariable String slug,
             @Valid @RequestBody RoastLevelRequest request) {
         return ResponseEntity.ok(
@@ -92,4 +95,39 @@ public class RoastLevelController {
     public ResponseEntity<ApiResponse<RoastLevelResponse>> getBySlug(@PathVariable String slug) {
         return ResponseEntity.ok(ApiResponse.success(roastLevelService.getBySlug(slug), "Roast level retrieved"));
     }
+
+        @GetMapping("/dashboard/roast-levels/deleted")
+        @PreAuthorize("hasAuthority('roast_level:delete')")
+        public ResponseEntity<ApiResponse<PageResponse<DashboardRoastLevelResponse>>> getAllDeleted(
+                        @Valid
+                        @ModelAttribute LookupFilterRequest filter) {
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                roastLevelService.getAllDeleted(filter),
+                                                "Deleted roast levels retrieved"));
+        }
+
+        @PatchMapping("/dashboard/roast-levels/{id}/restore")
+        @PreAuthorize("hasAuthority('roast_level:delete')")
+        public ResponseEntity<ApiResponse<Void>> restore(
+                        @PathVariable Long id) {
+                roastLevelService.restore(id);
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                null,
+                                                "Roast level restored"));
+        }
+
+        /**
+         * Permanently deletes a trashed Roast level permanently deleted. The row must already be soft-deleted — restoring
+         * is still possible until this is called, and after it nothing is recoverable. Cloudinary
+         * assets are removed here and only here; the soft delete keeps them so a restore brings
+         * the item back intact.
+         */
+        @DeleteMapping("/dashboard/roast-levels/{id}/permanent")
+        @PreAuthorize("hasAuthority('roast_level:delete')")
+        public ResponseEntity<Void> permanentDelete(@PathVariable Long id) {
+                roastLevelService.permanentDelete(id);
+                return ResponseEntity.noContent().build();
+        }
 }

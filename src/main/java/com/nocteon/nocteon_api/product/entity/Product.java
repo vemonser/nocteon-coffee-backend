@@ -112,6 +112,7 @@ public class Product extends SoftDeletableEntity {
         @ManyToMany(fetch = FetchType.LAZY)
         @JoinTable(name = "product_pairings", joinColumns = @JoinColumn(name = "product_id"), inverseJoinColumns = @JoinColumn(name = "pairing_id"))
         @Builder.Default
+        @BatchSize(size = 30)
         private List<Pairing> pairings = new ArrayList<>();
 
         // BrewingMethod

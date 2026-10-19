@@ -42,10 +42,14 @@ import com.nocteon.nocteon_api.promoCode.entity.PromoCode;
 import com.nocteon.nocteon_api.promoCode.service.PromoCodeService;
 import com.nocteon.nocteon_api.shippingZone.service.ShippingZoneService;
 import com.nocteon.nocteon_api.storeSettings.service.StoreSettingsService;
+import com.nocteon.nocteon_api.storeSettings.dto.response.StoreSettingsResponse;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import jakarta.persistence.EntityManager;
+import java.time.Year;
 
 @Service
 @RequiredArgsConstructor
@@ -64,6 +68,7 @@ public class OrderService {
         private final StoreSettingsService storeSettingsService;
         private final ShippingZoneService shippingZoneService;
         private final OrderQueryService orderQueryService;
+        private final EntityManager entityManager;
 
         @Value("${application.paymob.hmac-secret}")
         private String hmacSecret;
@@ -112,9 +117,12 @@ public class OrderService {
                 BigDecimal shippingCost = shippingZoneService.calculateShippingCost(address.getCity());
 
                 BigDecimal amountAfterDiscount = total.subtract(discountAmount);
+                StoreSettingsResponse storeSettings = storeSettingsService.get();
                 boolean qualifiesForFreeShipping = freeShippingFromPromo
-                                || amountAfterDiscount
-                                                .compareTo(storeSettingsService.get().getFreeShippingThreshold()) >= 0;
+                                || (Boolean.TRUE.equals(storeSettings.getIsFreeShippingActive())
+                                        && storeSettings.getFreeShippingThreshold() != null
+                                        && amountAfterDiscount
+                                                .compareTo(storeSettings.getFreeShippingThreshold()) >= 0);
 
                 if (qualifiesForFreeShipping) {
                         shippingCost = BigDecimal.ZERO;
@@ -134,6 +142,7 @@ public class OrderService {
                                 .promoCode(appliedPromoCode)
                                 .discountAmount(discountAmount)
                                 .notes(request.getNotes())
+                                .orderNumber(generateOrderNumber())
                                 .build();
 
                 order = orderRepository.save(order);
@@ -275,4 +284,15 @@ public class OrderService {
                 return orderQueryService.buildResponse(orderRepository.save(order));
         }
 
+        /**
+         * Generate a unique order number in format ORD-YYYY-NNNNNN.
+         * Uses a sequence per year to ensure uniqueness.
+         */
+        private String generateOrderNumber() {
+                Long sequenceValue = (Long) entityManager.createNativeQuery(
+                                "SELECT nextval('order_number_seq')")
+                                .getSingleResult();
+                
+                return String.format("ORD-%d-%06d", Year.now().getValue(), sequenceValue);
+        }
 }

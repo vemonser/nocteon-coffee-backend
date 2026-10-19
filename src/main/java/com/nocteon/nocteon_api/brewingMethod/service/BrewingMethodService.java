@@ -1,5 +1,7 @@
 package com.nocteon.nocteon_api.brewingMethod.service;
 
+import java.time.Instant;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -25,6 +27,7 @@ import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.BrewingMethodNotFoundException;
+import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.product.dto.response.ProductWithScoreResponse;
 import com.nocteon.nocteon_api.product.entity.ProductBrewingMethod;
@@ -77,7 +80,7 @@ public class BrewingMethodService {
         }
 
         @Transactional
-        public BrewingMethodResponse create(BrewingMethodRequest request) {
+        public BrewingMethodResponseDashboard create(BrewingMethodRequest request) {
                 helper.validateTranslations(request.getTranslations());
 
                 String englishName = request.getTranslations().stream()
@@ -106,11 +109,14 @@ public class BrewingMethodService {
                 }
                 translationRepository.saveAll(translations);
 
-                return buildResponse(brewingMethod, LocaleContextHolder.getLocale().getLanguage());
+                var reloaded = brewingMethodRepository.findBySlugWithTranslations(slug).orElse(brewingMethod);
+
+
+                return buildResponse(reloaded);
         }
 
         @Transactional
-        public BrewingMethodResponse update(String slug, BrewingMethodRequest request) {
+        public BrewingMethodResponseDashboard update(String slug, BrewingMethodRequest request) {
                 BrewingMethod brewingMethod = brewingMethodRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(BrewingMethodNotFoundException::new);
 
@@ -134,7 +140,9 @@ public class BrewingMethodService {
                 }
 
                 brewingMethodRepository.save(brewingMethod);
-                return buildResponse(brewingMethod, LocaleContextHolder.getLocale().getLanguage());
+                var reloaded = brewingMethodRepository.findBySlugWithTranslations(brewingMethod.getSlug()).orElse(brewingMethod);
+
+                return buildResponse(reloaded);
         }
 
         @Transactional
@@ -209,4 +217,106 @@ public class BrewingMethodService {
                                 .build();
         }
 
+        /**
+         * Trashed BrewingMethods for the dashboard's deleted-items table.
+         *
+         * <p>Paged in memory rather than in SQL. {@code @SQLRestriction} hides trashed rows from
+         * every JPQL and derived query, so the rows have to come from a native query that also
+         * bypasses {@code LIMIT}/{@code OFFSET} pagination. That is cheap while the trash is small
+         * and degrades linearly as it grows — acceptable for an admin recovery screen, and the same
+         * trade the Category listing already makes.
+         *
+         * <p>Folds the per-language rows onto one response per entity. The native query returns one
+         * row per translation, so mapping rows directly would list a deleted item once per
+         * translation and report a row count as its total — which also splits one item's
+         * translations across two pages. See {@link SoftDeleteRowFolder}.
+         */
+        public PageResponse<BrewingMethodResponseDashboard> getAllDeleted(LookupFilterRequest filter) {
+                String search = Objects.requireNonNullElse(filter.getSearch(), "");
+                int pageNum = filter.getPage();
+                int size = filter.getSize();
+                String sort = filter.getSort();
+                String direction = filter.getDirection();
+
+                List<Object[]> rawResults = brewingMethodRepository.findDeletedBySearchNative(search);
+
+                List<BrewingMethodResponseDashboard> allResults = SoftDeleteRowFolder.fold(
+                                rawResults,
+                                row -> ((Number) row[0]).longValue(),
+                                this::mapToBrewingMethodResponseDashboard,
+                                (response, row) -> response.getTranslations()
+                                                .add(buildTranslation(row)));
+
+                if (sort != null) {
+                        allResults.sort((a, b) -> {
+                                int result = switch (sort) {
+                                        case "slug" -> a.getSlug().compareToIgnoreCase(b.getSlug());
+                                        case "createdAt" -> a.getCreatedAt().compareTo(b.getCreatedAt());
+                                        default -> 0;
+                                };
+                                return direction.equalsIgnoreCase("desc") ? -result : result;
+                        });
+                }
+
+                int fromIndex = pageNum * size;
+                if (fromIndex > allResults.size()) {
+                        fromIndex = allResults.size();
+                }
+                int toIndex = Math.min(fromIndex + size, allResults.size());
+                List<BrewingMethodResponseDashboard> pagedResults = allResults.subList(fromIndex, toIndex);
+
+                Page<BrewingMethodResponseDashboard> page = new org.springframework.data.domain.PageImpl<>(
+                                pagedResults,
+                                org.springframework.data.domain.PageRequest.of(pageNum, size),
+                                allResults.size());
+                return PageResponse.of(page);
+        }
+
+        private BrewingMethodResponseDashboard mapToBrewingMethodResponseDashboard(Object[] row) {
+                return BrewingMethodResponseDashboard.builder()
+                                .id(((Number) row[0]).longValue())
+                                .slug((String) row[1])
+                                .createdAt((Instant) row[2])
+                                .translations(new ArrayList<>())
+                                .build();
+        }
+
+        private TranslationResponse buildTranslation(Object[] row) {
+                return TranslationResponse.builder()
+                                .language((String) row[3])
+                                .name((String) row[4])
+                                .description((String) row[5])
+
+                                .build();
+        }
+
+        /**
+         * Un-delete a BrewingMethod.
+         *
+         * <p>Reads through {@code findDeletedById}, so an id that is live or unknown raises
+         * {@link BrewingMethodNotFoundException} rather than reporting a restore that changed nothing.
+         */
+        @Transactional
+        public void restore(Long id) {
+                BrewingMethod brewingMethod = brewingMethodRepository.findDeletedById(id)
+                                .orElseThrow(BrewingMethodNotFoundException::new);
+                brewingMethod.setDeletedAt(null);
+                brewingMethodRepository.save(brewingMethod);
+                log.info("BrewingMethod restored: {}", brewingMethod.getSlug());
+        }
+
+        /**
+         * Permanently deletes a trashed BrewingMethod: removes the row itself (it carries no media, so there is nothing to clean on Cloudinary).
+         *
+         * <p>Trash-only: reads through {@code findDeletedById}, so a live or unknown id raises
+         * {@link BrewingMethodNotFoundException} instead of deleting anything. Soft-delete first — this never touches live
+         * rows.
+         */
+        @Transactional
+        public void permanentDelete(Long id) {
+                BrewingMethod brewingMethod = brewingMethodRepository.findDeletedById(id)
+                                .orElseThrow(BrewingMethodNotFoundException::new);
+                brewingMethodRepository.delete(brewingMethod);
+                log.info("BrewingMethod permanently deleted: {}", brewingMethod.getSlug());
+        }
 }

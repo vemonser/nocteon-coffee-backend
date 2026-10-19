@@ -20,7 +20,9 @@ public class StoreSettingsService {
         StoreSettings settings = repository.getSettings();
         return StoreSettingsResponse.builder()
                 .freeShippingThreshold(settings.getFreeShippingThreshold())
+                .currency(settings.getCurrency())
                 .id(settings.getId())
+                .isFreeShippingActive(settings.getIsFreeShippingActive() == null ? Boolean.TRUE : settings.getIsFreeShippingActive())
                 .updatedAt(settings.getUpdatedAt())
                 .createdAt(settings.getCreatedAt()).build();
     }
@@ -29,6 +31,12 @@ public class StoreSettingsService {
     public StoreSettingsResponse update(StoreSettingsRequest request) {
         StoreSettings settings = repository.getSettings();
         settings.setFreeShippingThreshold(request.getFreeShippingThreshold());
+        if (request.getCurrency() != null) {
+            settings.setCurrency(request.getCurrency());
+        }
+        if (request.getIsFreeShippingActive() != null) {
+            settings.setIsFreeShippingActive(request.getIsFreeShippingActive());
+        }
         repository.save(settings);
         return get();
     }

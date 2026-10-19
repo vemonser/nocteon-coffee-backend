@@ -13,6 +13,8 @@ import lombok.Setter;
 public class StoreSettingsResponse {
     private Long id;
     private BigDecimal freeShippingThreshold;
+    private String currency;
+    private Boolean isFreeShippingActive;
     private Instant createdAt;
     private Instant updatedAt;
 }

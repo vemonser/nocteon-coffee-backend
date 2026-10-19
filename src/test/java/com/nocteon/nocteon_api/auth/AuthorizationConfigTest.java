@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -149,6 +150,70 @@ class AuthorizationConfigTest {
                         Checked against the whole CUSTOMER set rather than a single permission: \
                         re-gating on any permission a customer legitimately holds — product:read, \
                         order:read, user:read — would reopen the same hole under a different name.""")
+                .isNotEmpty()
+                .doesNotContainAnyElementsOf(customer.stream()
+                        .map(Permission::getPermission)
+                        .toList());
+    }
+
+    /**
+     * The trash bins must be gated on nothing a customer holds.
+     *
+     * <p>{@code GET /dashboard/{entity}/deleted} was originally gated on {@code {entity}:read} —
+     * the same permission CUSTOMER holds to browse the public catalog — and
+     * {@code SecurityConfig} only requires {@code .authenticated()} for {@code /dashboard/**}. Every
+     * registered customer could therefore list every trashed row, including journal posts whose
+     * status is DRAFT and which were never published.
+     *
+     * <p>Both endpoints are now gated on {@code {entity}:delete}, which no CUSTOMER role holds, and
+     * which is also what the matching delete endpoint already required. That last part matters on
+     * its own: gating restore on {@code {entity}:update} let MODERATOR un-trash content that
+     * MODERATOR was not permitted to delete in the first place.
+     *
+     * <p>Read from the compiled classes and matched on the mapping's path, so adding a fifteenth
+     * trash bin and gating it wrongly fails here rather than in production.
+     */
+    @Test
+    @DisplayName("trash-bin listing and restore are gated on nothing a customer holds")
+    void trashBinsAreNotCustomerAccessible() {
+        Set<Permission> customer = Role.CUSTOMER.getPermissions();
+
+        assertThat(customer)
+                .as("precondition: CUSTOMER holds the catalog read permissions, which is exactly why "
+                        + "the trash bins cannot be gated on them")
+                .contains(Permission.CATEGORY_READ, Permission.PRODUCT_READ, Permission.JOURNAL_READ);
+
+        List<String> trashAuthorities = new ArrayList<>();
+
+        for (Class<?> controller : CONTROLLERS) {
+            RequestMapping classMapping = controller.getAnnotation(RequestMapping.class);
+            if (classMapping == null || !classMapping.value()[0].equals("/api")) {
+                continue;
+            }
+
+            for (java.lang.reflect.Method method : controller.getDeclaredMethods()) {
+                List<String> paths = mappings(method);
+                boolean isTrashEndpoint = paths.stream()
+                        .anyMatch(path -> path.endsWith("/deleted") || path.endsWith("/restore")
+                                || path.endsWith("/permanent"));
+                if (!isTrashEndpoint) {
+                    continue;
+                }
+
+                PreAuthorize preAuthorize = method.getAnnotation(PreAuthorize.class);
+                trashAuthorities.addAll(authorities(preAuthorize == null ? "" : preAuthorize.value()));
+            }
+        }
+
+        assertThat(trashAuthorities)
+                .as("""
+                        A trash bin lists content that was deliberately removed — including rows \
+                        never published to the storefront — so no authority on one may be a \
+                        permission CUSTOMER holds.
+
+                        Checked against the whole CUSTOMER set rather than one permission: \
+                        re-gating on product:read or any other catalog permission a customer \
+                        legitimately has would reopen the same hole under a different name.""")
                 .isNotEmpty()
                 .doesNotContainAnyElementsOf(customer.stream()
                         .map(Permission::getPermission)

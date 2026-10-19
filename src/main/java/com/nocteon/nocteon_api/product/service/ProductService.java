@@ -1,22 +1,27 @@
 package com.nocteon.nocteon_api.product.service;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.nocteon.nocteon_api.ai.service.SemanticProductSearch;
+import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductNotFoundException;
 import com.nocteon.nocteon_api.common.util.ProductSortResolver;
@@ -28,12 +33,14 @@ import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductOptionOptionResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductOptionValueOptionResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
+import com.nocteon.nocteon_api.product.dto.response.ProductTranslationResponse;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.entity.ProductOption;
 import com.nocteon.nocteon_api.product.entity.ProductOptionTranslation;
 import com.nocteon.nocteon_api.product.entity.ProductOptionValue;
 import com.nocteon.nocteon_api.product.entity.ProductOptionValueTranslation;
 import com.nocteon.nocteon_api.product.mapper.DashboardProductMapper;
+import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
 import com.nocteon.nocteon_api.product.repository.ProductOptionValueRepository;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
@@ -41,9 +48,11 @@ import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
 import com.nocteon.nocteon_api.product.repository.specification.ProductSpecifications;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ProductService {
 
     private final ProductRepository productRepository;
@@ -209,6 +218,10 @@ public class ProductService {
                 page.map(p -> productResponseMapper.buildListResponse(p, language)));
     }
 
+    public long getActiveCount() {
+        return productRepository.countByIsActiveTrue();
+    }
+
     public DashboardProductResponse getDashboardBySlug(String slug) {
         Product product = productRepository.findBySlug(slug)
                 .orElseThrow(ProductNotFoundException::new);
@@ -225,7 +238,7 @@ public class ProductService {
         return productResponseMapper.buildDetailResponse(product, language);
     }
 
-    public ProductResponse create(ProductRequest request, List<MultipartFile> files) {
+    public DashboardProductResponse create(ProductRequest request, List<MultipartFile> files) {
         return productMutationService.create(request, files);
     }
 
@@ -241,7 +254,7 @@ public class ProductService {
         return productMutationService.toggleFeatured(slug, featured);
     }
 
-    public ProductResponse uploadMedia(
+    public DashboardProductResponse uploadMedia(
             String slug,
             List<ProductMediaRequest> mediaRequests,
             List<MultipartFile> files) {
@@ -257,6 +270,10 @@ public class ProductService {
         productMutationService.delete(slug);
     }
 
+    public void permanentDelete(Long id) {
+        productMutationService.permanentDelete(id);
+    }
+
     private Page<Product> findDashboardPage(ProductFilterRequest filter) {
         return productRepository.findAllDashboard(
                 Objects.requireNonNullElse(filter.getSearch(), ""),
@@ -265,5 +282,84 @@ public class ProductService {
                 filter.getIsActive(),
                 filter.getFeatured(),
                 filter.toPageable());
+    }
+
+    public PageResponse<DashboardProductResponse> getAllDeleted(LookupFilterRequest filter) {
+        String search = Objects.requireNonNullElse(filter.getSearch(), "");
+        int pageNum = filter.getPage();
+        int size = filter.getSize();
+        String sort = filter.getSort();
+        String direction = filter.getDirection();
+
+        List<Object[]> rawResults = productRepository.findDeletedBySearchNative(search);
+
+        // Fold the per-language rows onto one response per product. The native query returns one row
+        // per translation, so mapping rows directly would list a deleted product once per
+        // translation and report a row count as its total.
+        List<DashboardProductResponse> allResults = SoftDeleteRowFolder.fold(
+                rawResults,
+                row -> ((Number) row[0]).longValue(),
+                this::mapToDashboardProductResponse,
+                (response, row) -> response.getTranslations().add(buildProductTranslation(row)));
+
+        // Apply sorting
+        if (sort != null) {
+            allResults.sort((a, b) -> {
+                int result = 0;
+                switch (sort) {
+                    case "slug":
+                        result = a.getSlug().compareToIgnoreCase(b.getSlug());
+                        break;
+                    case "createdAt":
+                        result = a.getCreatedAt().compareTo(b.getCreatedAt());
+                        break;
+                    default:
+                        result = 0;
+                }
+                return direction.equalsIgnoreCase("desc") ? -result : result;
+            });
+        }
+
+        // Apply pagination
+        int totalElements = allResults.size();
+        int fromIndex = pageNum * size;
+        // Clamp: a caller who paged past the end would otherwise get an IndexOutOfBoundsException
+        // from subList, which surfaces as a 500 rather than an empty page.
+        if (fromIndex > allResults.size()) {
+            fromIndex = allResults.size();
+        }
+        int toIndex = Math.min(fromIndex + size, allResults.size());
+        List<DashboardProductResponse> pagedResults = allResults.subList(fromIndex, toIndex);
+
+        Page<DashboardProductResponse> pageObj = new PageImpl<>(pagedResults, PageRequest.of(pageNum, size), totalElements);
+        return PageResponse.of(pageObj);
+    }
+
+    @Transactional
+    public void restore(Long id) {
+        Product product = productRepository.findDeletedById(id)
+                .orElseThrow(ProductNotFoundException::new);
+        product.setDeletedAt(null);
+        productRepository.save(product);
+        log.info("Product restored: {}", product.getSlug());
+        productMutationService.scheduleIndexUpsertAfterRestore(product.getId(), product.getSlug());
+    }
+
+    private DashboardProductResponse mapToDashboardProductResponse(Object[] row) {
+        return DashboardProductResponse.builder()
+                .id(((Number) row[0]).longValue())
+                .createdAt((Instant) row[3])
+                .slug((String) row[1])
+                .isActive((Boolean) row[2])
+                .translations(new ArrayList<>())
+                .build();
+    }
+
+    private ProductTranslationResponse buildProductTranslation(Object[] row) {
+        return ProductTranslationResponse.builder()
+                .language((String) row[4])
+                .name((String) row[5])
+                .description((String) row[6])
+                .build();
     }
 }

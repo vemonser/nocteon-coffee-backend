@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -44,6 +45,7 @@ public class CategoryController {
 
         @GetMapping("/categories")
         public ResponseEntity<ApiResponse<PageResponse<CategoryResponse>>> getAll(
+                        @Valid
                         @ModelAttribute LookupFilterRequest filter
 
         ) {
@@ -60,6 +62,7 @@ public class CategoryController {
         @GetMapping("/categories/{slug}/products")
         public ResponseEntity<ApiResponse<PageResponse<ProductCardResponse>>> getCategoryProducts(
                         @PathVariable String slug,
+                        @Valid
                         @ModelAttribute LookupFilterRequest filter) {
                 Page<ProductCardResponse> page = categoryService.getProductsByCategorySlug(slug, filter.toPageable());
                 return ResponseEntity.ok(ApiResponse.success(PageResponse.of(page), "Products retrieved"));
@@ -70,6 +73,7 @@ public class CategoryController {
         @GetMapping("/dashboard/categories")
         @PreAuthorize("hasAuthority('category:read')")
         public ResponseEntity<ApiResponse<PageResponse<DashboardCategoryResponse>>> getAllDashboard(
+                        @Valid
                         @ModelAttribute LookupFilterRequest filter) {
                 return ResponseEntity.ok(
                                 ApiResponse.success(categoryService.getAllDashboard(filter), "Categories retrieved"));
@@ -84,7 +88,7 @@ public class CategoryController {
 
         @PostMapping(value = "/dashboard/categories", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
         @PreAuthorize("hasAuthority('category:create')")
-        public ResponseEntity<ApiResponse<CategoryResponse>> create(
+        public ResponseEntity<ApiResponse<DashboardCategoryResponse>> create(
                         @Valid @RequestPart("data") CategoryRequest request,
                         @RequestPart(value = "image", required = false) MultipartFile image) {
                 return ResponseEntity.status(HttpStatus.CREATED)
@@ -93,7 +97,7 @@ public class CategoryController {
 
         @PutMapping(value = "/dashboard/categories/{slug}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
         @PreAuthorize("hasAuthority('category:update')")
-        public ResponseEntity<ApiResponse<CategoryResponse>> update(
+        public ResponseEntity<ApiResponse<DashboardCategoryResponse>> update(
                         @PathVariable String slug,
                         @Valid @RequestPart("data") CategoryRequest request,
                         @RequestPart(value = "image", required = false) MultipartFile image) {
@@ -103,7 +107,7 @@ public class CategoryController {
 
         @PostMapping("/dashboard/categories/{slug}/image")
         @PreAuthorize("hasAuthority('category:update')")
-        public ResponseEntity<ApiResponse<CategoryResponse>> uploadImage(
+        public ResponseEntity<ApiResponse<DashboardCategoryResponse>> uploadImage(
                         @PathVariable String slug,
                         @RequestParam("file") MultipartFile file) {
                 return ResponseEntity.ok(
@@ -117,4 +121,32 @@ public class CategoryController {
                 return ResponseEntity.noContent().build();
         }
 
+        @GetMapping("/dashboard/categories/deleted")
+        @PreAuthorize("hasAuthority('category:delete')")
+        public ResponseEntity<ApiResponse<PageResponse<DashboardCategoryResponse>>> getAllDeleted(
+                        @Valid
+                        @ModelAttribute LookupFilterRequest filter) {
+                return ResponseEntity.ok(
+                                ApiResponse.success(categoryService.getAllDeleted(filter), "Deleted categories retrieved"));
+        }
+
+        @PatchMapping("/dashboard/categories/{id}/restore")
+        @PreAuthorize("hasAuthority('category:delete')")
+        public ResponseEntity<ApiResponse<Void>> restore(@PathVariable Long id) {
+                categoryService.restore(id);
+                return ResponseEntity.ok(ApiResponse.success(null, "Category restored"));
+        }
+
+        /**
+         * Permanently deletes a trashed Category permanently deleted. The row must already be soft-deleted — restoring
+         * is still possible until this is called, and after it nothing is recoverable. Cloudinary
+         * assets are removed here and only here; the soft delete keeps them so a restore brings
+         * the item back intact.
+         */
+        @DeleteMapping("/dashboard/categories/{id}/permanent")
+        @PreAuthorize("hasAuthority('category:delete')")
+        public ResponseEntity<Void> permanentDelete(@PathVariable Long id) {
+                categoryService.permanentDelete(id);
+                return ResponseEntity.noContent().build();
+        }
 }

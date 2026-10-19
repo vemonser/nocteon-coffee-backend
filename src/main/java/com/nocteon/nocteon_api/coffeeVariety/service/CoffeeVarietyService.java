@@ -1,5 +1,7 @@
 package com.nocteon.nocteon_api.coffeeVariety.service;
 
+import java.time.Instant;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -15,12 +17,15 @@ import com.nocteon.nocteon_api.coffeeVariety.dto.response.CoffeeVarietyResponseD
 import com.nocteon.nocteon_api.coffeeVariety.entity.CoffeeVariety;
 import com.nocteon.nocteon_api.coffeeVariety.entity.CoffeeVarietyTranslation;
 import com.nocteon.nocteon_api.coffeeVariety.repository.CoffeeVarietyRepository;
+import com.nocteon.nocteon_api.product.repository.CoffeeDetailsRepository;
 import com.nocteon.nocteon_api.coffeeVariety.repository.CoffeeVarietyTranslationRepository;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
+import com.nocteon.nocteon_api.common.exception.invalid.EntityInUseException;
 import com.nocteon.nocteon_api.common.exception.notFound.CoffeeVarietyNotFoundException;
+import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -35,9 +40,10 @@ public class CoffeeVarietyService {
         private final CoffeeVarietyRepository coffeeVarietyRepository;
         private final CoffeeVarietyTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
+        private final CoffeeDetailsRepository coffeeDetailsRepository;
 
         @Transactional
-        public CoffeeVarietyResponse create(CoffeeVarietyRequest request) {
+        public CoffeeVarietyResponseDashboard create(CoffeeVarietyRequest request) {
                 helper.validateTranslations(request.getTranslations());
 
                 String englishName = request.getTranslations().stream()
@@ -66,11 +72,14 @@ public class CoffeeVarietyService {
                 }
                 translationRepository.saveAll(translations);
 
-                return buildResponse(coffeeVariety, LocaleContextHolder.getLocale().getLanguage());
+                var reloaded = coffeeVarietyRepository.findBySlugWithTranslations(slug).orElse(coffeeVariety);
+
+
+                return buildResponse(reloaded);
         }
 
         @Transactional
-        public CoffeeVarietyResponse update(String slug, CoffeeVarietyRequest request) {
+        public CoffeeVarietyResponseDashboard update(String slug, CoffeeVarietyRequest request) {
                 CoffeeVariety coffeeVariety = coffeeVarietyRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(CoffeeVarietyNotFoundException::new);
 
@@ -94,13 +103,20 @@ public class CoffeeVarietyService {
                 }
 
                 coffeeVarietyRepository.save(coffeeVariety);
-                return buildResponse(coffeeVariety, LocaleContextHolder.getLocale().getLanguage());
+                var reloaded = coffeeVarietyRepository.findBySlugWithTranslations(coffeeVariety.getSlug()).orElse(coffeeVariety);
+
+                return buildResponse(reloaded);
         }
 
         @Transactional
         public void delete(String slug) {
                 CoffeeVariety coffeeVariety = coffeeVarietyRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(CoffeeVarietyNotFoundException::new);
+
+                if (coffeeDetailsRepository.countByCoffeeVarietyId(coffeeVariety.getId()) > 0) {
+                        throw new EntityInUseException();
+                }
+
                 coffeeVariety.softDelete();
                 coffeeVarietyRepository.save(coffeeVariety);
         }
@@ -174,5 +190,108 @@ public class CoffeeVarietyService {
                                                                                 .build())
                                                                 .toList())
                                 .build();
+        }
+
+        /**
+         * Trashed CoffeeVarietys for the dashboard's deleted-items table.
+         *
+         * <p>Paged in memory rather than in SQL. {@code @SQLRestriction} hides trashed rows from
+         * every JPQL and derived query, so the rows have to come from a native query that also
+         * bypasses {@code LIMIT}/{@code OFFSET} pagination. That is cheap while the trash is small
+         * and degrades linearly as it grows — acceptable for an admin recovery screen, and the same
+         * trade the Category listing already makes.
+         *
+         * <p>Folds the per-language rows onto one response per entity. The native query returns one
+         * row per translation, so mapping rows directly would list a deleted item once per
+         * translation and report a row count as its total — which also splits one item's
+         * translations across two pages. See {@link SoftDeleteRowFolder}.
+         */
+        public PageResponse<CoffeeVarietyResponseDashboard> getAllDeleted(LookupFilterRequest filter) {
+                String search = Objects.requireNonNullElse(filter.getSearch(), "");
+                int pageNum = filter.getPage();
+                int size = filter.getSize();
+                String sort = filter.getSort();
+                String direction = filter.getDirection();
+
+                List<Object[]> rawResults = coffeeVarietyRepository.findDeletedBySearchNative(search);
+
+                List<CoffeeVarietyResponseDashboard> allResults = SoftDeleteRowFolder.fold(
+                                rawResults,
+                                row -> ((Number) row[0]).longValue(),
+                                this::mapToCoffeeVarietyResponseDashboard,
+                                (response, row) -> response.getTranslations()
+                                                .add(buildTranslation(row)));
+
+                if (sort != null) {
+                        allResults.sort((a, b) -> {
+                                int result = switch (sort) {
+                                        case "slug" -> a.getSlug().compareToIgnoreCase(b.getSlug());
+                                        case "createdAt" -> a.getCreatedAt().compareTo(b.getCreatedAt());
+                                        default -> 0;
+                                };
+                                return direction.equalsIgnoreCase("desc") ? -result : result;
+                        });
+                }
+
+                int fromIndex = pageNum * size;
+                if (fromIndex > allResults.size()) {
+                        fromIndex = allResults.size();
+                }
+                int toIndex = Math.min(fromIndex + size, allResults.size());
+                List<CoffeeVarietyResponseDashboard> pagedResults = allResults.subList(fromIndex, toIndex);
+
+                Page<CoffeeVarietyResponseDashboard> page = new org.springframework.data.domain.PageImpl<>(
+                                pagedResults,
+                                org.springframework.data.domain.PageRequest.of(pageNum, size),
+                                allResults.size());
+                return PageResponse.of(page);
+        }
+
+        private CoffeeVarietyResponseDashboard mapToCoffeeVarietyResponseDashboard(Object[] row) {
+                return CoffeeVarietyResponseDashboard.builder()
+                                .id(((Number) row[0]).longValue())
+                                .slug((String) row[1])
+                                .createdAt((Instant) row[2])
+                                .translations(new ArrayList<>())
+                                .build();
+        }
+
+        private TranslationResponse buildTranslation(Object[] row) {
+                return TranslationResponse.builder()
+                                .language((String) row[3])
+                                .name((String) row[4])
+                                .description((String) row[5])
+
+                                .build();
+        }
+
+        /**
+         * Un-delete a CoffeeVariety.
+         *
+         * <p>Reads through {@code findDeletedById}, so an id that is live or unknown raises
+         * {@link CoffeeVarietyNotFoundException} rather than reporting a restore that changed nothing.
+         */
+        @Transactional
+        public void restore(Long id) {
+                CoffeeVariety coffeeVariety = coffeeVarietyRepository.findDeletedById(id)
+                                .orElseThrow(CoffeeVarietyNotFoundException::new);
+                coffeeVariety.setDeletedAt(null);
+                coffeeVarietyRepository.save(coffeeVariety);
+                log.info("CoffeeVariety restored: {}", coffeeVariety.getSlug());
+        }
+
+        /**
+         * Permanently deletes a trashed CoffeeVariety: removes the row itself (it carries no media, so there is nothing to clean on Cloudinary).
+         *
+         * <p>Trash-only: reads through {@code findDeletedById}, so a live or unknown id raises
+         * {@link CoffeeVarietyNotFoundException} instead of deleting anything. Soft-delete first — this never touches live
+         * rows.
+         */
+        @Transactional
+        public void permanentDelete(Long id) {
+                CoffeeVariety coffeeVariety = coffeeVarietyRepository.findDeletedById(id)
+                                .orElseThrow(CoffeeVarietyNotFoundException::new);
+                coffeeVarietyRepository.delete(coffeeVariety);
+                log.info("CoffeeVariety permanently deleted: {}", coffeeVariety.getSlug());
         }
 }

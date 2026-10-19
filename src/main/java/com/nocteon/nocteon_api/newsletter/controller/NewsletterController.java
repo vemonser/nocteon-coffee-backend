@@ -10,10 +10,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
+import com.nocteon.nocteon_api.common.exception.RateLimitExceededException;
+import com.nocteon.nocteon_api.common.ratelimit.RateLimiterService;
 import com.nocteon.nocteon_api.newsletter.dto.SubscribeRequest;
 import com.nocteon.nocteon_api.newsletter.enums.SubscriptionResult;
 import com.nocteon.nocteon_api.newsletter.service.NewsletterService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -23,9 +26,16 @@ import lombok.RequiredArgsConstructor;
 public class NewsletterController {
 
     private final NewsletterService newsletterService;
+    private final RateLimiterService rateLimiterService;
 
     @PostMapping("/subscribe")
-    public ResponseEntity<ApiResponse<Void>> subscribe(@Valid @RequestBody SubscribeRequest request) {
+    public ResponseEntity<ApiResponse<Void>> subscribe(
+            @Valid @RequestBody SubscribeRequest request,
+            HttpServletRequest httpRequest) {
+        String ip = httpRequest.getRemoteAddr();
+        if (!rateLimiterService.tryConsumeNewsletterSubscribe(ip)) {
+            throw new RateLimitExceededException();
+        }
         SubscriptionResult result = newsletterService.subscribe(request.getEmail());
 
         return switch (result) {

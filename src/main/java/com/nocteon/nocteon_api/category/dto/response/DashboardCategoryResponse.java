@@ -17,8 +17,8 @@ public class DashboardCategoryResponse {
     private String slug;
     private String imageUrl;
     private Instant createdAt;
+    private Instant deletedAt;
     private Boolean isActive;
 
     private List<TranslationResponse> translations;
-
 }

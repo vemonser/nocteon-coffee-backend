@@ -1,5 +1,7 @@
 package com.nocteon.nocteon_api.farm.service;
 
+import java.time.Instant;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -10,10 +12,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
+import com.nocteon.nocteon_api.common.exception.invalid.EntityInUseException;
 import com.nocteon.nocteon_api.common.exception.notFound.FarmNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException;
+import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.farm.dto.request.FarmFilterRequest;
 import com.nocteon.nocteon_api.farm.dto.request.FarmRequest;
@@ -93,7 +98,7 @@ public class FarmService {
         }
 
         @Transactional
-        public FarmResponse create(FarmRequest request, MultipartFile image) {
+        public DashboardFarmResponse create(FarmRequest request, MultipartFile image) {
                 helper.validateTranslations(request.getTranslations());
 
                 Origin origin = originRepository.findBySlug(request.getOriginSlug())
@@ -130,7 +135,9 @@ public class FarmService {
                 farmTranslationRepository.saveAll(translations);
 
                 log.info("Farm created with slug: {}", slug);
-                return buildResponse(farm, LocaleContextHolder.getLocale().getLanguage());
+                var reloaded = farmRepository.findBySlugWithTranslations(slug).orElse(farm);
+
+                return buildResponse(reloaded);
         }
 
         public DashboardFarmResponse getDashboardBySlug(String slug) {
@@ -140,7 +147,7 @@ public class FarmService {
         }
 
         @Transactional
-        public FarmResponse update(String slug, FarmRequest request, MultipartFile image) {
+        public DashboardFarmResponse update(String slug, FarmRequest request, MultipartFile image) {
                 Farm farm = farmRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(FarmNotFoundException::new);
 
@@ -177,11 +184,13 @@ public class FarmService {
                 }
 
                 farmRepository.save(farm);
-                return buildResponse(farm, LocaleContextHolder.getLocale().getLanguage());
+                var reloaded = farmRepository.findBySlugWithTranslations(farm.getSlug()).orElse(farm);
+
+                return buildResponse(reloaded);
         }
 
         @Transactional
-        public FarmResponse uploadImage(String slug, MultipartFile file) {
+        public DashboardFarmResponse uploadImage(String slug, MultipartFile file) {
                 Farm farm = farmRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(FarmNotFoundException::new);
 
@@ -189,14 +198,21 @@ public class FarmService {
                 farm.setImageUrl(helper.uploadMedia(file, "farms", MediaType.IMAGE));
                 farmRepository.save(farm);
 
-                return buildResponse(farm, LocaleContextHolder.getLocale().getLanguage());
+                var reloaded = farmRepository.findBySlugWithTranslations(slug).orElse(farm);
+
+
+                return buildResponse(reloaded);
         }
 
         @Transactional
         public void delete(String slug) {
                 Farm farm = farmRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(FarmNotFoundException::new);
-                helper.deleteMediaIfExists(farm.getImageUrl());
+
+                if (productRepository.countByFarmId(farm.getId()) > 0) {
+                        throw new EntityInUseException();
+                }
+
                 farm.softDelete();
                 farmRepository.save(farm);
                 log.info("Farm soft deleted: {}", slug);
@@ -240,5 +256,117 @@ public class FarmService {
                                                                                 .build())
                                                                 .toList())
                                 .build();
+        }
+
+        /**
+         * Trashed Farms for the dashboard's deleted-items table.
+         *
+         * <p>Paged in memory rather than in SQL. {@code @SQLRestriction} hides trashed rows from
+         * every JPQL and derived query, so the rows have to come from a native query that also
+         * bypasses {@code LIMIT}/{@code OFFSET} pagination. That is cheap while the trash is small
+         * and degrades linearly as it grows — acceptable for an admin recovery screen, and the same
+         * trade the Category listing already makes.
+         *
+         * <p>Folds the per-language rows onto one response per entity. The native query returns one
+         * row per translation, so mapping rows directly would list a deleted item once per
+         * translation and report a row count as its total — which also splits one item's
+         * translations across two pages. See {@link SoftDeleteRowFolder}.
+         */
+        public PageResponse<DashboardFarmResponse> getAllDeleted(LookupFilterRequest filter) {
+                String search = Objects.requireNonNullElse(filter.getSearch(), "");
+                int pageNum = filter.getPage();
+                int size = filter.getSize();
+                String sort = filter.getSort();
+                String direction = filter.getDirection();
+
+                List<Object[]> rawResults = farmRepository.findDeletedBySearchNative(search);
+
+                List<DashboardFarmResponse> allResults = SoftDeleteRowFolder.fold(
+                                rawResults,
+                                row -> ((Number) row[0]).longValue(),
+                                this::mapToDashboardFarmResponse,
+                                (response, row) -> response.getTranslations()
+                                                .add(buildTranslation(row)));
+
+                if (sort != null) {
+                        allResults.sort((a, b) -> {
+                                int result = switch (sort) {
+                                        case "slug" -> a.getSlug().compareToIgnoreCase(b.getSlug());
+                                        case "createdAt" -> a.getCreatedAt().compareTo(b.getCreatedAt());
+                                        default -> 0;
+                                };
+                                return direction.equalsIgnoreCase("desc") ? -result : result;
+                        });
+                }
+
+                int fromIndex = pageNum * size;
+                if (fromIndex > allResults.size()) {
+                        fromIndex = allResults.size();
+                }
+                int toIndex = Math.min(fromIndex + size, allResults.size());
+                List<DashboardFarmResponse> pagedResults = allResults.subList(fromIndex, toIndex);
+
+                Page<DashboardFarmResponse> page = new org.springframework.data.domain.PageImpl<>(
+                                pagedResults,
+                                org.springframework.data.domain.PageRequest.of(pageNum, size),
+                                allResults.size());
+                return PageResponse.of(page);
+        }
+
+        private DashboardFarmResponse mapToDashboardFarmResponse(Object[] row) {
+                return DashboardFarmResponse.builder()
+                                .id(((Number) row[0]).longValue())
+                                .slug((String) row[1])
+                                .imageUrl((String) row[2])
+                                .createdAt((Instant) row[3])
+                                .originSlug((String) row[4])
+                                .translations(new ArrayList<>())
+                                .build();
+        }
+
+        private FarmTranslationResponse buildTranslation(Object[] row) {
+                return FarmTranslationResponse.builder()
+                                .language((String) row[5])
+                                .name((String) row[6])
+                                .description((String) row[8])
+                                .country((String) row[7])
+                                .build();
+        }
+
+        /**
+         * Un-delete a Farm.
+         *
+         * <p>Reads through {@code findDeletedById}, so an id that is live or unknown raises
+         * {@link FarmNotFoundException} rather than reporting a restore that changed nothing.
+         */
+        @Transactional
+        public void restore(Long id) {
+                Farm farm = farmRepository.findDeletedById(id)
+                                .orElseThrow(FarmNotFoundException::new);
+                farm.setDeletedAt(null);
+                farmRepository.save(farm);
+                log.info("Farm restored: {}", farm.getSlug());
+        }
+
+        /**
+         * Permanently deletes a trashed Farm: removes its image from Cloudinary, then the row itself.
+         *
+         * <p>Deletes the row — and flushes, so a foreign-key conflict surfaces here — <em>before</em>
+         * touching Cloudinary. If the database refuses the delete, the trashed row and its image
+         * are both untouched and the admin can retry; the reverse order would strand a restored
+         * item without its picture.
+         *
+         * <p>Trash-only: reads through {@code findDeletedById}, so a live or unknown id raises
+         * {@link FarmNotFoundException} instead of deleting anything. Soft-delete first — this never touches live
+         * rows.
+         */
+        @Transactional
+        public void permanentDelete(Long id) {
+                Farm farm = farmRepository.findDeletedById(id)
+                                .orElseThrow(FarmNotFoundException::new);
+                farmRepository.delete(farm);
+                farmRepository.flush();
+                helper.deleteMediaIfExists(farm.getImageUrl());
+                log.info("Farm permanently deleted: {}", farm.getSlug());
         }
 }

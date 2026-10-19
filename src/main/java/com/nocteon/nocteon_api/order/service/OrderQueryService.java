@@ -58,6 +58,7 @@ public class OrderQueryService {
 
         return OrderResponse.builder()
                 .id(order.getId())
+                .orderNumber(order.getOrderNumber())
                 .status(order.getStatus())
                 .totalAmount(order.getTotalAmount())
                 .paymentStatus(order.getPaymentStatus())

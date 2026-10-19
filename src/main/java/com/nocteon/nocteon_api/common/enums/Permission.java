@@ -101,7 +101,12 @@ public enum Permission {
     // deliberately does not hold. Only ADMIN carries this one.
     USER_CHANGE_ROLE("user:change_role"),
     USER_DELETE("user:delete"),
-    
+
+    // address (self-service address book; split from user:read/update so that CUSTOMER can manage
+    // its own addresses without gaining read access to /api/dashboard/users)
+    ADDRESS_READ("address:read"),
+    ADDRESS_UPDATE("address:update"),
+
     // dashboard
     SETTINGS_READ("settings:read"),
     SETTINGS_UPDATE("settings:update"),
@@ -145,6 +150,7 @@ public enum Permission {
     CART_MANAGE("cart:manage"),
     CART_READ_ALL("cart:read_all"),
     WISHLIST_MANAGE("wishlist:manage"),
+    AUDIT_READ("audit:read"),
 
     // AI
     // Rebuilding the vector index re-embeds the whole catalog, so it is not gated behind

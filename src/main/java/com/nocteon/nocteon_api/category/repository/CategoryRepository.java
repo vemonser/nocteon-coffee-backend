@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.nocteon.nocteon_api.category.dto.response.DashboardCategoryResponse;
 import com.nocteon.nocteon_api.category.entity.Category;
 
 
@@ -113,5 +114,31 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
      boolean existsBySlug(String slug);
 
      List<Category> findBySlugIn(List<String> slugs);
+
+        @Query(value = """
+        SELECT c.id, c.slug, c.image_url, c.is_active, c.created_at,
+               ct.language, ct.name, ct.description, c.deleted_at
+        FROM categories c
+        JOIN category_translations ct ON c.id = ct.category_id
+        WHERE c.deleted_at IS NOT NULL
+        GROUP BY c.id, c.slug, c.image_url, c.is_active, c.created_at, ct.language, ct.name, ct.description, c.deleted_at
+        ORDER BY c.created_at DESC, ct.language
+        """, nativeQuery = true)
+        List<Object[]> findAllDeletedNative();
+
+        @Query(value = """
+        SELECT c.id, c.slug, c.image_url, c.is_active, c.created_at,
+               ct.language, ct.name, ct.description, c.deleted_at
+        FROM categories c
+        JOIN category_translations ct ON c.id = ct.category_id
+        WHERE c.deleted_at IS NOT NULL
+        AND (LOWER(ct.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(c.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+        GROUP BY c.id, c.slug, c.image_url, c.is_active, c.created_at, ct.language, ct.name, ct.description, c.deleted_at
+        ORDER BY c.created_at DESC, ct.language
+        """, nativeQuery = true)
+        List<Object[]> findDeletedBySearchNative(@Param("search") String search);
+
+        @Query(value = "SELECT c.* FROM categories c WHERE c.id = :id AND c.deleted_at IS NOT NULL", nativeQuery = true)
+        Optional<Category> findDeletedById(@Param("id") Long id);
 
 }

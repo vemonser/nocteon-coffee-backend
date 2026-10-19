@@ -13,6 +13,15 @@ public interface CoffeeDetailsRepository extends JpaRepository<CoffeeDetails, Lo
 
     Optional<CoffeeDetails> findByProductId(Long productId);
 
+    @Query("SELECT COUNT(cd) FROM CoffeeDetails cd WHERE cd.roastLevel.id = :roastLevelId")
+    long countByRoastLevelId(@Param("roastLevelId") Long roastLevelId);
+
+    @Query("SELECT COUNT(cd) FROM CoffeeDetails cd WHERE cd.processingMethod.id = :processingMethodId")
+    long countByProcessingMethodId(@Param("processingMethodId") Long processingMethodId);
+
+    @Query("SELECT COUNT(cd) FROM CoffeeDetails cd WHERE cd.coffeeVariety.id = :coffeeVarietyId")
+    long countByCoffeeVarietyId(@Param("coffeeVarietyId") Long coffeeVarietyId);
+
     @Modifying
     @Query("""
         delete

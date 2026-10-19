@@ -38,6 +38,7 @@ public class ReviewController {
     @GetMapping("/products/{slug}/reviews")
     public ResponseEntity<ApiResponse<PageResponse<ReviewResponse>>> getProductReviews(
             @PathVariable String slug,
+            @Valid
             @ModelAttribute BaseFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -72,6 +73,7 @@ public class ReviewController {
             @RequestParam(required = false) Boolean isApproved,
             @RequestParam(required = false) Boolean isVerified,
             @RequestParam(required = false) Integer minRating,
+            @Valid
             @ModelAttribute BaseFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(

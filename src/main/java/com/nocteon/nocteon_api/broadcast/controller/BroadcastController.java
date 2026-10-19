@@ -39,6 +39,7 @@ public class BroadcastController {
     @GetMapping("/api/dashboard/broadcasts")
     @PreAuthorize("hasAuthority('broadcast:read')")
     public ResponseEntity<ApiResponse<PageResponse<BroadcastResponse>>> getAll(
+            @Valid
             @ModelAttribute BaseFilterRequest filter) {
         return ResponseEntity.ok(ApiResponse.success(broadcastCreationService.getAll(filter), "Broadcasts retrieved"));
     }

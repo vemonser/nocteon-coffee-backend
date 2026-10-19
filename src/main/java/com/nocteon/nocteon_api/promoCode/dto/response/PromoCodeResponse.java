@@ -14,6 +14,7 @@ import lombok.Getter;
 @Builder
 public class PromoCodeResponse {
     private Long id;
+    private Instant createdAt;
     private String code;
     private PromoCodeDiscountType discountType;
     private BigDecimal discountValue;

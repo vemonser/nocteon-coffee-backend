@@ -1,5 +1,7 @@
 package com.nocteon.nocteon_api.category.service;
 
+import java.time.Instant;
+
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +26,9 @@ import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
+import com.nocteon.nocteon_api.common.exception.invalid.EntityInUseException;
 import com.nocteon.nocteon_api.common.exception.notFound.CategoryNotFoundException;
+import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.enums.MediaType;
@@ -55,7 +59,7 @@ public class CategoryService {
         }
 
         @Transactional
-        public CategoryResponse update(String slug, CategoryRequest request, MultipartFile image) {
+        public DashboardCategoryResponse update(String slug, CategoryRequest request, MultipartFile image) {
                 Category category = categoryRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(CategoryNotFoundException::new);
 
@@ -87,11 +91,13 @@ public class CategoryService {
                 }
 
                 categoryRepository.save(category);
-                return buildResponse(category, LocaleContextHolder.getLocale().getLanguage());
+                var reloaded = categoryRepository.findBySlugWithTranslations(category.getSlug()).orElse(category);
+
+                return buildResponse(reloaded);
         }
 
         @Transactional
-        public CategoryResponse uploadImage(String slug, MultipartFile file) {
+        public DashboardCategoryResponse uploadImage(String slug, MultipartFile file) {
                 Category category = categoryRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(CategoryNotFoundException::new);
 
@@ -99,7 +105,10 @@ public class CategoryService {
                 category.setImageUrl(helper.uploadMedia(file, "categories", MediaType.IMAGE));
                 categoryRepository.save(category);
 
-                return buildResponse(category, LocaleContextHolder.getLocale().getLanguage());
+                var reloaded = categoryRepository.findBySlugWithTranslations(slug).orElse(category);
+
+
+                return buildResponse(reloaded);
         }
 
         @Transactional
@@ -107,7 +116,10 @@ public class CategoryService {
                 Category category = categoryRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(CategoryNotFoundException::new);
 
-                helper.deleteMediaIfExists(category.getImageUrl());
+                if (productRepository.countByCategoryId(category.getId()) > 0) {
+                        throw new EntityInUseException();
+                }
+
                 category.softDelete();
                 categoryRepository.save(category);
                 log.info("Category soft deleted: {}", slug);
@@ -121,7 +133,7 @@ public class CategoryService {
         }
 
         @Transactional
-        public CategoryResponse create(CategoryRequest request, MultipartFile image) {
+        public DashboardCategoryResponse create(CategoryRequest request, MultipartFile image) {
                 helper.validateTranslations(request.getTranslations());
 
                 String englishName = request.getTranslations().stream()
@@ -154,7 +166,9 @@ public class CategoryService {
                 categoryTranslationRepository.saveAll(translations);
 
                 log.info("Category created with slug: {}", slug);
-                return buildResponse(category, LocaleContextHolder.getLocale().getLanguage());
+                var reloaded = categoryRepository.findBySlugWithTranslations(slug).orElse(category);
+
+                return buildResponse(reloaded);
         }
 
         public PageResponse<CategoryResponse> getAll(LookupFilterRequest filter) {
@@ -239,4 +253,116 @@ public class CategoryService {
                                 .build();
         }
 
+        /**
+         * Trashed Categorys for the dashboard's deleted-items table.
+         *
+         * <p>Paged in memory rather than in SQL. {@code @SQLRestriction} hides trashed rows from
+         * every JPQL and derived query, so the rows have to come from a native query that also
+         * bypasses {@code LIMIT}/{@code OFFSET} pagination. That is cheap while the trash is small
+         * and degrades linearly as it grows — acceptable for an admin recovery screen, and the same
+         * trade the Category listing already makes.
+         *
+         * <p>Folds the per-language rows onto one response per entity. The native query returns one
+         * row per translation, so mapping rows directly would list a deleted item once per
+         * translation and report a row count as its total — which also splits one item's
+         * translations across two pages. See {@link SoftDeleteRowFolder}.
+         */
+        public PageResponse<DashboardCategoryResponse> getAllDeleted(LookupFilterRequest filter) {
+                String search = Objects.requireNonNullElse(filter.getSearch(), "");
+                int pageNum = filter.getPage();
+                int size = filter.getSize();
+                String sort = filter.getSort();
+                String direction = filter.getDirection();
+
+                List<Object[]> rawResults = categoryRepository.findDeletedBySearchNative(search);
+
+                List<DashboardCategoryResponse> allResults = SoftDeleteRowFolder.fold(
+                                rawResults,
+                                row -> ((Number) row[0]).longValue(),
+                                this::mapToDashboardCategoryResponse,
+                                (response, row) -> response.getTranslations()
+                                                .add(buildTranslation(row)));
+
+                if (sort != null) {
+                        allResults.sort((a, b) -> {
+                                int result = switch (sort) {
+                                        case "slug" -> a.getSlug().compareToIgnoreCase(b.getSlug());
+                                        case "createdAt" -> a.getCreatedAt().compareTo(b.getCreatedAt());
+                                        default -> 0;
+                                };
+                                return direction.equalsIgnoreCase("desc") ? -result : result;
+                        });
+                }
+
+                int fromIndex = pageNum * size;
+                if (fromIndex > allResults.size()) {
+                        fromIndex = allResults.size();
+                }
+                int toIndex = Math.min(fromIndex + size, allResults.size());
+                List<DashboardCategoryResponse> pagedResults = allResults.subList(fromIndex, toIndex);
+
+                Page<DashboardCategoryResponse> page = new org.springframework.data.domain.PageImpl<>(
+                                pagedResults,
+                                org.springframework.data.domain.PageRequest.of(pageNum, size),
+                                allResults.size());
+                return PageResponse.of(page);
+        }
+
+        private DashboardCategoryResponse mapToDashboardCategoryResponse(Object[] row) {
+                return DashboardCategoryResponse.builder()
+                                .id(((Number) row[0]).longValue())
+                                .slug((String) row[1])
+                                .imageUrl((String) row[2])
+                                .isActive((Boolean) row[3])
+                                .createdAt((Instant) row[4])
+                                .deletedAt(row.length > 8 ? (Instant) row[8] : null)
+                                .translations(new ArrayList<>())
+                                .build();
+        }
+
+        private TranslationResponse buildTranslation(Object[] row) {
+                return TranslationResponse.builder()
+                                .language((String) row[5])
+                                .name((String) row[6])
+                                .description((String) row[7])
+
+                                .build();
+        }
+
+        /**
+         * Un-delete a Category.
+         *
+         * <p>Reads through {@code findDeletedById}, so an id that is live or unknown raises
+         * {@link CategoryNotFoundException} rather than reporting a restore that changed nothing.
+         */
+        @Transactional
+        public void restore(Long id) {
+                Category category = categoryRepository.findDeletedById(id)
+                                .orElseThrow(CategoryNotFoundException::new);
+                category.setDeletedAt(null);
+                categoryRepository.save(category);
+                log.info("Category restored: {}", category.getSlug());
+        }
+
+        /**
+         * Permanently deletes a trashed Category: removes its image from Cloudinary, then the row itself.
+         *
+         * <p>Deletes the row — and flushes, so a foreign-key conflict surfaces here — <em>before</em>
+         * touching Cloudinary. If the database refuses the delete, the trashed row and its image
+         * are both untouched and the admin can retry; the reverse order would strand a restored
+         * item without its picture.
+         *
+         * <p>Trash-only: reads through {@code findDeletedById}, so a live or unknown id raises
+         * {@link CategoryNotFoundException} instead of deleting anything. Soft-delete first — this never touches live
+         * rows.
+         */
+        @Transactional
+        public void permanentDelete(Long id) {
+                Category category = categoryRepository.findDeletedById(id)
+                                .orElseThrow(CategoryNotFoundException::new);
+                categoryRepository.delete(category);
+                categoryRepository.flush();
+                helper.deleteMediaIfExists(category.getImageUrl());
+                log.info("Category permanently deleted: {}", category.getSlug());
+        }
 }

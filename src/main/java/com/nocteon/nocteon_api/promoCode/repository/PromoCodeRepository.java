@@ -60,4 +60,13 @@ List<PromoCode> searchPromoCodes(@Param("query") String query, Pageable pageable
     Optional<PromoCode> findByCodeIgnoreCaseForUpdate(@Param("code") String code);
 
     boolean existsByCodeIgnoreCase(String code);
+
+    @Query(value = "SELECT e.* FROM promo_codes e WHERE e.deleted_at IS NOT NULL", nativeQuery = true)
+    List<PromoCode> findAllDeletedNative();
+
+    @Query(value = "SELECT e.* FROM promo_codes e WHERE e.deleted_at IS NOT NULL AND (LOWER(e.code) LIKE LOWER(CONCAT('%', :search, '%')))", nativeQuery = true)
+    List<PromoCode> findDeletedBySearchNative(@Param("search") String search);
+
+    @Query(value = "SELECT e.* FROM promo_codes e WHERE e.id = :id AND e.deleted_at IS NOT NULL", nativeQuery = true)
+    Optional<PromoCode> findDeletedById(@Param("id") Long id);
 }

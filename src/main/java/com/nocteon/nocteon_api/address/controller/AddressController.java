@@ -34,7 +34,7 @@ public class AddressController {
     private final AddressService addressService;
 
     @GetMapping
-    @PreAuthorize("hasAuthority('user:read')")
+    @PreAuthorize("hasAuthority('address:read')")
     public ResponseEntity<ApiResponse<List<AddressResponse>>> getAll(
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(
@@ -42,7 +42,7 @@ public class AddressController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('user:update')")
+    @PreAuthorize("hasAuthority('address:update')")
     public ResponseEntity<ApiResponse<AddressResponse>> create(
             @Valid @RequestBody AddressRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -51,7 +51,7 @@ public class AddressController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('user:update')")
+    @PreAuthorize("hasAuthority('address:update')")
     public ResponseEntity<ApiResponse<AddressResponse>> update(
             @PathVariable Long id,
             @Valid @RequestBody AddressRequest request,
@@ -61,7 +61,7 @@ public class AddressController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('user:update')")
+    @PreAuthorize("hasAuthority('address:update')")
     public ResponseEntity<Void> delete(
             @PathVariable Long id,
             @AuthenticationPrincipal UserPrincipal principal) {

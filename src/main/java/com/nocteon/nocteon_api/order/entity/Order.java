@@ -41,6 +41,9 @@ import lombok.experimental.SuperBuilder;
 @Setter
 public class Order extends SoftDeletableEntity {
 
+    @Column(name = "order_number", nullable = false, unique = true, length = 50)
+    private String orderNumber;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;

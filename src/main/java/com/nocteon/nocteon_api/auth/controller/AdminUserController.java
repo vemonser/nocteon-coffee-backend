@@ -38,6 +38,7 @@ public class AdminUserController {
         @GetMapping
         @PreAuthorize("hasAuthority('user:read')")
         public ResponseEntity<ApiResponse<PageResponse<UserResponse>>> getAll(
+                        @Valid
                         @ModelAttribute UserFilterRequest filter) {
 
                 return ResponseEntity.ok(ApiResponse.success(

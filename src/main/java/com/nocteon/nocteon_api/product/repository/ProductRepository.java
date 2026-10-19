@@ -90,6 +90,7 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
                         SELECT DISTINCT p FROM Product p
                         LEFT JOIN p.translations t
                         LEFT JOIN p.category c
+                        LEFT JOIN FETCH p.pairings
                         WHERE (:search IS NULL OR COALESCE(:search, '') = ''
                                OR  LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
                         AND (:categorySlug IS NULL OR c.slug = :categorySlug)
@@ -236,6 +237,17 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
 
         boolean existsBySlug(String slug);
 
+    @Query("SELECT COUNT(p) FROM Product p WHERE p.category.id = :categoryId")
+    long countByCategoryId(@Param("categoryId") Long categoryId);
+
+    @Query("SELECT COUNT(p) FROM Product p WHERE p.origin.id = :originId")
+    long countByOriginId(@Param("originId") Long originId);
+
+    @Query("SELECT COUNT(p) FROM Product p WHERE p.farm.id = :farmId")
+    long countByFarmId(@Param("farmId") Long farmId);
+
+        long countByIsActiveTrue();
+
         @Query("""
                             SELECT DISTINCT p FROM Product p
                             LEFT JOIN FETCH p.translations t
@@ -246,4 +258,30 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
                             AND p.isActive = true
                         """)
         List<Product> findLowStockProducts(@Param("threshold") int threshold);
+
+        @Query(value = """
+            SELECT p.id, p.slug, p.is_active, p.created_at,
+                   pt.language, pt.name, pt.description
+            FROM products p
+            JOIN product_translations pt ON p.id = pt.product_id
+            WHERE p.deleted_at IS NOT NULL
+            GROUP BY p.id, p.slug, p.is_active, p.created_at, pt.language, pt.name, pt.description
+            ORDER BY p.created_at DESC, pt.language
+            """, nativeQuery = true)
+        List<Object[]> findAllDeletedNative();
+
+        @Query(value = """
+            SELECT p.id, p.slug, p.is_active, p.created_at,
+                   pt.language, pt.name, pt.description
+            FROM products p
+            JOIN product_translations pt ON p.id = pt.product_id
+            WHERE p.deleted_at IS NOT NULL
+            AND (LOWER(pt.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(p.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+            GROUP BY p.id, p.slug, p.is_active, p.created_at, pt.language, pt.name, pt.description
+            ORDER BY p.created_at DESC, pt.language
+            """, nativeQuery = true)
+        List<Object[]> findDeletedBySearchNative(@Param("search") String search);
+
+        @Query(value = "SELECT p.* FROM products p WHERE p.id = :id AND p.deleted_at IS NOT NULL", nativeQuery = true)
+        Optional<Product> findDeletedById(@Param("id") Long id);
 }

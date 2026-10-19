@@ -25,9 +25,11 @@ public class ProductVariantRequest {
 
     private BigDecimal compareAtPrice;
 
+    @NotNull
     @Min(value = 0, message = "{validation.stock.min}")
     private Integer stockQuantity;
 
+    @NotNull
     private Boolean isActive;
 
     @NotEmpty(message = "{validation.optionValues.notEmpty}")

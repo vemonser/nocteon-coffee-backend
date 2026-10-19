@@ -96,6 +96,7 @@ public class OrderController {
         @GetMapping("/orders/me")
         @PreAuthorize("hasAuthority('order:read')")
         public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getMyOrders(
+                        @Valid
                         @ModelAttribute BaseFilterRequest filter,
                         @AuthenticationPrincipal UserPrincipal principal) {
                 return ResponseEntity.ok(
@@ -107,6 +108,7 @@ public class OrderController {
         @GetMapping("/dashboard/orders")
         @PreAuthorize("hasAuthority('order:read')")
         public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getAllOrders(
+                        @Valid
                         @ModelAttribute OrderFilterRequest filter) {
                 return ResponseEntity.ok(
                                 ApiResponse.success(

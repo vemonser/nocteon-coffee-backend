@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import jakarta.persistence.EntityManager;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -113,6 +114,7 @@ class CheckoutStockBehaviourTest {
     @Mock private PromoCodeRedemptionRepository redemptionRepository;
     @Mock private CategoryRepository categoryRepository;
 
+    @Mock private EntityManager entityManager;
     // ── real services under test ──────────────────────────────────────
 
     private OrderService orderService;
@@ -126,11 +128,17 @@ class CheckoutStockBehaviourTest {
         // synchronization that call would fail before any behaviour runs.
         TransactionSynchronizationManager.initSynchronization();
 
+        lenient().when(entityManager.createNativeQuery(anyString())).thenAnswer(inv -> {
+            jakarta.persistence.Query query = mock(jakarta.persistence.Query.class);
+            when(query.getSingleResult()).thenReturn(1L);
+            return query;
+        });
+
         orderService = new OrderService(
                 orderRepository, orderItemRepository, cartRepository, cartItemRepository,
                 addressRepository, variantRepository, paymentService, realPromoCodeService(),
                 eventPublisher(), storeSettingsService, shippingZoneService,
-                new OrderQueryService(orderRepository));
+                new OrderQueryService(orderRepository), entityManager);
 
         realPaymentService = new PaymentService(
                 new RestTemplate(), paymentRepository, orderRepository, eventPublisher());

@@ -8,4 +8,6 @@ import com.nocteon.nocteon_api.contact.entity.ContactMessage;
 
 public interface ContactMessageRepository extends JpaRepository<ContactMessage, Long> {
     Page<ContactMessage> findByIsReadFalse(Pageable pageable);
+
+    Long countByIsReadFalse();
 }

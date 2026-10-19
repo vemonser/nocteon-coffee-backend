@@ -28,12 +28,15 @@ public enum Role {
             // review but could not approve, reject or flag one — and ReviewController gates those
             // three endpoints on review:moderate, which returned 403 for every moderator.
             Permission.REVIEW_MODERATE,
+            Permission.DASHBOARD_READ,
             Permission.USER_READ, Permission.USER_UPDATE,
             Permission.CART_MANAGE, Permission.WISHLIST_MANAGE,
             // Staff-wide cart visibility. MODERATOR reads carts as part of day-to-day support
             // work, and this is the permission that grants it — CART_MANAGE alone is not enough,
             // because that one is deliberately shared with CUSTOMER for the storefront basket.
-            Permission.CART_READ_ALL
+            Permission.CART_READ_ALL,
+            // Audit log access for moderators and admins
+            Permission.AUDIT_READ
     )),
 
     CUSTOMER(Set.of(
@@ -50,7 +53,11 @@ public enum Role {
             Permission.JOURNAL_READ,
             Permission.ORDER_CREATE, Permission.ORDER_READ,
             Permission.REVIEW_CREATE, Permission.REVIEW_READ, Permission.REVIEW_UPDATE,
-            Permission.USER_READ, Permission.USER_UPDATE,
+            // Self-service address book. AddressController now gates /api/addresses on
+            // address:read / address:update, which CUSTOMER alone holds, so a customer can
+            // manage its own addresses without gaining read access to /api/dashboard/users
+            // (which is gated on user:read and is not granted to CUSTOMER).
+            Permission.ADDRESS_READ, Permission.ADDRESS_UPDATE,
             Permission.CART_MANAGE, Permission.WISHLIST_MANAGE
     ));
 
