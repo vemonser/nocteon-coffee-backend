@@ -86,6 +86,14 @@ public class ContactController {
         return ResponseEntity.ok(ApiResponse.success(contactService.reply(id, request.getReplyContent()), "Reply sent"));
     }
 
+
+    @PostMapping("/dashboard/contact-messages/{id}/resend-email")
+    @PreAuthorize("hasAuthority('contact:update')")
+    public ResponseEntity<ApiResponse<ContactResponse>> resendEmail(@PathVariable Long id) {
+        return ResponseEntity.ok(
+                ApiResponse.success(contactService.resendEmail(id), "Reply email re-sent"));
+    }
+
     @DeleteMapping("/dashboard/contact-messages/{id}")
     @PreAuthorize("hasAuthority('contact:delete')")
     public ResponseEntity<Void> delete(@PathVariable Long id) {

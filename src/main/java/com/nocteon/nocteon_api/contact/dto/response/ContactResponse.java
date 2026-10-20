@@ -23,4 +23,6 @@ public class ContactResponse {
     private boolean isReplied;
     private String replyContent;
     private Instant createdAt;
+    /** NONE / PENDING / SENT / FAILED / DEAD — the recorded state of the reply email. */
+    private String emailStatus;
 }
