@@ -13,6 +13,7 @@ import com.nocteon.nocteon_api.order.exception.InvalidOrderStatusTransitionExcep
 import com.nocteon.nocteon_api.order.event.OrderShippedEvent;
 import com.nocteon.nocteon_api.order.repository.OrderItemRepository;
 import com.nocteon.nocteon_api.order.repository.OrderRepository;
+import com.nocteon.nocteon_api.order.service.OrderQueryService;
 import com.nocteon.nocteon_api.payment.service.PaymentService;
 import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
 import com.nocteon.nocteon_api.promoCode.service.PromoCodeService;
@@ -45,6 +46,8 @@ import static org.mockito.Mockito.*;
 class OrderServiceTest {
 
     @Mock private OrderRepository orderRepository;
+    @Mock private com.nocteon.nocteon_api.order.repository.OrderStatusHistoryRepository historyRepository;
+    @Mock private OrderQueryService orderQueryService;
     @Mock private OrderItemRepository orderItemRepository;
     @Mock private CartRepository cartRepository;
     @Mock private CartItemRepository cartItemRepository;
@@ -63,6 +66,19 @@ class OrderServiceTest {
 
     @BeforeEach
     void setUp() {
+        // The state machine saves the order and answers with it through the
+        // query service. Lenient: the rejected transitions never save.
+        lenient().when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(orderQueryService.buildResponse(any(Order.class))).thenAnswer(inv -> {
+            Order changed = inv.getArgument(0);
+            return OrderResponse.builder()
+                    .id(changed.getId())
+                    .orderNumber(changed.getOrderNumber())
+                    .status(changed.getStatus())
+                    .totalAmount(changed.getTotalAmount())
+                    .items(List.of())
+                    .build();
+        });
         order = Order.builder()
                 .id(1L)
                 .status(OrderStatus.PENDING)

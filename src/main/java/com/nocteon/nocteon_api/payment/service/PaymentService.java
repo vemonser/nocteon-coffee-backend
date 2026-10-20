@@ -27,6 +27,7 @@ import com.nocteon.nocteon_api.payment.entity.Payment;
 import com.nocteon.nocteon_api.payment.enums.PaymentStatus;
 import com.nocteon.nocteon_api.payment.repository.PaymentRepository;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
+import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +53,7 @@ public class PaymentService {
     private final RestTemplate restTemplate;
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
+    private final ProductVariantRepository variantRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -149,6 +151,10 @@ public class PaymentService {
             } else {
                 order.setStatus(OrderStatus.CONFIRMED);
                 order.setPaymentStatus(PaymentStatus.PAID);
+                order.getItems().forEach(item -> {
+                    ProductVariant variant = item.getProductVariant();
+                    variantRepository.consumeStock(variant.getId(), item.getQuantity());
+                });
                 eventPublisher.publishEvent(new PaymentSucceededEvent(order.getId(), payment.getAmount()));
             }
 
@@ -162,7 +168,7 @@ public class PaymentService {
 
                 order.getItems().forEach(item -> {
                     ProductVariant variant = item.getProductVariant();
-                    variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity());
+                    variantRepository.releaseStock(variant.getId(), item.getQuantity());
                 });
             } else {
                 // Already dead: record the payment failure, but the stock that a

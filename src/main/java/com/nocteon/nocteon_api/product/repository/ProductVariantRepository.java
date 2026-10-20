@@ -26,17 +26,40 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
     List<ProductVariant> findByProductId(Long productId);
 
     /**
-     * Atomically reserves stock: one statement that both checks and decrements,
-     * so two concurrent checkouts cannot sell the same unit twice. Returns the
-     * number of rows taken (1 on success, 0 when someone else got there first).
+     * Atomically reserves stock: checks available (stock - reserved) >= qty and
+     * increments reservedQuantity. Returns 1 on success, 0 when insufficient.
      */
     @Modifying
     @Query("""
             UPDATE ProductVariant v
-            SET v.stockQuantity = v.stockQuantity - :qty
+            SET v.reservedQuantity = v.reservedQuantity + :qty
+            WHERE v.id = :id AND (v.stockQuantity - v.reservedQuantity) >= :qty
+            """)
+    int reserveStockIfAvailable(@Param("id") Long id, @Param("qty") int qty);
+
+    /**
+     * Releases previously reserved stock (on cancel/expiry). Clamped at 0.
+     */
+    @Modifying
+    @Query("""
+            UPDATE ProductVariant v
+            SET v.reservedQuantity = CASE WHEN v.reservedQuantity >= :qty THEN v.reservedQuantity - :qty ELSE 0 END
+            WHERE v.id = :id
+            """)
+    int releaseStock(@Param("id") Long id, @Param("qty") int qty);
+
+    /**
+     * Consumes reserved stock on fulfillment/payment: decrements both
+     * stockQuantity and reservedQuantity. Returns 1 on success.
+     */
+    @Modifying
+    @Query("""
+            UPDATE ProductVariant v
+            SET v.stockQuantity = v.stockQuantity - :qty,
+                v.reservedQuantity = CASE WHEN v.reservedQuantity >= :qty THEN v.reservedQuantity - :qty ELSE 0 END
             WHERE v.id = :id AND v.stockQuantity >= :qty
             """)
-    int decrementStockIfAvailable(@Param("id") Long id, @Param("qty") int qty);
+    int consumeStock(@Param("id") Long id, @Param("qty") int qty);
 
     /**
      * Fresh stock read for the failure path: the managed entity may hold a
