@@ -21,4 +21,7 @@ public class ReviewResponse {
     private String productSlug;
     private String primaryImageUrl;
     private Instant createdAt;
+    /** The order behind a confirmed purchase, when there is one. */
+    private Long orderId;
+    private String orderNumber;
 }

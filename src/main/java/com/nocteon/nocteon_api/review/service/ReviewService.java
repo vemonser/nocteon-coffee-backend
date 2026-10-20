@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
+import java.util.stream.Collectors;
 import java.util.Objects;
 import java.util.Set;
 
@@ -24,6 +26,7 @@ import com.nocteon.nocteon_api.notifications.event.ReviewCreatedEvent;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.entity.ProductMedia;
 import com.nocteon.nocteon_api.product.entity.ProductTranslation;
+import com.nocteon.nocteon_api.order.repository.OrderRepository;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import com.nocteon.nocteon_api.review.dto.request.ReviewRequest;
 import com.nocteon.nocteon_api.review.dto.response.ReviewResponse;
@@ -42,6 +45,7 @@ public class ReviewService {
         private final ReviewRepository reviewRepository;
         private final ProductRepository productRepository;
         private final ApplicationEventPublisher eventPublisher;
+        private final OrderRepository orderRepository;
 
         @Transactional
         public ReviewResponse create(ReviewRequest request, UserPrincipal principal) {
@@ -92,7 +96,8 @@ public class ReviewService {
                 Page<Review> page = reviewRepository.findAllDashboard(
                                 productSlug, search, isApproved, isVerified, minRating,
                                 createdFrom, createdTo, filter.toPageable());
-                return PageResponse.of(page.map(this::buildResponse));
+                Map<String, OrderRef> orders = loadOrderRefs(page.getContent());
+                return PageResponse.of(page.map(review -> buildResponse(review, orders)));
         }
 
 
@@ -188,11 +193,58 @@ public class ReviewService {
                 reviewRepository.save(review);
         }
 
+
+        /** The order behind a verified purchase. */
+        public record OrderRef(Long orderId, String orderNumber) {}
+
+        /**
+         * The order map for a page of reviews, keyed by product and user.
+         *
+         * <p>ONE query per page, not one per row: a page of twenty reviews
+         * would otherwise cost twenty round trips to the database.
+         */
+        private Map<String, OrderRef> loadOrderRefs(List<Review> reviews) {
+                if (reviews.isEmpty()) {
+                        return Map.of();
+                }
+                Set<Long> userIds = reviews.stream()
+                                .map(r -> r.getUser().getId())
+                                .collect(Collectors.toSet());
+                if (userIds.isEmpty()) {
+                        return Map.of();
+                }
+
+                Map<String, OrderRef> refs = new HashMap<>();
+                for (Object[] row : orderRepository.findLatestQualifyingOrdersForUsers(userIds)) {
+                        long productId = ((Number) row[0]).longValue();
+                        long userId = ((Number) row[1]).longValue();
+                        String key = productId + ":" + userId;
+                        // The rows are newest first, so the FIRST row for a
+                        // pair is the one to keep.
+                        refs.putIfAbsent(key, new OrderRef(
+                                        ((Number) row[2]).longValue(),
+                                        (String) row[3]));
+                }
+                return refs;
+        }
+
         public ReviewResponse buildResponse(Review review) {
+                return buildResponse(review, Map.of());
+        }
+
+        /**
+         * The order is attached only when the purchase is CONFIRMED. A review
+         * that is not verified carries no order, so the dashboard can trust
+         * the check mark it shows next to the reviewer's name.
+         */
+        public ReviewResponse buildResponse(Review review, Map<String, OrderRef> orders) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 UserProfile profile = review.getUser().getProfile();
 
                 Product product = review.getProduct();
+                OrderRef order = review.isVerified()
+                                ? orders.get(product.getId() + ":" + review.getUser().getId())
+                                : null;
                 Set<ProductTranslation> productTranslations = product.getTranslations();
                 ProductTranslation productTranslation = productTranslations.stream()
                                 .filter(t -> t.getLanguage().equals(language))
@@ -216,6 +268,8 @@ public class ReviewService {
                                 .primaryImageUrl(primaryMedia != null ? primaryMedia.getUrl() : null)
                                 .productName(productTranslation != null ? productTranslation.getName() : null)
                                 .createdAt(review.getCreatedAt())
+                                .orderId(order == null ? null : order.orderId())
+                                .orderNumber(order == null ? null : order.orderNumber())
                                 .build();
         }
 }

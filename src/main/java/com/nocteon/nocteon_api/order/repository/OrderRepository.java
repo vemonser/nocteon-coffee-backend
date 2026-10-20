@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.order.repository;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -68,6 +69,29 @@ List<Order> searchOrders(@Param("query") String query, Pageable pageable);
 
         @Query("SELECT COUNT(o) FROM Order o WHERE o.paymentStatus = :status AND o.createdAt >= :since")
         long countByPaymentStatusAndCreatedAtAfter(@Param("status") PaymentStatus status, @Param("since") Instant since);
+
+
+        /**
+         * The newest qualifying order per (product, user) for a set of users.
+         *
+         * <p>ONE query for a whole page of reviews — the dashboard would
+         * otherwise run a query per row. A qualifying order is one that is
+         * neither CANCELLED nor PENDING, which is the same rule the review's
+         * verified flag was set with.
+         *
+         * <p>Each row is (productId, userId, orderId, orderNumber), newest
+         * first; the caller keeps the FIRST row per (product, user) pair.
+         */
+        @Query("""
+                SELECT i.productVariant.product.id, o.user.id, o.id, o.orderNumber
+                FROM Order o
+                JOIN o.items i
+                WHERE o.user.id IN :userIds
+                AND o.status NOT IN ('CANCELLED', 'PENDING')
+                ORDER BY o.createdAt DESC, o.id DESC
+                """)
+        List<Object[]> findLatestQualifyingOrdersForUsers(
+                @Param("userIds") Collection<Long> userIds);
 
         Optional<Order> findByIdAndUserId(Long id, Long userId);
 
