@@ -1,5 +1,6 @@
 package com.nocteon.nocteon_api.review.service;
 
+import java.time.Instant;
 import java.util.Objects;
 import java.util.Set;
 
@@ -80,14 +81,13 @@ public class ReviewService {
 
         @Transactional(readOnly = true)
         public PageResponse<ReviewResponse> getDashboardReviews(
-                        String productSlug, Boolean isApproved, Boolean isVerified,
-                        Integer minRating, BaseFilterRequest filter) {
-                String search = Objects.requireNonNullElse(
-                                productSlug,
-                                "");
-
+                        String productSlug, String search, Boolean isApproved,
+                        Boolean isVerified, Integer minRating,
+                        Instant createdFrom, Instant createdTo,
+                        BaseFilterRequest filter) {
                 Page<Review> page = reviewRepository.findAllDashboard(
-                                search, isApproved, isVerified, minRating, filter.toPageable());
+                                productSlug, search, isApproved, isVerified, minRating,
+                                createdFrom, createdTo, filter.toPageable());
                 return PageResponse.of(page.map(this::buildResponse));
         }
 

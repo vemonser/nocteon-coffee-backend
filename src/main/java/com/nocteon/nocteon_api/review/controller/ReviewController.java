@@ -1,5 +1,8 @@
 package com.nocteon.nocteon_api.review.controller;
 
+import java.time.Instant;
+
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -70,15 +73,21 @@ public class ReviewController {
     @PreAuthorize("hasAuthority('review:moderate')")
     public ResponseEntity<ApiResponse<PageResponse<ReviewResponse>>> getDashboardReviews(
             @RequestParam(required = false) String productSlug,
+            @RequestParam(required = false) String search,
             @RequestParam(required = false) Boolean isApproved,
             @RequestParam(required = false) Boolean isVerified,
             @RequestParam(required = false) Integer minRating,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdFrom,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdTo,
             @Valid
             @ModelAttribute BaseFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(
                         reviewService.getDashboardReviews(
-                                productSlug, isApproved, isVerified, minRating, filter),
+                                productSlug, search, isApproved, isVerified, minRating,
+                                createdFrom, createdTo, filter),
                         "Dashboard reviews retrieved"));
     }
 
