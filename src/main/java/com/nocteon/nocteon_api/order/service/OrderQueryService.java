@@ -123,8 +123,12 @@ public class OrderQueryService {
 
         BigDecimal paid = payment != null ? payment.getAmount() : order.getTotalAmount();
 
+        // The NET PAID only means something when money came in. An order that
+        // was never paid has a net paid of NOTHING, not of zero — and "null"
+        // is what the page shows.
         BigDecimal netPaid = null;
-        if (order.getPaymentStatus() != PaymentStatus.REFUNDED || !refunds.isEmpty()) {
+        if (order.getPaymentStatus() == PaymentStatus.PAID
+                        || (order.getPaymentStatus() == PaymentStatus.REFUNDED && !refunds.isEmpty())) {
                 netPaid = paid.subtract(refunded);
         }
 
