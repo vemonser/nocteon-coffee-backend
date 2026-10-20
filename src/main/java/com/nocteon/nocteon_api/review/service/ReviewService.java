@@ -1,6 +1,8 @@
 package com.nocteon.nocteon_api.review.service;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -24,6 +26,7 @@ import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import com.nocteon.nocteon_api.review.dto.request.ReviewRequest;
 import com.nocteon.nocteon_api.review.dto.response.ReviewResponse;
+import com.nocteon.nocteon_api.review.dto.response.ReviewStatsResponse;
 import com.nocteon.nocteon_api.review.entity.Review;
 import com.nocteon.nocteon_api.review.repository.ReviewRepository;
 
@@ -91,6 +94,37 @@ public class ReviewService {
                 return PageResponse.of(page.map(this::buildResponse));
         }
 
+
+        /**
+         * The moderation statistics.
+         *
+         * <p>Every star bucket is present in the distribution, including the
+         * empty ones: the dashboard draws a bar for each, and a missing key
+         * would read as "no data" rather than "nobody gave that rating".
+         */
+        @Transactional(readOnly = true)
+        public ReviewStatsResponse getReviewStats() {
+                Map<String, Long> distribution = new LinkedHashMap<>();
+                for (int star = 1; star <= 5; star++) {
+                        distribution.put(String.valueOf(star), 0L);
+                }
+                for (Object[] row : reviewRepository.countByRating()) {
+                        distribution.put(String.valueOf(((Number) row[0]).intValue()),
+                                ((Number) row[1]).longValue());
+                }
+
+                long total = reviewRepository.count();
+                long pending = reviewRepository.countByIsApprovedFalse();
+                long approved = reviewRepository.countByIsApprovedTrue();
+
+                return ReviewStatsResponse.builder()
+                                .total(total)
+                                .pending(pending)
+                                .approved(approved)
+                                .averageRating(reviewRepository.averageApprovedRating())
+                                .distribution(distribution)
+                                .build();
+        }
         @Transactional(readOnly = true)
         public ReviewResponse getDashboardById(Long id) {
                 Review review = reviewRepository.findById(id)

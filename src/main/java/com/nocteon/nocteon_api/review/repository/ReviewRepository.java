@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.review.repository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -101,6 +102,19 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
         boolean hasUserPurchasedProduct(
                         @Param("userId") Long userId,
                         @Param("productSlug") String productSlug);
+
+        long countByIsApprovedTrue();
+
+        /**
+         * The average over APPROVED reviews only — a pending review must not
+         * move the number the storefront shows.
+         */
+        @Query("SELECT AVG(r.rating) FROM Review r WHERE r.isApproved = true")
+        Double averageApprovedRating();
+
+        /** The star histogram, as (rating, count) pairs. */
+        @Query("SELECT r.rating, COUNT(r) FROM Review r GROUP BY r.rating")
+        List<Object[]> countByRating();
 
         Long countByIsApprovedFalse();
 }
