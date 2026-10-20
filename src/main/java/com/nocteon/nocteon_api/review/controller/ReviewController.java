@@ -23,7 +23,9 @@ import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.review.dto.request.BulkApprovalRequest;
 import com.nocteon.nocteon_api.review.dto.request.ReviewRequest;
+import com.nocteon.nocteon_api.review.dto.response.BulkApprovalResponse;
 import com.nocteon.nocteon_api.review.dto.response.ReviewResponse;
 import com.nocteon.nocteon_api.review.dto.response.ReviewStatsResponse;
 import com.nocteon.nocteon_api.review.service.ReviewService;
@@ -107,6 +109,18 @@ public class ReviewController {
                 ApiResponse.success(
                         reviewService.getDashboardById(id),
                         "Review retrieved"));
+    }
+
+
+    @PatchMapping("/dashboard/reviews/approval")
+    @PreAuthorize("hasAuthority('review:moderate')")
+    public ResponseEntity<ApiResponse<BulkApprovalResponse>> bulkApproval(
+            @Valid @RequestBody BulkApprovalRequest request) {
+        int updated = reviewService.setApprovalBulk(request.getIds(), request.isApproved());
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        BulkApprovalResponse.builder().updated(updated).build(),
+                        updated == 1 ? "1 review updated" : updated + " reviews updated"));
     }
 
     @PatchMapping("/dashboard/reviews/{id}/approval")

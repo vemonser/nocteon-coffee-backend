@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.review.service;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -132,6 +133,32 @@ public class ReviewService {
                 return buildResponse(review);
         }
 
+
+        /**
+         * Approve or unapprove a set of reviews in one call.
+         *
+         * <p>A review that was deleted between the list rendering and the
+         * click is not an error — it is simply not there any more, and the
+         * count reports what ACTUALLY changed.
+         */
+        @Transactional
+        public int setApprovalBulk(List<Long> ids, boolean approved) {
+                if (ids == null || ids.isEmpty()) {
+                        return 0;
+                }
+                int updated = 0;
+                for (Long id : ids) {
+                        Review review = reviewRepository.findById(id).orElse(null);
+                        if (review == null) {
+                                continue;
+                        }
+                        review.setApproved(approved);
+                        reviewRepository.save(review);
+                        updated++;
+                }
+                log.info("Bulk approval: {} reviews set to approved={}", updated, approved);
+                return updated;
+        }
         @Transactional
         public ReviewResponse setApproval(Long reviewId, boolean approved) {
                 Review review = reviewRepository.findById(reviewId)
