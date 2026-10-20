@@ -2,6 +2,9 @@ package com.nocteon.nocteon_api.dashboard.service;
 
 import com.nocteon.nocteon_api.auth.enums.Role;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
+import com.nocteon.nocteon_api.category.entity.Category;
+import com.nocteon.nocteon_api.category.entity.CategoryTranslation;
+import com.nocteon.nocteon_api.category.repository.CategoryRepository;
 import com.nocteon.nocteon_api.dashboard.dto.*;
 import com.nocteon.nocteon_api.origin.entity.Origin;
 import com.nocteon.nocteon_api.origin.repository.OriginRepository;
@@ -43,6 +46,7 @@ public class DashboardStatsBuilder {
     private final UserRepository userRepository;
     private final LoginActivityRepository loginActivityRepository;
     private final ProductRepository productRepository;
+    private final CategoryRepository categoryRepository;
     private final OriginRepository originRepository;
     private final RoastLevelRepository roastLevelRepository;
 
@@ -99,13 +103,32 @@ public class DashboardStatsBuilder {
                             }).toList();
     }
 
-    List<RevenueByCategoryDto> buildRevenueByCategory(Instant since, BigDecimal totalRevenue) {
+    List<RevenueByCategoryDto> buildRevenueByCategory(Instant since, BigDecimal totalRevenue, String language) {
             List<Object[]> rows = orderItemRepository.getRevenueByCategory(PaymentStatus.PAID, since);
+
+            List<String> slugs = rows.stream().map(row -> (String) row[0]).toList();
+            List<Category> categories = categoryRepository.findBySlugIn(slugs);
+            Map<String, Category> categoryBySlug = categories.stream()
+                            .collect(Collectors.toMap(Category::getSlug, c -> c, (a, b) -> a));
 
             return rows.stream()
                             .map(row -> {
-                                    String categoryName = (String) row[0];
+                                    String slug = (String) row[0];
                                     BigDecimal revenue = (BigDecimal) row[1];
+
+                                    Category category = categoryBySlug.get(slug);
+                                    String categoryName = slug;
+                                    if (category != null) {
+                                            categoryName = category.getTranslations().stream()
+                                                            .filter(t -> t.getLanguage().equals(language))
+                                                            .findFirst()
+                                                            .map(t -> t.getName())
+                                                            .orElseGet(() -> category.getTranslations().stream()
+                                                                            .findFirst()
+                                                                            .map(t -> t.getName())
+                                                                            .orElse(slug));
+                                    }
+
                                     BigDecimal percentage = totalRevenue.compareTo(BigDecimal.ZERO) > 0
                                                     ? revenue.divide(totalRevenue, 4, RoundingMode.HALF_UP)
                                                                     .multiply(BigDecimal.valueOf(100))
@@ -221,12 +244,12 @@ public class DashboardStatsBuilder {
     }
 
     List<LowStockProductDto> buildLowStockProducts(String language) {
-            List<Product> products = productRepository.findLowStockProducts(5);
+            List<Product> products = productRepository.findLowStockProducts();
 
             List<LowStockProductDto> result = new ArrayList<>();
             for (Product p : products) {
                     p.getVariants().stream()
-                                    .filter(v -> v.isActive() && v.getStockQuantity() <= 5)
+                                    .filter(v -> v.isActive() && v.getAvailableStock() <= v.getReorderThreshold())
                                     .findFirst()
                                     .ifPresent(v -> {
                                             String name = p.getTranslations().stream()
@@ -248,7 +271,10 @@ public class DashboardStatsBuilder {
                                                             .slug(p.getSlug())
                                                             .name(name)
                                                             .imageUrl(imageUrl)
-                                                            .stockQuantity(v.getStockQuantity())
+                                                            .stockQuantity(v.getAvailableStock())
+                                                            .reservedQuantity(v.getReservedQuantity())
+                                                            .reorderThreshold(v.getReorderThreshold())
+                                                            .costPrice(v.getCostPrice())
                                                             .build());
                                     });
             }

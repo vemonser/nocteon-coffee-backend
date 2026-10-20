@@ -29,6 +29,12 @@ public class ProductVariantRequest {
     @Min(value = 0, message = "{validation.stock.min}")
     private Integer stockQuantity;
 
+    @DecimalMin(value = "0.0", message = "{validation.price.min}")
+    private BigDecimal costPrice;
+
+    @Min(value = 0, message = "{validation.stock.min}")
+    private Integer reorderThreshold;
+
     @NotNull
     private Boolean isActive;
 

@@ -101,7 +101,7 @@ public class DashboardService {
                                                                 .count((Long) row[1])
                                                                 .build())
                                         .toList())
-                        .revenueByCategory(statsBuilder.buildRevenueByCategory(since, totalRevenue))
+                        .revenueByCategory(statsBuilder.buildRevenueByCategory(since, totalRevenue, language))
                         .topSellingProducts(statsBuilder.buildTopSellingProducts(since, language))
                         .revenueByOrigin(statsBuilder.buildRevenueByOrigin(since, totalRevenue, language))
                         .revenueByRoastLevel(statsBuilder.buildRevenueByRoastLevel(since, totalRevenue,
@@ -165,7 +165,7 @@ public class DashboardService {
                                                                 .count((Long) row[1])
                                                                 .build())
                                         .toList())
-                        .revenueByCategory(statsBuilder.buildRevenueByCategory(since, totalRevenue))
+                        .revenueByCategory(statsBuilder.buildRevenueByCategory(since, totalRevenue, language))
                         .topSellingProducts(statsBuilder.buildTopSellingProducts(since, language))
                         .revenueByOrigin(statsBuilder.buildRevenueByOrigin(since, totalRevenue, language))
                         .revenueByRoastLevel(statsBuilder.buildRevenueByRoastLevel(since, totalRevenue,

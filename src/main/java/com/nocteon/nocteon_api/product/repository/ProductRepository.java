@@ -264,11 +264,11 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
                             LEFT JOIN FETCH p.translations t
                             LEFT JOIN FETCH p.media m
                             LEFT JOIN FETCH p.variants v
-                            WHERE v.stockQuantity <= :threshold
+                            WHERE v.stockQuantity <= v.reorderThreshold
                             AND v.isActive = true
                             AND p.isActive = true
                         """)
-        List<Product> findLowStockProducts(@Param("threshold") int threshold);
+        List<Product> findLowStockProducts();
 
         @Query(value = """
             SELECT p.id, p.slug, p.is_active, p.created_at,

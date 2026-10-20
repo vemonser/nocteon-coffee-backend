@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.order.entity;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 import org.hibernate.annotations.BatchSize;
@@ -86,6 +87,31 @@ public class Order extends SoftDeletableEntity {
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    // ─── The shipment ───────────────────────────────────────────────────────
+    // Who carried the order, the number to track it with and the link the
+    // customer is given. There is NO carrier API: the admin pastes what the
+    // carrier told them, and the page shows exactly that.
+    @Column(name = "carrier", length = 120)
+    private String carrier;
+
+    @Column(name = "tracking_number", length = 120)
+    private String trackingNumber;
+
+    @Column(name = "tracking_url", length = 500)
+    private String trackingUrl;
+
+    @Column(name = "shipped_at")
+    private Instant shippedAt;
+
+    @Column(name = "delivered_at")
+    private Instant deliveredAt;
+
+    // ─── The cancellation ───────────────────────────────────────────────────
+    // Why the order was cancelled. The order page shows it on the destructive
+    // branch of the tracker, and it is the answer to "why did we cancel?".
+    @Column(name = "cancellation_reason", length = 500)
+    private String cancellationReason;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default

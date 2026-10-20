@@ -11,4 +11,7 @@ public class LowStockProductDto {
     private String name;
     private String imageUrl;
     private int stockQuantity;
+    private int reservedQuantity;
+    private int reorderThreshold;
+    private java.math.BigDecimal costPrice;
 }

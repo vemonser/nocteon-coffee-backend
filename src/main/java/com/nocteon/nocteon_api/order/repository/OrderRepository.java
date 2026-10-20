@@ -13,6 +13,7 @@ import org.springframework.data.repository.query.Param;
 
 import com.nocteon.nocteon_api.order.entity.Order;
 import com.nocteon.nocteon_api.order.enums.OrderStatus;
+import com.nocteon.nocteon_api.payment.enums.PaymentMethod;
 import com.nocteon.nocteon_api.payment.enums.PaymentStatus;
 
 
@@ -113,12 +114,153 @@ List<Order> searchOrders(@Param("query") String query, Pageable pageable);
                         @Param("userId") Long userId,
                         Pageable pageable);
 
+        /**
+         * The orders of the dashboard list, with EVERY filter.
+         *
+         * <p>The filters are the ones the list page offers: the order status,
+         * the payment status, the payment method, a created-at range and a
+         * free-text search over the order number, the id, the customer's
+         * name, the e-mail and the phone.
+         *
+         * <p>An absent filter narrows nothing, so the counts behind the
+         * cards and the rows in the table are always the same set.
+         *
+         * <p>The search is a ready-made PATTERN ("%term%"), lower-cased by the
+         * caller: the columns are compared with LOWER(), and the pattern is
+         * not, because LOWER() around a concatenation makes PostgreSQL infer
+         * the parameter's type — and it picks bytea, which has no lower().
+         *
+         * <p>The date range is a pair of INSTANTS, not dates: the range is
+         * half-open [from, to) so that a day is a whole calendar day in the
+         * store's own time zone, and an order placed at 23:30 belongs to
+         * that day.
+         *
+         * <p>The two bounds are NOT optional in the query. A parameter that
+         * appears in a "is null" test has no type there, and PostgreSQL then
+         * cannot infer the type of the parameter in the comparison next to
+         * it ("could not determine data type of parameter"). The caller
+         * passes a wide-open range when the filter is absent.
+         */
         @Query("""
                         SELECT DISTINCT o FROM Order o
+                        JOIN o.user u
+                        LEFT JOIN o.address a
+                        LEFT JOIN u.profile p
                         WHERE (:status IS NULL OR o.status = :status)
-                        ORDER BY o.createdAt DESC
+                          AND (:paymentStatus IS NULL OR o.paymentStatus = :paymentStatus)
+                          AND (:paymentMethod IS NULL OR o.paymentMethod = :paymentMethod)
+                          AND o.createdAt >= :dateFrom
+                          AND o.createdAt < :dateTo
+                          AND (
+                                :search IS NULL
+                                OR LOWER(o.orderNumber) LIKE :search
+                                OR CAST(o.id AS string) LIKE :search
+                                OR LOWER(u.email) LIKE :search
+                                OR LOWER(p.firstName) LIKE :search
+                                OR LOWER(p.lastName) LIKE :search
+                                OR a.phone LIKE :search
+                              )
                         """)
         Page<Order> findAllWithFilters(
                         @Param("status") OrderStatus status,
+                        @Param("paymentStatus") PaymentStatus paymentStatus,
+                        @Param("paymentMethod") PaymentMethod paymentMethod,
+                        @Param("dateFrom") Instant dateFrom,
+                        @Param("dateTo") Instant dateTo,
+                        @Param("search") String searchPattern,
                         Pageable pageable);
+
+        /**
+         * How many orders the filter selects, and how many of them are in
+         * each status.
+         *
+         * <p>The predicate is the SAME as the row query's, so the counts
+         * behind the cards can never disagree with the rows in the table.
+         */
+        @Query("""
+                        SELECT o.status, COUNT(o) FROM Order o
+                        JOIN o.user u
+                        LEFT JOIN o.address a
+                        LEFT JOIN u.profile p
+                        WHERE (:status IS NULL OR o.status = :status)
+                          AND (:paymentStatus IS NULL OR o.paymentStatus = :paymentStatus)
+                          AND (:paymentMethod IS NULL OR o.paymentMethod = :paymentMethod)
+                          AND o.createdAt >= :dateFrom
+                          AND o.createdAt < :dateTo
+                          AND (
+                                :search IS NULL
+                                OR LOWER(o.orderNumber) LIKE :search
+                                OR CAST(o.id AS string) LIKE :search
+                                OR LOWER(u.email) LIKE :search
+                                OR LOWER(p.firstName) LIKE :search
+                                OR LOWER(p.lastName) LIKE :search
+                                OR a.phone LIKE :search
+                              )
+                        GROUP BY o.status
+                        """)
+        List<Object[]> countByStatusWithFilters(
+                        @Param("status") OrderStatus status,
+                        @Param("paymentStatus") PaymentStatus paymentStatus,
+                        @Param("paymentMethod") PaymentMethod paymentMethod,
+                        @Param("dateFrom") Instant dateFrom,
+                        @Param("dateTo") Instant dateTo,
+                        @Param("search") String searchPattern);
+
+        @Query("""
+                        SELECT o.paymentStatus, COUNT(o) FROM Order o
+                        JOIN o.user u
+                        LEFT JOIN o.address a
+                        LEFT JOIN u.profile p
+                        WHERE (:status IS NULL OR o.status = :status)
+                          AND (:paymentStatus IS NULL OR o.paymentStatus = :paymentStatus)
+                          AND (:paymentMethod IS NULL OR o.paymentMethod = :paymentMethod)
+                          AND o.createdAt >= :dateFrom
+                          AND o.createdAt < :dateTo
+                          AND (
+                                :search IS NULL
+                                OR LOWER(o.orderNumber) LIKE :search
+                                OR CAST(o.id AS string) LIKE :search
+                                OR LOWER(u.email) LIKE :search
+                                OR LOWER(p.firstName) LIKE :search
+                                OR LOWER(p.lastName) LIKE :search
+                                OR a.phone LIKE :search
+                              )
+                        GROUP BY o.paymentStatus
+                        """)
+        List<Object[]> countByPaymentStatusWithFilters(
+                        @Param("status") OrderStatus status,
+                        @Param("paymentStatus") PaymentStatus paymentStatus,
+                        @Param("paymentMethod") PaymentMethod paymentMethod,
+                        @Param("dateFrom") Instant dateFrom,
+                        @Param("dateTo") Instant dateTo,
+                        @Param("search") String searchPattern);
+
+        @Query("""
+                        SELECT o.paymentMethod, COUNT(o) FROM Order o
+                        JOIN o.user u
+                        LEFT JOIN o.address a
+                        LEFT JOIN u.profile p
+                        WHERE (:status IS NULL OR o.status = :status)
+                          AND (:paymentStatus IS NULL OR o.paymentStatus = :paymentStatus)
+                          AND (:paymentMethod IS NULL OR o.paymentMethod = :paymentMethod)
+                          AND o.createdAt >= :dateFrom
+                          AND o.createdAt < :dateTo
+                          AND (
+                                :search IS NULL
+                                OR LOWER(o.orderNumber) LIKE :search
+                                OR CAST(o.id AS string) LIKE :search
+                                OR LOWER(u.email) LIKE :search
+                                OR LOWER(p.firstName) LIKE :search
+                                OR LOWER(p.lastName) LIKE :search
+                                OR a.phone LIKE :search
+                              )
+                        GROUP BY o.paymentMethod
+                        """)
+        List<Object[]> countByPaymentMethodWithFilters(
+                        @Param("status") OrderStatus status,
+                        @Param("paymentStatus") PaymentStatus paymentStatus,
+                        @Param("paymentMethod") PaymentMethod paymentMethod,
+                        @Param("dateFrom") Instant dateFrom,
+                        @Param("dateTo") Instant dateTo,
+                        @Param("search") String searchPattern);
 }
