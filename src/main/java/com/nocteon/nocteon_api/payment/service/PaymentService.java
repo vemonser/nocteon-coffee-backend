@@ -15,6 +15,12 @@ import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import com.nocteon.nocteon_api.notifications.event.PaymentSucceededEvent;
@@ -24,6 +30,7 @@ import com.nocteon.nocteon_api.order.repository.OrderRepository;
 import com.nocteon.nocteon_api.payment.dto.request.PaymobCallbackRequest;
 import com.nocteon.nocteon_api.payment.dto.request.PaymobTransactionObj;
 import com.nocteon.nocteon_api.payment.entity.Payment;
+import com.nocteon.nocteon_api.payment.exception.RefundFailedException;
 import com.nocteon.nocteon_api.payment.enums.PaymentStatus;
 import com.nocteon.nocteon_api.payment.repository.PaymentRepository;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
@@ -223,6 +230,60 @@ public class PaymentService {
             log.error("HMAC verification failed", e);
             return false;
         }
+    }
+
+    /**
+     * Refund a payment through the gateway.
+     *
+     * <p>The money leaves the store HERE or nowhere: the refund is recorded
+     * only when the gateway has accepted it, so a refund row always means
+     * the customer has the money back.
+     *
+     * <p>Paymob's Accept API takes the PARENT transaction id and the amount in
+     * CENTS, and answers with the refund's own transaction id — which is
+     * stored as the refund's gateway reference.
+     *
+     * @param payment the payment to refund
+     * @param amount  how much to give back
+     * @return the gateway's own reference for the refund
+     */
+    public String refund(Payment payment, BigDecimal amount) {
+        if (payment.getProviderPaymentId() == null || payment.getProviderPaymentId().isBlank()) {
+                throw new RefundFailedException(
+                                "The payment has no gateway transaction, so it cannot be refunded through the gateway.");
+        }
+
+        int amountCents = amount.multiply(BigDecimal.valueOf(100)).intValueExact();
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("parent_transaction_id", payment.getProviderPaymentId());
+        body.put("amount_cents", String.valueOf(amountCents));
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(getAuthToken());
+
+        Map<String, Object> response;
+        try {
+                response = restTemplate.exchange(
+                                "https://accept.paymob.com/api/acceptance/refunds",
+                                HttpMethod.POST,
+                                new HttpEntity<>(body, headers),
+                                new ParameterizedTypeReference<Map<String, Object>>() {
+                                }).getBody();
+        } catch (RestClientException ex) {
+                log.warn("Paymob refused the refund of payment {}: {}", payment.getId(), ex.getMessage());
+                throw new RefundFailedException(
+                                "The payment gateway refused the refund: " + ex.getMessage(), ex);
+        }
+
+        if (response == null || response.get("id") == null) {
+                throw new RefundFailedException("The payment gateway did not accept the refund.");
+        }
+
+        String reference = response.get("id").toString();
+        log.info("Paymob refund {} for payment {} ({} cents)", reference, payment.getId(), amountCents);
+        return reference;
     }
 
     @SuppressWarnings("unchecked")

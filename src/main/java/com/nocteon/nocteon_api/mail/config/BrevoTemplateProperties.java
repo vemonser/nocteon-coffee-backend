@@ -13,6 +13,7 @@ import lombok.Setter;
 public class BrevoTemplateProperties {
     
     private Long orderShipped;
+    private Long orderStatusChanged;
     private Long orderConfirmation;
     private Long paymentSuccess;
     private Long abandonedCart;

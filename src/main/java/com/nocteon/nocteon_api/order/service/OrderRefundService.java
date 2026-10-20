@@ -17,6 +17,7 @@ import com.nocteon.nocteon_api.order.repository.OrderRepository;
 import com.nocteon.nocteon_api.payment.entity.Payment;
 import com.nocteon.nocteon_api.payment.enums.PaymentStatus;
 import com.nocteon.nocteon_api.payment.repository.PaymentRepository;
+import com.nocteon.nocteon_api.payment.service.PaymentService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -40,6 +41,7 @@ public class OrderRefundService {
         private final OrderRepository orderRepository;
         private final OrderRefundRepository refundRepository;
         private final PaymentRepository paymentRepository;
+    private final PaymentService paymentService;
 
         /**
          * Record a refund.
@@ -70,12 +72,26 @@ public class OrderRefundService {
                                 .findFirstByOrderIdOrderByAttemptNumberDesc(orderId)
                                 .orElse(null);
 
+                if (payment == null) {
+                        // There is no payment to refund: the order was never
+                        // paid through the gateway, so there is nothing to
+                        // give back and nothing to record.
+                        throw new InvalidRefundException("error.order.refundNotPaid");
+                }
+
+                // The MONEY LEAVES THE STORE HERE. The refund is recorded
+                // only when the gateway has accepted it — a refund row
+                // without a gateway reference would be a promise the store
+                // cannot keep.
+                String gatewayReference = paymentService.refund(payment, request.getAmount());
+
                 OrderRefund refund = refundRepository.save(new OrderRefund(
                                 order,
                                 payment,
                                 request.getAmount(),
                                 request.getReason(),
-                                actor));
+                                actor,
+                                gatewayReference));
 
                 order.setPaymentStatus(PaymentStatus.REFUNDED);
                 orderRepository.save(order);

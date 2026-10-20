@@ -244,6 +244,7 @@ application:
       abandoned-cart: ${BREVO_TEMPLATE_ABANDONED_CART:}
       admin-broadcast: ${BREVO_TEMPLATE_ADMIN_BROADCAST:}
       order-shipped: ${BREVO_TEMPLATE_ORDER_SHIPPED:}
+      order-status-changed: ${BREVO_TEMPLATE_ORDER_STATUS_CHANGED:}
   frontend-url: ${FRONTEND_URL:http://localhost:4200}
   security:
     jwt:
