@@ -43,4 +43,15 @@ public class MailProperties {
      * database or the mail provider.
      */
     private boolean schedulingEnabled;
+
+    /**
+     * Whether the email RETRY worker may run.
+     *
+     * <p>A separate switch from {@link #isSchedulingEnabled()}, on purpose.
+     * That flag also gates {@code AbandonedCartScheduler}, and switching it
+     * on would start abandoned-cart reminders to real addresses — not a
+     * decision the reply-email feature gets to make. This flag turns on the
+     * retry of FAILED transactional emails only.
+     */
+    private boolean retryEnabled;
 }

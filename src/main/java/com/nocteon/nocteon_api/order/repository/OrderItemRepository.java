@@ -35,16 +35,15 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
             @Param("productType") ProductType productType);
 
     @Query("""
-                SELECT ct.name, SUM(oi.totalPrice)
+                SELECT c.slug, SUM(oi.totalPrice)
                 FROM OrderItem oi
                 JOIN oi.order o
                 JOIN oi.productVariant pv
                 JOIN pv.product p
                 JOIN p.category c
-                LEFT JOIN c.translations ct
                 WHERE o.paymentStatus = :paymentStatus
                 AND o.createdAt >= :since
-                GROUP BY ct.name
+                GROUP BY c.slug
                 ORDER BY SUM(oi.totalPrice) DESC
             """)
     List<Object[]> getRevenueByCategory(@Param("paymentStatus") PaymentStatus paymentStatus,

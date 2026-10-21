@@ -56,6 +56,17 @@ public class ProductVariant extends SoftDeletableEntity {
     @Builder.Default
     private int stockQuantity = 0;
 
+    @Column(name = "reserved_quantity", nullable = false)
+    @Builder.Default
+    private int reservedQuantity = 0;
+
+    @Column(name = "cost_price", precision = 10, scale = 2)
+    private BigDecimal costPrice;
+
+    @Column(name = "reorder_threshold", nullable = false)
+    @Builder.Default
+    private int reorderThreshold = 5;
+
     @Version
     private Long version;
 
@@ -72,5 +83,32 @@ public class ProductVariant extends SoftDeletableEntity {
             throw new IllegalArgumentException("Insufficient stock");
         }
         this.stockQuantity -= quantity;
+    }
+
+    public int getAvailableStock() {
+        return Math.max(0, this.stockQuantity - this.reservedQuantity);
+    }
+
+    public void reserve(int quantity) {
+        if (getAvailableStock() < quantity) {
+            throw new IllegalArgumentException("Insufficient stock");
+        }
+        this.reservedQuantity += quantity;
+    }
+
+    public void release(int quantity) {
+        this.reservedQuantity = Math.max(0, this.reservedQuantity - quantity);
+    }
+
+    public void consume(int quantity) {
+        if (this.stockQuantity < quantity || this.reservedQuantity < quantity) {
+            throw new IllegalArgumentException("Insufficient stock");
+        }
+        this.stockQuantity -= quantity;
+        this.reservedQuantity -= quantity;
+    }
+
+    public void restock(int quantity) {
+        this.stockQuantity += quantity;
     }
 }

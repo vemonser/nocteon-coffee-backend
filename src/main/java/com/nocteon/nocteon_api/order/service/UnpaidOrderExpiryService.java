@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.nocteon.nocteon_api.order.entity.Order;
 import com.nocteon.nocteon_api.order.entity.OrderItem;
+import com.nocteon.nocteon_api.order.dto.request.UpdateOrderStatusRequest;
 import com.nocteon.nocteon_api.order.enums.OrderStatus;
 import com.nocteon.nocteon_api.order.repository.OrderRepository;
 import com.nocteon.nocteon_api.payment.enums.PaymentStatus;
@@ -34,6 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 public class UnpaidOrderExpiryService {
 
     private final OrderRepository orderRepository;
+    private final OrderStatusService orderStatusService;
     private final ProductVariantRepository variantRepository;
     private final PaymentRepository paymentRepository;
 
@@ -55,14 +57,18 @@ public class UnpaidOrderExpiryService {
                         OrderStatus.PENDING, PaymentStatus.PENDING, cutoff);
 
         for (Order order : expired) {
-            order.setStatus(OrderStatus.CANCELLED);
+            // The status change goes through the state machine, so the
+            // history records WHO cancelled it and WHY: the sweep is a status
+            // change like any other, and the order page shows it.
+            UpdateOrderStatusRequest request = new UpdateOrderStatusRequest();
+            request.setStatus(OrderStatus.CANCELLED);
+            request.setReason("The payment was not received in time.");
+
             order.setPaymentStatus(PaymentStatus.FAILED);
 
-            for (OrderItem item : order.getItems()) {
-                ProductVariant variant = item.getProductVariant();
-                variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity());
-                variantRepository.save(variant);
-            }
+            // The stock is NOT released here: the state machine releases it
+            // when it cancels the order, and releasing it in both places
+            // would put the units back twice.
 
             paymentRepository.findByOrderId(order.getId()).ifPresent(payment -> {
                 if (payment.getStatus() == PaymentStatus.PENDING) {
@@ -72,6 +78,7 @@ public class UnpaidOrderExpiryService {
             });
 
             orderRepository.save(order);
+            orderStatusService.updateStatus(order.getId(), request, "system:expiry-sweep");
             log.info("Released abandoned checkout: order {} ({} items) cancelled, stock restored",
                     order.getId(), order.getItems().size());
         }

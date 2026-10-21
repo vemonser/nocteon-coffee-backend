@@ -138,14 +138,24 @@ class CheckoutStockBehaviourTest {
                 orderRepository, orderItemRepository, cartRepository, cartItemRepository,
                 addressRepository, variantRepository, paymentService, realPromoCodeService(),
                 eventPublisher(), storeSettingsService, shippingZoneService,
-                new OrderQueryService(orderRepository), entityManager);
+                new OrderQueryService(orderRepository, paymentRepository,
+                        mock(com.nocteon.nocteon_api.order.service.OrderRefundService.class)),
+                mock(com.nocteon.nocteon_api.order.service.OrderStatusService.class),
+                entityManager);
 
         realPaymentService = new PaymentService(
-                new RestTemplate(), paymentRepository, orderRepository, eventPublisher());
+                new RestTemplate(), paymentRepository, orderRepository, variantRepository, eventPublisher());
         ReflectionTestUtils.setField(realPaymentService, "hmacSecret", HMAC_SECRET);
 
         expiryService = new com.nocteon.nocteon_api.order.service.UnpaidOrderExpiryService(
-                orderRepository, variantRepository, paymentRepository);
+                orderRepository,
+                new com.nocteon.nocteon_api.order.service.OrderStatusService(
+                        orderRepository,
+                        mock(com.nocteon.nocteon_api.order.repository.OrderStatusHistoryRepository.class),
+                        mock(com.nocteon.nocteon_api.order.service.OrderQueryService.class),
+                        variantRepository,
+                        eventPublisher()),
+                variantRepository, paymentRepository);
 
         // Shared scaffolding: a cheap cart well below the free-shipping line.
         // Lenient: the webhook and promo tests never check out, so they never touch these.
@@ -193,7 +203,7 @@ class CheckoutStockBehaviourTest {
         @DisplayName("exactly one of two simultaneous checkouts succeeds")
         void onlyOneCheckoutSucceeds() throws Exception {
             AtomicInteger stock = new AtomicInteger(1);
-            when(variantRepository.decrementStockIfAvailable(anyLong(), anyInt()))
+            when(variantRepository.reserveStockIfAvailable(anyLong(), anyInt()))
                     .thenAnswer(inv -> stock.compareAndSet(1, 0) ? 1 : 0);
 
             ExecutorService pool = Executors.newFixedThreadPool(2);
@@ -239,7 +249,7 @@ class CheckoutStockBehaviourTest {
         void loserGetsStockRejection() {
             UserPrincipal buyer = principal(1L);
             stubSuccessfulCheckout(buyer, cartWithVariant(1L, 1));
-            when(variantRepository.decrementStockIfAvailable(anyLong(), anyInt())).thenReturn(0);
+            when(variantRepository.reserveStockIfAvailable(anyLong(), anyInt())).thenReturn(0);
 
             assertThatThrownBy(() -> orderService.createOrder(codRequest(), buyer))
                     .isInstanceOf(InsufficientStockException.class);
@@ -308,6 +318,9 @@ class CheckoutStockBehaviourTest {
             when(orderRepository.findByStatusAndPaymentStatusAndCreatedAtBefore(
                     eq(OrderStatus.PENDING), eq(PaymentStatus.PENDING), any(Instant.class)))
                     .thenReturn(List.of(unpaid));
+            // The sweep moves the order through the state machine, which
+            // re-reads it by id.
+            when(orderRepository.findById(50L)).thenReturn(Optional.of(unpaid));
             when(paymentRepository.findByOrderId(50L)).thenReturn(Optional.of(payment));
 
             int released = expiryService.cancelExpiredUnpaidOrders();
@@ -496,7 +509,7 @@ class CheckoutStockBehaviourTest {
     /** Runs a checkout and lets any rejection propagate to the caller. */
     private void checkout(UserPrincipal principal, Cart cart) {
         stubSuccessfulCheckout(principal, cart);
-        when(variantRepository.decrementStockIfAvailable(anyLong(), anyInt())).thenReturn(1);
+        when(variantRepository.reserveStockIfAvailable(anyLong(), anyInt())).thenReturn(1);
         orderService.createOrder(codRequest(), principal);
     }
 
@@ -523,12 +536,20 @@ class CheckoutStockBehaviourTest {
     }
 
     private ProductVariant variant(long id, int stock) {
-        return ProductVariant.builder()
+        ProductVariant variant = ProductVariant.builder()
                 .id(id)
                 .isActive(true)
                 .price(BigDecimal.valueOf(100))
                 .stockQuantity(stock)
                 .build();
+        // The stock is released through the repository, so the mock has to put
+        // the units back on the variant — otherwise the variant's own counter
+        // never moves and the assertions read zero.
+        lenient().when(variantRepository.releaseStock(eq(id), anyInt())).thenAnswer(inv -> {
+            variant.setStockQuantity(variant.getStockQuantity() + (Integer) inv.getArgument(1));
+            return null;
+        });
+        return variant;
     }
 
     private CreateOrderRequest codRequest() {

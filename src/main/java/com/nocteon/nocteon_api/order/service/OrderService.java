@@ -68,6 +68,7 @@ public class OrderService {
         private final StoreSettingsService storeSettingsService;
         private final ShippingZoneService shippingZoneService;
         private final OrderQueryService orderQueryService;
+        private final OrderStatusService orderStatusService;
         private final EntityManager entityManager;
 
         @Value("${application.paymob.hmac-secret}")
@@ -94,8 +95,8 @@ public class OrderService {
                         if (!variant.isActive()) {
                                 throw new IllegalStateException("Product variant is inactive.");
                         }
-                        if (variant.getStockQuantity() < cartItem.getQuantity()) {
-                                throw new InsufficientStockException(variant.getStockQuantity());
+                        if (variant.getAvailableStock() < cartItem.getQuantity()) {
+                                throw new InsufficientStockException(variant.getAvailableStock());
                         }
 
                         total = total.add(variant.getPrice().multiply(BigDecimal.valueOf(cartItem.getQuantity())));
@@ -147,6 +148,11 @@ public class OrderService {
 
                 order = orderRepository.save(order);
 
+                // The first history row: the order was placed. It is written
+                // in the same transaction as the order itself, so an order
+                // can never exist without the history that explains it.
+                orderStatusService.recordCreation(order, initialStatus, "system");
+
                 for (CartItem cartItem : cart.getItems()) {
                         ProductVariant variant = cartItem.getProductVariant();
                         BigDecimal unitPrice = variant.getPrice();
@@ -161,13 +167,21 @@ public class OrderService {
                                                                         BigDecimal.valueOf(cartItem.getQuantity())))
                                                         .build());
 
-                        int reserved = variantRepository.decrementStockIfAvailable(
+                        int reserved = variantRepository.reserveStockIfAvailable(
                                         variant.getId(), cartItem.getQuantity());
                         if (reserved == 0) {
                                 // Someone else took the last units between our early check
                                 // and this reservation — report what is really left.
                                 throw new InsufficientStockException(
                                                 variantRepository.findStockById(variant.getId()));
+                        }
+                }
+
+                // COD orders are confirmed immediately: consume reserved stock.
+                if (initialStatus == OrderStatus.CONFIRMED) {
+                        for (CartItem cartItem : cart.getItems()) {
+                                ProductVariant variant = cartItem.getProductVariant();
+                                variantRepository.consumeStock(variant.getId(), cartItem.getQuantity());
                         }
                 }
 
@@ -256,32 +270,17 @@ public class OrderService {
         }
 
         @Transactional
+        /**
+         * Change the status of an order.
+         *
+         * <p>DELEGATED to {@link OrderStatusService}: there is ONE state
+         * machine, and it writes the history row in the same transaction as
+         * the change. The rule this method used to apply — "anything is
+         * allowed unless the order is delivered or cancelled" — let
+         * PENDING jump straight to DELIVERED.
+         */
         public OrderResponse updateStatus(Long orderId, OrderStatus newStatus) {
-                Order order = orderRepository.findById(orderId)
-                                .orElseThrow(OrderNotFoundException::new);
-
-                OrderStatus currentStatus = order.getStatus();
-
-                if (currentStatus == newStatus) {
-                        return orderQueryService.buildResponse(order);
-                }
-
-                if (currentStatus == OrderStatus.DELIVERED || currentStatus == OrderStatus.CANCELLED) {
-                        throw new IllegalStateException(
-                                        "Cannot change order status from " + currentStatus + " to " + newStatus);
-                }
-
-                order.setStatus(newStatus);
-
-                if (newStatus == OrderStatus.CANCELLED) {
-                        for (OrderItem item : order.getItems()) {
-                                ProductVariant variant = item.getProductVariant();
-                                variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity());
-                                variantRepository.save(variant);
-                        }
-                }
-
-                return orderQueryService.buildResponse(orderRepository.save(order));
+                return orderStatusService.updateStatus(orderId, newStatus, "system");
         }
 
         /**

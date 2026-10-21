@@ -25,5 +25,13 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     Optional<Payment> findFirstByOrderIdAndStatusOrderByPaidAtDesc(Long orderId, PaymentStatus status);
 
+    /**
+     * The LAST payment attempt of an order.
+     *
+     * <p>An order can be paid more than once (a failed attempt, then a
+     * successful one), so "the payment of an order" is the newest attempt.
+     */
+    Optional<Payment> findFirstByOrderIdOrderByAttemptNumberDesc(Long orderId);
+
     int countByOrderId(Long orderId);
 }

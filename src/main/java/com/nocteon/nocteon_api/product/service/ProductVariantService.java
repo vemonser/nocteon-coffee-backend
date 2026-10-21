@@ -77,6 +77,8 @@ public class ProductVariantService {
                 .sku(v.getSku())
                 .price(v.getPrice())
                 .stockQuantity(v.getStockQuantity())
+                .costPrice(v.getCostPrice())
+                .reorderThreshold(v.getReorderThreshold() != null ? v.getReorderThreshold() : 5)
                 .compareAtPrice(v.getCompareAtPrice())
                 .isActive(v.getIsActive() != null ? v.getIsActive() : true)
                 .optionValues(optionValues)

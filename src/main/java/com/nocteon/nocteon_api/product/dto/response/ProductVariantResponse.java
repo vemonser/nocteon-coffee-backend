@@ -18,7 +18,10 @@ public class ProductVariantResponse {
     private String sku;
     private BigDecimal price;
     private BigDecimal compareAtPrice;
+    private BigDecimal costPrice;
     private int stockQuantity;
+    private int reservedQuantity;
+    private int reorderThreshold;
     private Integer discountPercentage;
     private boolean isActive;
     private List<ProductOptionValueSummary> optionValues;
