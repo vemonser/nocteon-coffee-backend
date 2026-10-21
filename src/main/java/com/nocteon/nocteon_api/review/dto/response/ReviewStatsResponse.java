@@ -7,11 +7,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Data
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-
 /**
  * The moderation statistics for the reviews console.
  *
@@ -21,8 +16,7 @@ import lombok.Setter;
  * <p>{@code distribution} always carries all five keys, so the dashboard can
  * draw a bar for each star without a null check.
  */
-@Getter
-@Setter
+@Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -30,6 +24,9 @@ public class ReviewStatsResponse {
     private long total;
     private long pending;
     private long approved;
+    private long rejected;
+    private long verified;
     private Double averageRating;
+    private Double averageRatingAll;
     private Map<String, Long> distribution;
 }

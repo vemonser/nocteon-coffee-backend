@@ -11,6 +11,7 @@ import com.nocteon.nocteon_api.order.repository.OrderItemRepository;
 import com.nocteon.nocteon_api.order.repository.OrderRepository;
 import com.nocteon.nocteon_api.payment.enums.PaymentStatus;
 import com.nocteon.nocteon_api.product.enums.ProductType;
+import com.nocteon.nocteon_api.review.entity.ReviewStatus;
 import com.nocteon.nocteon_api.review.repository.ReviewRepository;
 import com.nocteon.nocteon_api.contact.repository.ContactMessageRepository;
 
@@ -178,7 +179,7 @@ public class DashboardService {
     }
 
     public long getPendingReviewsCount() {
-            return reviewRepository.countByIsApprovedFalse();
+            return reviewRepository.countByDeletedAtIsNullAndStatus(ReviewStatus.PENDING);
     }
 
     public long getUnreadContactMessagesCount() {

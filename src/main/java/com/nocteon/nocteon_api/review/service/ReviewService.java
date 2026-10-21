@@ -32,6 +32,7 @@ import com.nocteon.nocteon_api.review.dto.request.ReviewRequest;
 import com.nocteon.nocteon_api.review.dto.response.ReviewResponse;
 import com.nocteon.nocteon_api.review.dto.response.ReviewStatsResponse;
 import com.nocteon.nocteon_api.review.entity.Review;
+import com.nocteon.nocteon_api.review.entity.ReviewStatus;
 import com.nocteon.nocteon_api.review.repository.ReviewRepository;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -69,6 +70,7 @@ public class ReviewService {
                                 .rating(request.getRating())
                                 .comment(request.getComment())
                                 .isVerified(hasPurchased)
+                                .status(ReviewStatus.PENDING)
                                 .build();
 
                 review = reviewRepository.save(review);
@@ -89,43 +91,55 @@ public class ReviewService {
 
         @Transactional(readOnly = true)
         public PageResponse<ReviewResponse> getDashboardReviews(
-                        String productSlug, String search, Boolean isApproved,
-                        Boolean isVerified, Integer minRating,
-                        Instant createdFrom, Instant createdTo,
-                        BaseFilterRequest filter) {
+                        String productSlug, Boolean isApproved, Boolean isVerified,
+                        Integer minRating, BaseFilterRequest filter) {
+                String search = Objects.requireNonNullElse(
+                                productSlug,
+                                "");
+
+                ReviewStatus status = null;
+                if (Boolean.TRUE.equals(isApproved)) {
+                        status = ReviewStatus.APPROVED;
+                } else if (Boolean.FALSE.equals(isApproved)) {
+                        status = ReviewStatus.PENDING;
+                }
+
                 Page<Review> page = reviewRepository.findAllDashboard(
-                                productSlug, search, isApproved, isVerified, minRating,
-                                createdFrom, createdTo, filter.toPageable());
-                Map<String, OrderRef> orders = loadOrderRefs(page.getContent());
-                return PageResponse.of(page.map(review -> buildResponse(review, orders)));
+                                search, status, isVerified, minRating, filter.toPageable());
+                return PageResponse.of(page.map(this::buildResponse));
         }
 
 	@Transactional(readOnly = true)
 	public ReviewStatsResponse getDashboardStats() {
-			long total = reviewRepository.countByDeletedAtIsNull();
-			long pending = reviewRepository.countByDeletedAtIsNullAndIsApprovedFalse();
-			long approved = total - pending;
-			Double avg = reviewRepository.findAverageRatingAll();
+		long total = reviewRepository.countByDeletedAtIsNull();
+		long pending = reviewRepository.countByDeletedAtIsNullAndStatus(ReviewStatus.PENDING);
+		long approved = reviewRepository.countByDeletedAtIsNullAndStatus(ReviewStatus.APPROVED);
+		long rejected = reviewRepository.countByDeletedAtIsNullAndStatus(ReviewStatus.REJECTED);
+		long verified = reviewRepository.countByDeletedAtIsNullAndIsVerifiedTrue();
+		Double avg = reviewRepository.findAverageRatingApproved();
+		Double avgAll = reviewRepository.findAverageRatingAll();
 
-			Map<String, Long> distribution = new HashMap<>();
-			for (int i = 1; i <= 5; i++) distribution.put(String.valueOf(i), 0L);
-			for (Object[] row : reviewRepository.findRatingDistribution()) {
-				Integer rating = (Integer) row[0];
-				Long count = (Long) row[1];
-				if (rating != null && rating >= 1 && rating <= 5) {
-						distribution.put(String.valueOf(rating), count);
-				}
+		Map<String, Long> distribution = new HashMap<>();
+		for (int i = 1; i <= 5; i++) distribution.put(String.valueOf(i), 0L);
+		for (Object[] row : reviewRepository.findRatingDistribution()) {
+			Integer rating = (Integer) row[0];
+			Long count = (Long) row[1];
+			if (rating != null && rating >= 1 && rating <= 5) {
+					distribution.put(String.valueOf(rating), count);
 			}
+		}
 
-			return ReviewStatsResponse.builder()
-						.total(total)
-						.pending(pending)
-						.approved(approved)
-						.averageRating(avg)
-						.distribution(distribution)
-						.build();
+		return ReviewStatsResponse.builder()
+					.total(total)
+					.pending(pending)
+					.approved(approved)
+					.rejected(rejected)
+					.verified(verified)
+					.averageRating(avg)
+					.averageRatingAll(avgAll)
+					.distribution(distribution)
+					.build();
 	}
-
 
         /**
          * The moderation statistics.
@@ -140,20 +154,20 @@ public class ReviewService {
                 for (int star = 1; star <= 5; star++) {
                         distribution.put(String.valueOf(star), 0L);
                 }
-                for (Object[] row : reviewRepository.countByRating()) {
+                for (Object[] row : reviewRepository.findRatingDistribution()) {
                         distribution.put(String.valueOf(((Number) row[0]).intValue()),
                                 ((Number) row[1]).longValue());
                 }
 
-                long total = reviewRepository.count();
-                long pending = reviewRepository.countByIsApprovedFalse();
-                long approved = reviewRepository.countByIsApprovedTrue();
+                long total = reviewRepository.countByDeletedAtIsNull();
+                long pending = reviewRepository.countByDeletedAtIsNullAndStatus(ReviewStatus.PENDING);
+                long approved = reviewRepository.countByDeletedAtIsNullAndStatus(ReviewStatus.APPROVED);
 
                 return ReviewStatsResponse.builder()
                                 .total(total)
                                 .pending(pending)
                                 .approved(approved)
-                                .averageRating(reviewRepository.averageApprovedRating())
+                                .averageRating(reviewRepository.findAverageRatingApproved())
                                 .distribution(distribution)
                                 .build();
         }
@@ -183,7 +197,7 @@ public class ReviewService {
                         if (review == null) {
                                 continue;
                         }
-                        review.setApproved(approved);
+                        review.setStatus(approved ? ReviewStatus.APPROVED : ReviewStatus.PENDING);
                         reviewRepository.save(review);
                         updated++;
                 }
@@ -193,11 +207,22 @@ public class ReviewService {
         @Transactional
         public ReviewResponse setApproval(Long reviewId, boolean approved) {
                 Review review = reviewRepository.findById(reviewId)
-                        .orElseThrow(ReviewNotFoundException::new);
+                                .orElseThrow(ReviewNotFoundException::new);
 
-                review.setApproved(approved);
+                review.setStatus(approved ? ReviewStatus.APPROVED : ReviewStatus.PENDING);
                 review = reviewRepository.save(review);
                 log.info("Review {} approval set to {}", reviewId, approved);
+                return buildResponse(review);
+        }
+
+        @Transactional
+        public ReviewResponse setRejected(Long reviewId) {
+                Review review = reviewRepository.findById(reviewId)
+                                .orElseThrow(ReviewNotFoundException::new);
+
+                review.setStatus(ReviewStatus.REJECTED);
+                review = reviewRepository.save(review);
+                log.info("Review {} rejected", reviewId);
                 return buildResponse(review);
         }
 
@@ -289,7 +314,7 @@ public class ReviewService {
                                 .rating(review.getRating())
                                 .comment(review.getComment())
                                 .verified(review.isVerified())
-                                .isApproved(review.isApproved())
+                                .status(review.getStatus())
                                 .productSlug(review.getProduct().getSlug())
                                 .primaryImageUrl(primaryMedia != null ? primaryMedia.getUrl() : null)
                                 .productName(productTranslation != null ? productTranslation.getName() : null)

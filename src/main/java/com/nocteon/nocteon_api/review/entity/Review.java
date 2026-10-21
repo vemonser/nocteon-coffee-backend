@@ -6,6 +6,8 @@ import com.nocteon.nocteon_api.product.entity.Product;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -43,7 +45,8 @@ public class Review extends SoftDeletableEntity {
     @Column(name = "is_verified", nullable = false)
     private boolean isVerified;
 
-    @Column(name = "is_approved", nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
-    private boolean isApproved = false;
+    private ReviewStatus status = ReviewStatus.PENDING;
 }

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.validation.annotation.Validated;
 
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
@@ -141,6 +142,16 @@ public class ReviewController {
                 ApiResponse.success(
                         reviewService.setApproval(id, approved),
                         approved ? "Review approved" : "Review unapproved"));
+    }
+
+    @PatchMapping("/dashboard/reviews/{id}/reject")
+    @PreAuthorize("hasAuthority('review:moderate')")
+    public ResponseEntity<ApiResponse<ReviewResponse>> setRejected(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        reviewService.setRejected(id),
+                        "Review rejected"));
     }
 
     @DeleteMapping("/dashboard/reviews/{id}")

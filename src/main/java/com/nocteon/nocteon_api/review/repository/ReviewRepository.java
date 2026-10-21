@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.nocteon.nocteon_api.review.entity.Review;
+import com.nocteon.nocteon_api.review.entity.ReviewStatus;
 
 public interface ReviewRepository extends JpaRepository<Review, Long> {
 
@@ -24,7 +25,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
                         LEFT JOIN r.user u
                         WHERE r.product.slug = :slug
                         AND r.deletedAt IS NULL
-                        AND r.isApproved = true
+                        AND r.status = 'APPROVED'
                         ORDER BY r.createdAt DESC
                         """)
         Page<Review> findByProductSlug(
@@ -35,33 +36,25 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
          * NEW — dashboard moderation queue. Distinct from findByProductSlug:
          * this one is for admins and intentionally does NOT filter by
          * isApproved, so the dashboard can show pending + approved + filter
-         * between them via the :isApproved param (null = show both).
+         * between them via the :status param (null = show both).
          */
         @Query("""
                             SELECT r
                             FROM Review r
                             LEFT JOIN r.product p
-                            LEFT JOIN r.user u
-                            WHERE (COALESCE(:productSlug, '') = '' OR
-                            LOWER(p.slug) = LOWER(:productSlug))
-                              AND (COALESCE(:search, '') = '' OR
-                            LOWER(CONCAT(COALESCE(r.comment, ''), ' ', COALESCE(u.username, '')))
-                            LIKE LOWER(CONCAT('%', :search, '%')))
-                              AND r.isApproved = COALESCE(:isApproved, r.isApproved)
-                              AND r.isVerified = COALESCE(:isVerified, r.isVerified)
-                              AND r.rating >= COALESCE(:minRating, r.rating)
-                              AND r.createdAt >= COALESCE(:createdFrom, r.createdAt)
-                              AND r.createdAt <= COALESCE(:createdTo, r.createdAt)
+                            WHERE r.deletedAt IS NULL
+                            AND (:productSlug IS NULL OR
+                            LOWER(p.slug) LIKE LOWER(CONCAT('%', :productSlug, '%')))
+                              AND (:status IS NULL OR r.status = :status)
+                              AND (:isVerified IS NULL OR r.isVerified = :isVerified)
+                              AND (:minRating IS NULL OR r.rating >= :minRating)
                             ORDER BY r.createdAt DESC
                         """)
         Page<Review> findAllDashboard(
                         @Param("productSlug") String productSlug,
-                        @Param("search") String search,
-                        @Param("isApproved") Boolean isApproved,
+                        @Param("status") ReviewStatus status,
                         @Param("isVerified") Boolean isVerified,
                         @Param("minRating") Integer minRating,
-                        @Param("createdFrom") Instant createdFrom,
-                        @Param("createdTo") Instant createdTo,
                         Pageable pageable);
 
         /**
@@ -74,16 +67,16 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
                             FROM Review r
                             WHERE r.product.slug = :slug
                               AND r.deletedAt IS NULL
-                              AND r.isApproved = true
+                              AND r.status = 'APPROVED'
                         """)
         Double findAverageRatingByProductSlug(
                         @Param("slug") String slug);
 
         @Query("""
-                        SELECT COUNT(r) FROM Review r
-                        WHERE r.product.slug = :slug
-                        AND r.deletedAt IS NULL
-                        AND r.isApproved = true
+                            SELECT COUNT(r) FROM Review r
+                            WHERE r.product.slug = :slug
+                            AND r.deletedAt IS NULL
+                            AND r.status = 'APPROVED'
                         """)
         Long countByProductSlug(@Param("slug") String slug);
 
@@ -92,46 +85,42 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
         Optional<Review> findByIdAndUserId(Long id, Long userId);
 
         @Query("""
-                        SELECT CASE WHEN COUNT(o) > 0 THEN true ELSE false END
-                        FROM Order o
-                        JOIN o.items i
-                        WHERE o.user.id = :userId
-                        AND i.productVariant.product.slug = :productSlug
-                        AND o.status NOT IN ('CANCELLED', 'PENDING')
+                            SELECT CASE WHEN COUNT(o) > 0 THEN true ELSE false END
+                            FROM Order o
+                            JOIN o.items i
+                            WHERE o.user.id = :userId
+                            AND i.productVariant.product.slug = :productSlug
+                            AND o.status NOT IN ('CANCELLED', 'PENDING')
                         """)
         boolean hasUserPurchasedProduct(
                         @Param("userId") Long userId,
                         @Param("productSlug") String productSlug);
 
-        long countByIsApprovedTrue();
+        Long countByStatus(ReviewStatus status);
 
-        /**
-         * The average over APPROVED reviews only — a pending review must not
-         * move the number the storefront shows.
-         */
-        @Query("SELECT AVG(r.rating) FROM Review r WHERE r.isApproved = true")
-        Double averageApprovedRating();
+        long countByDeletedAtIsNull();
 
-        /** The star histogram, as (rating, count) pairs. */
-        @Query("SELECT r.rating, COUNT(r) FROM Review r GROUP BY r.rating")
-        List<Object[]> countByRating();
+        Long countByDeletedAtIsNullAndStatus(ReviewStatus status);
 
-        Long countByIsApprovedFalse();
+        Long countByDeletedAtIsNullAndIsVerifiedTrue();
 
-long countByDeletedAtIsNull();
+        @Query("""
+                            SELECT AVG(r.rating) FROM Review r
+                            WHERE r.deletedAt IS NULL
+                            AND r.status = 'APPROVED'
+                        """)
+        Double findAverageRatingApproved();
 
-long countByDeletedAtIsNullAndIsApprovedFalse();
+        @Query("""
+                            SELECT AVG(r.rating) FROM Review r
+                            WHERE r.deletedAt IS NULL
+                        """)
+        Double findAverageRatingAll();
 
-@Query("""
-                SELECT AVG(r.rating) FROM Review r
-                WHERE r.deletedAt IS NULL
-                """)
-Double findAverageRatingAll();
-
-@Query("""
-                SELECT r.rating, COUNT(r) FROM Review r
-                WHERE r.deletedAt IS NULL
-                GROUP BY r.rating
-                """)
-java.util.List<Object[]> findRatingDistribution();
+        @Query("""
+                            SELECT r.rating, COUNT(r) FROM Review r
+                            WHERE r.deletedAt IS NULL
+                            GROUP BY r.rating
+                        """)
+        java.util.List<Object[]> findRatingDistribution();
 }

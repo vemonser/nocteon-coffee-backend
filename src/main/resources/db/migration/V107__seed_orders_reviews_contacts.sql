@@ -115,98 +115,98 @@ LIMIT 1;
 -- ----------------------------------------------------------
 
 -- Review 1: Product 1, User 1, rating 5
-INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, is_approved, created_at, updated_at)
-SELECT 1, 1, 5, 'Excellent coffee, rich flavor!', TRUE, TRUE, NOW(), NOW()
+INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, status, created_at, updated_at)
+SELECT 1, 1, 5, 'Excellent coffee, rich flavor!', TRUE, 'APPROVED', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM reviews WHERE product_id = 1 AND user_id = 1)
 LIMIT 1;
 
 -- Review 2: Product 1, User 2, rating 4
-INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, is_approved, created_at, updated_at)
-SELECT 1, 2, 4, 'Great quality, will buy again.', TRUE, TRUE, NOW(), NOW()
+INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, status, created_at, updated_at)
+SELECT 1, 2, 4, 'Great quality, will buy again.', TRUE, 'APPROVED', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM reviews WHERE product_id = 1 AND user_id = 2)
 LIMIT 1;
 
 -- Review 3: Product 2, User 3, rating 3
-INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, is_approved, created_at, updated_at)
-SELECT 2, 3, 3, 'Good but a bit expensive.', TRUE, TRUE, NOW(), NOW()
+INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, status, created_at, updated_at)
+SELECT 2, 3, 3, 'Good but a bit expensive.', TRUE, 'APPROVED', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM reviews WHERE product_id = 2 AND user_id = 3)
 LIMIT 1;
 
 -- Review 4: Product 2, User 4, rating 5
-INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, is_approved, created_at, updated_at)
-SELECT 2, 4, 5, 'Amazing aroma and taste.', TRUE, TRUE, NOW(), NOW()
+INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, status, created_at, updated_at)
+SELECT 2, 4, 5, 'Amazing aroma and taste.', TRUE, 'APPROVED', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM reviews WHERE product_id = 2 AND user_id = 4)
 LIMIT 1;
 
 -- Review 5: Product 3, User 5, rating 2
-INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, is_approved, created_at, updated_at)
-SELECT 3, 5, 2, 'Not my favorite roast level.', TRUE, FALSE, NOW(), NOW()
+INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, status, created_at, updated_at)
+SELECT 3, 5, 2, 'Not my favorite roast level.', TRUE, 'PENDING', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM reviews WHERE product_id = 3 AND user_id = 5)
 LIMIT 1;
 
 -- Review 6: Product 3, User 1, rating 4
-INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, is_approved, created_at, updated_at)
-SELECT 3, 1, 4, 'Perfect for morning brew.', TRUE, TRUE, NOW(), NOW()
+INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, status, created_at, updated_at)
+SELECT 3, 1, 4, 'Perfect for morning brew.', TRUE, 'APPROVED', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM reviews WHERE product_id = 3 AND user_id = 1)
 LIMIT 1;
 
 -- Review 6: Product 4, User 2, rating 5
-INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, is_approved, created_at, updated_at)
-SELECT 4, 2, 5, 'Highly recommended!', TRUE, TRUE, NOW(), NOW()
+INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, status, created_at, updated_at)
+SELECT 4, 2, 5, 'Highly recommended!', TRUE, 'APPROVED', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM reviews WHERE product_id = 4 AND user_id = 2)
 LIMIT 1;
 
 -- Review 7: Product 4, User 3, rating 3
-INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, is_approved, created_at, updated_at)
-SELECT 4, 3, 3, 'Decent coffee for the price.', TRUE, TRUE, NOW(), NOW()
+INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, status, created_at, updated_at)
+SELECT 4, 3, 3, 'Decent coffee for the price.', TRUE, 'APPROVED', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM reviews WHERE product_id = 4 AND user_id = 3)
 LIMIT 1;
 
 -- Review 8: Product 5, User 4, rating 4
-INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, is_approved, created_at, updated_at)
-SELECT 5, 4, 4, 'Love the packaging and freshness.', TRUE, TRUE, NOW(), NOW()
+INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, status, created_at, updated_at)
+SELECT 5, 4, 4, 'Love the packaging and freshness.', TRUE, 'APPROVED', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM reviews WHERE product_id = 5 AND user_id = 4)
 LIMIT 1;
 
 -- Review 9: Product 5, User 5, rating 2
-INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, is_approved, created_at, updated_at)
-SELECT 5, 5, 2, 'Not my favorite roast level.', TRUE, FALSE, NOW(), NOW()
+INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, status, created_at, updated_at)
+SELECT 5, 5, 2, 'Not my favorite roast level.', TRUE, 'PENDING', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM reviews WHERE product_id = 5 AND user_id = 5)
 LIMIT 1;
 
 -- Review 10: Product 5, User 1, rating 5
-INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, is_approved, created_at, updated_at)
-SELECT 5, 1, 5, 'Perfect coffee for espresso!', TRUE, TRUE, NOW(), NOW()
+INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, status, created_at, updated_at)
+SELECT 5, 1, 5, 'Perfect coffee for espresso!', TRUE, 'APPROVED', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM reviews WHERE product_id = 5 AND user_id = 1)
 LIMIT 1;
 
 -- Review 11: Product 6, User 4, rating 4
-INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, is_approved, created_at, updated_at)
-SELECT 6, 4, 4, 'Good value for the quality.', TRUE, TRUE, NOW(), NOW()
+INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, status, created_at, updated_at)
+SELECT 6, 4, 4, 'Good value for the quality.', TRUE, 'APPROVED', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM reviews WHERE product_id = 6 AND user_id = 4)
 LIMIT 1;
 
 -- Review 12: Product 6, User 5, rating 5
-INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, is_approved, created_at, updated_at)
-SELECT 6, 5, 5, 'Best coffee I have tried this month!', TRUE, TRUE, NOW(), NOW()
+INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, status, created_at, updated_at)
+SELECT 6, 5, 5, 'Best coffee I have tried this month!', TRUE, 'APPROVED', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM reviews WHERE product_id = 6 AND user_id = 5)
 LIMIT 1;
 
 -- Review 13: Product 1 (replaced), User 1, rating 3
-INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, is_approved, created_at, updated_at)
-SELECT 1, 1, 3, 'Decent coffee, nothing special.', TRUE, TRUE, NOW(), NOW()
+INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, status, created_at, updated_at)
+SELECT 1, 1, 3, 'Decent coffee, nothing special.', TRUE, 'APPROVED', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM reviews WHERE product_id = 1 AND user_id = 1)
 LIMIT 1;
 
 -- Review 13: Product 2 (replaced), User 2, rating 4
-INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, is_approved, created_at, updated_at)
-SELECT 2, 2, 4, 'Good for daily drinking.', TRUE, TRUE, NOW(), NOW()
+INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, status, created_at, updated_at)
+SELECT 2, 2, 4, 'Good for daily drinking.', TRUE, 'APPROVED', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM reviews WHERE product_id = 2 AND user_id = 2)
 LIMIT 1;
 
 -- Review 15: Product 3 (replaced), User 3, rating 5
-INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, is_approved, created_at, updated_at)
-SELECT 3, 3, 5, 'Excellent beans, freshness guaranteed!', TRUE, TRUE, NOW(), NOW()
+INSERT INTO reviews (product_id, user_id, rating, comment, is_verified, status, created_at, updated_at)
+SELECT 3, 3, 5, 'Excellent beans, freshness guaranteed!', TRUE, 'APPROVED', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM reviews WHERE product_id = 3 AND user_id = 3)
 LIMIT 1;
 
@@ -255,9 +255,9 @@ WHERE NOT EXISTS (SELECT 1 FROM contact_messages WHERE email = 'youssef@test.com
 LIMIT 1;
 
 -- ----------------------------------------------------------
--- Order items (line items) for the seeded orders above, so dashboard
--- aggregations (revenue by category/origin/roast level, top products)
--- are populated.
+-- 4. Order items (line items) for the seeded orders above, so dashboard
+--    aggregations (revenue by category/origin/roast level, top products)
+--    are populated.
 -- ----------------------------------------------------------
 INSERT INTO order_items (order_id, product_variant_id, quantity, unit_price, total_price)
 VALUES
@@ -282,6 +282,6 @@ VALUES
     (17, 3, 1, 1378.00, 1378.00),
     (17, 9, 1, 1272.00, 1272.00);
 
--- ----------------------------------------------------------
+-- ============================================================
 -- End of V107 seed data migration
 -- ============================================================

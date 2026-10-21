@@ -2,6 +2,8 @@ package com.nocteon.nocteon_api.review.dto.response;
 
 import java.time.Instant;
 
+import com.nocteon.nocteon_api.review.entity.ReviewStatus;
+
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -16,7 +18,7 @@ public class ReviewResponse {
     private Integer rating;
     private String comment;
     private boolean verified;
-    private boolean isApproved; 
+    private ReviewStatus status;
     private String productName;
     private String productSlug;
     private String primaryImageUrl;
