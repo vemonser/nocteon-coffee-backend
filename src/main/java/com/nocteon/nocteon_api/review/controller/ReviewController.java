@@ -22,6 +22,7 @@ import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.review.dto.request.ReviewRequest;
 import com.nocteon.nocteon_api.review.dto.response.ReviewResponse;
+import com.nocteon.nocteon_api.review.dto.response.ReviewStatsResponse;
 import com.nocteon.nocteon_api.review.service.ReviewService;
 
 import jakarta.validation.Valid;
@@ -65,6 +66,15 @@ public class ReviewController {
         reviewService.delete(id, principal);
         return ResponseEntity.noContent().build();
     }
+
+	@GetMapping("/dashboard/reviews/stats")
+	@PreAuthorize("hasAuthority('review:moderate')")
+	public ResponseEntity<ApiResponse<ReviewStatsResponse>> getDashboardReviewStats() {
+		return ResponseEntity.ok(
+				ApiResponse.success(
+						reviewService.getDashboardStats(),
+						"Review stats retrieved"));
+	}
 
     @GetMapping("/dashboard/reviews")
     @PreAuthorize("hasAuthority('review:moderate')")

@@ -94,4 +94,21 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
                         @Param("productSlug") String productSlug);
 
         Long countByIsApprovedFalse();
+
+long countByDeletedAtIsNull();
+
+long countByDeletedAtIsNullAndIsApprovedFalse();
+
+@Query("""
+                SELECT AVG(r.rating) FROM Review r
+                WHERE r.deletedAt IS NULL
+                """)
+Double findAverageRatingAll();
+
+@Query("""
+                SELECT r.rating, COUNT(r) FROM Review r
+                WHERE r.deletedAt IS NULL
+                GROUP BY r.rating
+                """)
+java.util.List<Object[]> findRatingDistribution();
 }

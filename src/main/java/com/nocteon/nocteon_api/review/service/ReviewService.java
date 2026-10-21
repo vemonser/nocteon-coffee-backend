@@ -1,5 +1,7 @@
 package com.nocteon.nocteon_api.review.service;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -23,6 +25,7 @@ import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import com.nocteon.nocteon_api.review.dto.request.ReviewRequest;
 import com.nocteon.nocteon_api.review.dto.response.ReviewResponse;
+import com.nocteon.nocteon_api.review.dto.response.ReviewStatsResponse;
 import com.nocteon.nocteon_api.review.entity.Review;
 import com.nocteon.nocteon_api.review.repository.ReviewRepository;
 
@@ -90,6 +93,32 @@ public class ReviewService {
                                 search, isApproved, isVerified, minRating, filter.toPageable());
                 return PageResponse.of(page.map(this::buildResponse));
         }
+
+	@Transactional(readOnly = true)
+	public ReviewStatsResponse getDashboardStats() {
+			long total = reviewRepository.countByDeletedAtIsNull();
+			long pending = reviewRepository.countByDeletedAtIsNullAndIsApprovedFalse();
+			long approved = total - pending;
+			Double avg = reviewRepository.findAverageRatingAll();
+
+			Map<String, Long> distribution = new HashMap<>();
+			for (int i = 1; i <= 5; i++) distribution.put(String.valueOf(i), 0L);
+			for (Object[] row : reviewRepository.findRatingDistribution()) {
+				Integer rating = (Integer) row[0];
+				Long count = (Long) row[1];
+				if (rating != null && rating >= 1 && rating <= 5) {
+						distribution.put(String.valueOf(rating), count);
+				}
+			}
+
+			return ReviewStatsResponse.builder()
+						.total(total)
+						.pending(pending)
+						.approved(approved)
+						.averageRating(avg)
+						.distribution(distribution)
+						.build();
+	}
 
         @Transactional(readOnly = true)
         public ReviewResponse getDashboardById(Long id) {
