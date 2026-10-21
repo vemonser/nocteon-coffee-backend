@@ -27,14 +27,17 @@ import com.nocteon.nocteon_api.order.repository.OrderRefundRepository;
 import com.nocteon.nocteon_api.order.repository.OrderRepository;
 import com.nocteon.nocteon_api.payment.entity.Payment;
 import com.nocteon.nocteon_api.payment.enums.PaymentStatus;
+import com.nocteon.nocteon_api.payment.exception.RefundFailedException;
 import com.nocteon.nocteon_api.payment.repository.PaymentRepository;
+import com.nocteon.nocteon_api.payment.service.PaymentService;
 
 /**
  * The refunds of an order.
  *
- * <p>The point of the service is the AMOUNT: without it, the net paid of an
- * order cannot be computed. And the point of the limits is that a refund can
- * never be bigger than what was paid.
+ * <p>The point of the service is that the money ACTUALLY LEAVES: the gateway
+ * is called first, and the refund is recorded only when the gateway has
+ * accepted it. A refund row without a gateway reference would be a promise
+ * the store cannot keep.
  */
 @ExtendWith(MockitoExtension.class)
 class OrderRefundServiceTest {
@@ -42,6 +45,7 @@ class OrderRefundServiceTest {
     @Mock private OrderRepository orderRepository;
     @Mock private OrderRefundRepository refundRepository;
     @Mock private PaymentRepository paymentRepository;
+    @Mock private PaymentService paymentService;
 
     @InjectMocks
     private OrderRefundService orderRefundService;
@@ -62,13 +66,22 @@ class OrderRefundServiceTest {
                 .build();
     }
 
+    private Payment paidPayment() {
+        return Payment.builder()
+                .id(9L)
+                .amount(new BigDecimal("120.50"))
+                .providerPaymentId("TXN-1")
+                .build();
+    }
+
     @Test
     void recordsTheAmountAndClosesThePayment() {
         Order order = paidOrder();
         when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
         when(paymentRepository.findFirstByOrderIdOrderByAttemptNumberDesc(1L))
-                        .thenReturn(Optional.of(Payment.builder().amount(new BigDecimal("120.50")).build()));
+                        .thenReturn(Optional.of(paidPayment()));
         when(refundRepository.findByOrderIdOrderByCreatedAtAsc(1L)).thenReturn(List.of());
+        when(paymentService.refund(any(), any())).thenReturn("REF-1");
         when(refundRepository.save(any(OrderRefund.class))).thenAnswer(inv -> inv.getArgument(0));
 
         OrderRefundResponse response = orderRefundService.refund(1L, request("50.00"), "admin@aurum.local");
@@ -76,10 +89,30 @@ class OrderRefundServiceTest {
         assertThat(response.getAmount()).isEqualByComparingTo("50.00");
         assertThat(response.getReason()).isEqualTo("The customer returned the bag");
         assertThat(response.getCreatedBy()).isEqualTo("admin@aurum.local");
-        // The money has NOT gone through the gateway: the row says so.
-        assertThat(response.isManual()).isTrue();
+        // The gateway's own reference: the money really went back.
+        assertThat(response.getGatewayReference()).isEqualTo("REF-1");
+        assertThat(response.isManual()).isFalse();
         // And the order is now flagged as refunded.
         assertThat(order.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
+    }
+
+    @Test
+    void aRefusedGatewayRecordsNothing() {
+        Order order = paidOrder();
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(paymentRepository.findFirstByOrderIdOrderByAttemptNumberDesc(1L))
+                        .thenReturn(Optional.of(paidPayment()));
+        when(refundRepository.findByOrderIdOrderByCreatedAtAsc(1L)).thenReturn(List.of());
+        when(paymentService.refund(any(), any()))
+                        .thenThrow(new RefundFailedException("The gateway said no"));
+
+        assertThatThrownBy(() -> orderRefundService.refund(1L, request("50.00"), "admin"))
+                        .isInstanceOf(RefundFailedException.class);
+
+        // NOTHING is recorded: the store never believes it gave the money
+        // back when it did not.
+        verify(refundRepository, never()).save(any());
+        assertThat(order.getPaymentStatus()).isEqualTo(PaymentStatus.PAID);
     }
 
     @Test
@@ -102,7 +135,7 @@ class OrderRefundServiceTest {
         Order order = paidOrder();
         when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
         when(paymentRepository.findFirstByOrderIdOrderByAttemptNumberDesc(1L))
-                        .thenReturn(Optional.of(Payment.builder().amount(new BigDecimal("120.50")).build()));
+                        .thenReturn(Optional.of(paidPayment()));
         when(refundRepository.findByOrderIdOrderByCreatedAtAsc(1L)).thenReturn(List.of());
 
         assertThatThrownBy(() -> orderRefundService.refund(1L, request("500.00"), "admin"))
@@ -116,7 +149,7 @@ class OrderRefundServiceTest {
         Order order = paidOrder();
         when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
         when(paymentRepository.findFirstByOrderIdOrderByAttemptNumberDesc(1L))
-                        .thenReturn(Optional.of(Payment.builder().amount(new BigDecimal("120.50")).build()));
+                        .thenReturn(Optional.of(paidPayment()));
         when(refundRepository.findByOrderIdOrderByCreatedAtAsc(1L)).thenReturn(List.of(
                         OrderRefund.builder().amount(new BigDecimal("100.00")).build()));
 

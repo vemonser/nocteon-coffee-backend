@@ -72,6 +72,7 @@ public class BrevoClient {
             case ABANDONED_CART -> templateProperties.getAbandonedCart();
             case ADMIN_BROADCAST -> templateProperties.getAdminBroadcast();
             case ORDER_SHIPPED -> templateProperties.getOrderShipped();
+            case ORDER_STATUS_CHANGED -> templateProperties.getOrderStatusChanged();
             case VERIFICATION -> templateProperties.getVerification();
             case PASSWORD_RESET -> templateProperties.getPasswordReset();
             // A contact reply carries its own body, rendered in this

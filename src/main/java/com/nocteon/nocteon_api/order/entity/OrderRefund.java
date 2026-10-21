@@ -76,12 +76,14 @@ public class OrderRefund {
         @Column(name = "created_at", updatable = false, nullable = false)
         private Instant createdAt;
 
-        public OrderRefund(Order order, Payment payment, BigDecimal amount, String reason, String createdBy) {
+        public OrderRefund(Order order, Payment payment, BigDecimal amount, String reason, String createdBy,
+                        String gatewayReference) {
                 this.order = order;
                 this.payment = payment;
                 this.amount = amount;
                 this.reason = reason;
                 this.createdBy = createdBy;
+                this.gatewayReference = gatewayReference;
         }
 
         /** True while the money has NOT gone back through the gateway. */

@@ -16,6 +16,7 @@ import com.nocteon.nocteon_api.order.entity.Order;
 import com.nocteon.nocteon_api.order.entity.OrderStatusHistory;
 import com.nocteon.nocteon_api.order.enums.OrderStatus;
 import com.nocteon.nocteon_api.order.event.OrderShippedEvent;
+import com.nocteon.nocteon_api.order.event.OrderStatusChangedEvent;
 import com.nocteon.nocteon_api.order.exception.CancellationReasonRequiredException;
 import com.nocteon.nocteon_api.order.exception.InvalidOrderStatusTransitionException;
 import com.nocteon.nocteon_api.order.repository.OrderRepository;
@@ -163,6 +164,19 @@ public class OrderStatusService {
 
                 if (newStatus == OrderStatus.SHIPPED) {
                         eventPublisher.publishEvent(new OrderShippedEvent(order.getId()));
+                }
+
+                if (request.isNotifyCustomer()) {
+                        // The customer is to be told. The e-mail is enqueued
+                        // AFTER the transaction commits, so nobody is told
+                        // about a change that was rolled back.
+                        eventPublisher.publishEvent(new OrderStatusChangedEvent(
+                                        order.getId(),
+                                        currentStatus,
+                                        newStatus,
+                                        request.getNote() != null && !request.getNote().isBlank()
+                                                        ? request.getNote()
+                                                        : request.getReason()));
                 }
 
                 log.info("Order {} status changed from {} to {} by {}", orderId, currentStatus, newStatus, actor);

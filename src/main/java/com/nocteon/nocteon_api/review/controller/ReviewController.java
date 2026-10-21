@@ -72,6 +72,15 @@ public class ReviewController {
         return ResponseEntity.noContent().build();
     }
 
+	@GetMapping("/dashboard/reviews/stats")
+	@PreAuthorize("hasAuthority('review:moderate')")
+	public ResponseEntity<ApiResponse<ReviewStatsResponse>> getDashboardReviewStats() {
+		return ResponseEntity.ok(
+				ApiResponse.success(
+						reviewService.getDashboardStats(),
+						"Review stats retrieved"));
+	}
+
     @GetMapping("/dashboard/reviews")
     @PreAuthorize("hasAuthority('review:moderate')")
     public ResponseEntity<ApiResponse<PageResponse<ReviewResponse>>> getDashboardReviews(
