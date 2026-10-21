@@ -37,8 +37,8 @@ public class EmailRetryScheduler {
 
     @Scheduled(fixedDelay = 60_000)
     public void run() {
-        if (!mailProperties.isSchedulingEnabled()) {
-            log.debug("Mail scheduling is disabled, skipping the email retry pass");
+        if (!mailProperties.isRetryEnabled()) {
+            log.debug("Mail retry is disabled, skipping the email retry pass");
             return;
         }
 

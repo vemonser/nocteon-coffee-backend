@@ -1,5 +1,8 @@
 package com.nocteon.nocteon_api.review.controller;
 
+import java.time.Instant;
+
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,7 +23,9 @@ import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.review.dto.request.BulkApprovalRequest;
 import com.nocteon.nocteon_api.review.dto.request.ReviewRequest;
+import com.nocteon.nocteon_api.review.dto.response.BulkApprovalResponse;
 import com.nocteon.nocteon_api.review.dto.response.ReviewResponse;
 import com.nocteon.nocteon_api.review.dto.response.ReviewStatsResponse;
 import com.nocteon.nocteon_api.review.service.ReviewService;
@@ -80,16 +85,30 @@ public class ReviewController {
     @PreAuthorize("hasAuthority('review:moderate')")
     public ResponseEntity<ApiResponse<PageResponse<ReviewResponse>>> getDashboardReviews(
             @RequestParam(required = false) String productSlug,
+            @RequestParam(required = false) String search,
             @RequestParam(required = false) Boolean isApproved,
             @RequestParam(required = false) Boolean isVerified,
             @RequestParam(required = false) Integer minRating,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdFrom,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdTo,
             @Valid
             @ModelAttribute BaseFilterRequest filter) {
         return ResponseEntity.ok(
                 ApiResponse.success(
                         reviewService.getDashboardReviews(
-                                productSlug, isApproved, isVerified, minRating, filter),
+                                productSlug, search, isApproved, isVerified, minRating,
+                                createdFrom, createdTo, filter),
                         "Dashboard reviews retrieved"));
+    }
+
+
+    @GetMapping("/dashboard/reviews/stats")
+    @PreAuthorize("hasAuthority('review:moderate')")
+    public ResponseEntity<ApiResponse<ReviewStatsResponse>> getReviewStats() {
+        return ResponseEntity.ok(
+                ApiResponse.success(reviewService.getReviewStats(), "Review statistics retrieved"));
     }
 
     @GetMapping("/dashboard/reviews/{id}")
@@ -99,6 +118,18 @@ public class ReviewController {
                 ApiResponse.success(
                         reviewService.getDashboardById(id),
                         "Review retrieved"));
+    }
+
+
+    @PatchMapping("/dashboard/reviews/approval")
+    @PreAuthorize("hasAuthority('review:moderate')")
+    public ResponseEntity<ApiResponse<BulkApprovalResponse>> bulkApproval(
+            @Valid @RequestBody BulkApprovalRequest request) {
+        int updated = reviewService.setApprovalBulk(request.getIds(), request.isApproved());
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        BulkApprovalResponse.builder().updated(updated).build(),
+                        updated == 1 ? "1 review updated" : updated + " reviews updated"));
     }
 
     @PatchMapping("/dashboard/reviews/{id}/approval")

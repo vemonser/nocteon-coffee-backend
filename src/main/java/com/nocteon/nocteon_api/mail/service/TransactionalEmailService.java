@@ -28,6 +28,7 @@ public class TransactionalEmailService  {
     private final BrevoClient brevoClient;
     private final EmailRetryPolicy retryPolicy;
     private final EmailTemplateDataResolver templateDataResolver;
+    private final ContactReplyEmailRenderer contactReplyEmailRenderer;
 
     @Transactional
     public void enqueueEmail(String idempotencyKey, EmailType type, String recipient,
@@ -70,10 +71,21 @@ public class TransactionalEmailService  {
 
     private void attemptSend(EmailLog logEntry, Map<String, Object> templateParams) {
         try {
-            String messageId = brevoClient.sendTransactionalEmail(
-                    logEntry.getRecipientEmail(),
-                    logEntry.getEmailType(),
-                    templateParams);
+            String messageId;
+            if (logEntry.getEmailType() == EmailType.CONTACT_REPLY) {
+                // The body of a reply lives in this repository, not in a
+                // provider-side template, so it is rendered here and sent as
+                // raw content.
+                messageId = brevoClient.sendRawTransactionalEmail(
+                        logEntry.getRecipientEmail(),
+                        contactReplyEmailRenderer.subject(templateParams),
+                        contactReplyEmailRenderer.render(templateParams));
+            } else {
+                messageId = brevoClient.sendTransactionalEmail(
+                        logEntry.getRecipientEmail(),
+                        logEntry.getEmailType(),
+                        templateParams);
+            }
 
             logEntry.setStatus(EmailStatus.SENT);
             logEntry.setProviderMessageId(messageId);
@@ -103,4 +115,47 @@ public class TransactionalEmailService  {
         return s.length() > max ? s.substring(0, max) : s;
     }
 
+
+    /**
+     * Enqueue an email, or re-send one that was already queued.
+     *
+     * <p>ONE row per key: the row is reset to PENDING, the attempt counter
+     * is zeroed, and the send is attempted immediately. A second reply to the
+     * same message therefore re-sends the CURRENT answer instead of queueing
+     * a second copy of an older one.
+     *
+     * <p>The attempt is INLINE, so the caller learns right away whether the
+     * provider accepted the message. When it did not, the row stays FAILED
+     * with the error recorded, and the retry worker picks it up on the
+     * backoff schedule.
+     *
+     * @return the status the row ended in
+     */
+    @Transactional
+    public EmailStatus enqueueOrResendEmail(String idempotencyKey, EmailType type,
+            String recipient, String relatedEntityType, Long relatedEntityId) {
+        EmailLog logEntry = emailLogRepository.findByIdempotencyKey(idempotencyKey)
+                .orElseGet(EmailLog::new);
+
+        logEntry.setIdempotencyKey(idempotencyKey);
+        logEntry.setEmailType(type);
+        logEntry.setRecipientEmail(recipient);
+        logEntry.setRelatedEntityType(relatedEntityType);
+        logEntry.setRelatedEntityId(relatedEntityId);
+        logEntry.setStatus(EmailStatus.PENDING);
+        logEntry.setAttemptCount(0);
+        logEntry.setLastError(null);
+        logEntry.setSentAt(null);
+
+        try {
+            emailLogRepository.saveAndFlush(logEntry);
+        } catch (DataIntegrityViolationException e) {
+            log.info("Race condition caught for key {}", idempotencyKey);
+            return EmailStatus.PENDING;
+        }
+
+        Map<String, Object> resolvedParams = templateDataResolver.resolve(type, relatedEntityId);
+        attemptSend(logEntry, resolvedParams);
+        return logEntry.getStatus();
+    }
 }

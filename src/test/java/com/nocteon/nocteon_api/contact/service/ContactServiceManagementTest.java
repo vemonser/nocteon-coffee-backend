@@ -8,6 +8,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+
+import com.nocteon.nocteon_api.mail.repository.EmailLogRepository;
+import com.nocteon.nocteon_api.mail.service.TransactionalEmailService;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -35,6 +38,12 @@ class ContactServiceManagementTest {
 
     @Mock
     private ContactMessageRepository contactMessageRepository;
+
+    @Mock
+    private TransactionalEmailService transactionalEmailService;
+
+    @Mock
+    private EmailLogRepository emailLogRepository;
 
     @InjectMocks
     private ContactService contactService;

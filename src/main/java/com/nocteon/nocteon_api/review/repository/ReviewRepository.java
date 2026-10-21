@@ -1,5 +1,7 @@
 package com.nocteon.nocteon_api.review.repository;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -39,19 +41,27 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
                             SELECT r
                             FROM Review r
                             LEFT JOIN r.product p
-                            WHERE r.deletedAt IS NULL
-                            AND (:productSlug IS NULL OR
-                            LOWER(p.slug) LIKE LOWER(CONCAT('%', :productSlug, '%')))
-                              AND (:isApproved IS NULL OR r.isApproved = :isApproved)
-                              AND (:isVerified IS NULL OR r.isVerified = :isVerified)
-                              AND (:minRating IS NULL OR r.rating >= :minRating)
+                            LEFT JOIN r.user u
+                            WHERE (COALESCE(:productSlug, '') = '' OR
+                            LOWER(p.slug) = LOWER(:productSlug))
+                              AND (COALESCE(:search, '') = '' OR
+                            LOWER(CONCAT(COALESCE(r.comment, ''), ' ', COALESCE(u.username, '')))
+                            LIKE LOWER(CONCAT('%', :search, '%')))
+                              AND r.isApproved = COALESCE(:isApproved, r.isApproved)
+                              AND r.isVerified = COALESCE(:isVerified, r.isVerified)
+                              AND r.rating >= COALESCE(:minRating, r.rating)
+                              AND r.createdAt >= COALESCE(:createdFrom, r.createdAt)
+                              AND r.createdAt <= COALESCE(:createdTo, r.createdAt)
                             ORDER BY r.createdAt DESC
                         """)
         Page<Review> findAllDashboard(
                         @Param("productSlug") String productSlug,
+                        @Param("search") String search,
                         @Param("isApproved") Boolean isApproved,
                         @Param("isVerified") Boolean isVerified,
                         @Param("minRating") Integer minRating,
+                        @Param("createdFrom") Instant createdFrom,
+                        @Param("createdTo") Instant createdTo,
                         Pageable pageable);
 
         /**
@@ -92,6 +102,19 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
         boolean hasUserPurchasedProduct(
                         @Param("userId") Long userId,
                         @Param("productSlug") String productSlug);
+
+        long countByIsApprovedTrue();
+
+        /**
+         * The average over APPROVED reviews only — a pending review must not
+         * move the number the storefront shows.
+         */
+        @Query("SELECT AVG(r.rating) FROM Review r WHERE r.isApproved = true")
+        Double averageApprovedRating();
+
+        /** The star histogram, as (rating, count) pairs. */
+        @Query("SELECT r.rating, COUNT(r) FROM Review r GROUP BY r.rating")
+        List<Object[]> countByRating();
 
         Long countByIsApprovedFalse();
 
