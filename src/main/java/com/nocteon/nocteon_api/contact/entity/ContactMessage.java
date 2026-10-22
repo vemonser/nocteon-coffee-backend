@@ -4,6 +4,8 @@ import com.nocteon.nocteon_api.common.entity.BaseEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -43,4 +45,9 @@ public class ContactMessage extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String replyContent;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    @Builder.Default
+    private ContactStatus status = ContactStatus.NEW;
 }

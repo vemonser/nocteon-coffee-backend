@@ -42,19 +42,28 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
                             SELECT r
                             FROM Review r
                             LEFT JOIN r.product p
+                            LEFT JOIN r.user u
                             WHERE r.deletedAt IS NULL
-                            AND (:productSlug IS NULL OR
-                            LOWER(p.slug) LIKE LOWER(CONCAT('%', :productSlug, '%')))
+                            AND (:productSlug IS NULL OR LOWER(p.slug) = LOWER(:productSlug))
+                            AND (:search IS NULL OR
+                                LOWER(p.slug) LIKE LOWER(CONCAT('%', :search, '%'))
+                                OR LOWER(u.username) LIKE LOWER(CONCAT('%', :search, '%'))
+                                OR LOWER(r.comment) LIKE LOWER(CONCAT('%', :search, '%')))
                               AND (:status IS NULL OR r.status = :status)
                               AND (:isVerified IS NULL OR r.isVerified = :isVerified)
                               AND (:minRating IS NULL OR r.rating >= :minRating)
+                              AND (:createdFrom IS NULL OR r.createdAt >= :createdFrom)
+                              AND (:createdTo IS NULL OR r.createdAt <= :createdTo)
                             ORDER BY r.createdAt DESC
                         """)
         Page<Review> findAllDashboard(
                         @Param("productSlug") String productSlug,
+                        @Param("search") String search,
                         @Param("status") ReviewStatus status,
                         @Param("isVerified") Boolean isVerified,
                         @Param("minRating") Integer minRating,
+                        @Param("createdFrom") java.time.Instant createdFrom,
+                        @Param("createdTo") java.time.Instant createdTo,
                         Pageable pageable);
 
         /**

@@ -187,6 +187,14 @@ public class OrderService {
 
                 cartItemRepository.deleteByCartId(cart.getId());
 
+                // Mark the cart as converted and link it to the new order.
+                // The cart row is preserved (not deleted) so staff can trace
+                // the checkout history from the carts dashboard.
+                cart.setStatus("CONVERTED");
+                cart.setConvertedOrderId(order.getId());
+                cart.setLastActivityAt(java.time.Instant.now());
+                cartRepository.save(cart);
+
                 final Order savedOrder = order;
                 final BigDecimal finalTotal = total;
                 TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {

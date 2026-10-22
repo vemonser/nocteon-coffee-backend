@@ -54,4 +54,10 @@ public class MailProperties {
      * retry of FAILED transactional emails only.
      */
     private boolean retryEnabled;
+
+    /**
+     * Hours of inactivity before a cart is considered abandoned. Default 24h.
+     * Used by both the dashboard status calculation and the abandoned-cart mail job.
+     */
+    private int abandonedCartHours = 24;
 }

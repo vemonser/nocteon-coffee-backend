@@ -222,6 +222,9 @@ nocteon:
     # Off by default: enabling it starts sending abandoned-cart reminders and retrying
     # Brevo sends, so it must be a deliberate per-environment decision.
     scheduling-enabled: ${MAIL_SCHEDULING_ENABLED:false}
+    # Hours of inactivity before a cart is considered abandoned. Default 24h.
+    # Used by both the dashboard status calculation and the abandoned-cart mail job.
+    abandoned-cart-hours: ${ABANDONED_CART_HOURS:24}
 
 application:
   paymob:

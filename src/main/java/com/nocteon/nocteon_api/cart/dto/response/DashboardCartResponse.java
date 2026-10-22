@@ -16,9 +16,20 @@ public class DashboardCartResponse {
     private Long userId;
     private String userEmail;
     private String userFullName;
+    private String avatarUrl;
     private List<DashboardCartItemResponse> items;
     private BigDecimal total;
     private int itemCount;
+    private int totalUnits;
     private Instant createdAt;
     private Instant updatedAt;
+    private Instant lastActivityAt;
+    private Instant lastRemindedAt;
+    private String status;
+    private Long convertedOrderId;
+    private BigDecimal estimatedShipping;
+    private boolean qualifiesForFreeShipping;
+    private BigDecimal freeShippingThreshold;
+    private String currency;
+    private boolean hasItems;
 }

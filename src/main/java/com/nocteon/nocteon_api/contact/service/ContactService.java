@@ -22,7 +22,9 @@ import com.nocteon.nocteon_api.common.exception.invalid.InvalidContactReplyExcep
 import com.nocteon.nocteon_api.common.exception.notFound.ContactMessageNotFoundException;
 import com.nocteon.nocteon_api.contact.dto.request.ContactRequest;
 import com.nocteon.nocteon_api.contact.dto.response.ContactResponse;
+import com.nocteon.nocteon_api.contact.dto.response.ContactStatsResponse;
 import com.nocteon.nocteon_api.contact.entity.ContactMessage;
+import com.nocteon.nocteon_api.contact.entity.ContactStatus;
 import com.nocteon.nocteon_api.contact.repository.ContactMessageRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -130,6 +132,34 @@ public class ContactService {
         contactMessageRepository.delete(message);
     }
 
+    @Transactional
+    public ContactResponse archive(Long id) {
+        ContactMessage message = contactMessageRepository.findById(id)
+                .orElseThrow(() -> new ContactMessageNotFoundException());
+        message.setStatus(ContactStatus.ARCHIVED);
+        return buildResponse(contactMessageRepository.save(message));
+    }
+
+    public ContactStatsResponse getStats() {
+        long total = contactMessageRepository.count();
+        long newCount = contactMessageRepository.countByStatus(ContactStatus.NEW);
+        long repliedCount = contactMessageRepository.countByStatus(ContactStatus.REPLIED);
+        long archivedCount = contactMessageRepository.countByStatus(ContactStatus.ARCHIVED);
+        long unreadCount = contactMessageRepository.countByIsReadFalse();
+        return ContactStatsResponse.builder()
+                .total(total)
+                .newCount(newCount)
+                .repliedCount(repliedCount)
+                .archivedCount(archivedCount)
+                .unreadCount(unreadCount)
+                .build();
+    }
+
+    public PageResponse<ContactResponse> getAllByStatus(ContactStatus status, BaseFilterRequest filter) {
+        Page<ContactMessage> page = contactMessageRepository.findByStatus(status, filter.toPageable());
+        return buildPage(page);
+    }
+
     public PageResponse<ContactResponse> getAllUnread(BaseFilterRequest filter) {
         Page<ContactMessage> page = contactMessageRepository.findByIsReadFalse(filter.toPageable());
         return buildPage(page);
@@ -150,6 +180,7 @@ public class ContactService {
                 .isReplied(message.isReplied())
                 .replyContent(message.getReplyContent())
                 .emailStatus(status == null ? "NONE" : status.name())
+                .status(message.getStatus().name())
                 .createdAt(message.getCreatedAt())
                 .build();
     }

@@ -25,5 +25,10 @@ public class DashboardCartItemResponse {
     private List<ProductOptionValueSummary> optionValues;
     private int quantity;
     private int stockQuantity;
+    private int availableStock;
     private BigDecimal subtotal;
+    private boolean productIsActive;
+    private boolean variantIsActive;
+    private boolean outOfStock;
+    private boolean lowStock;
 }

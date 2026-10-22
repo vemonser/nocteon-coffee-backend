@@ -22,6 +22,8 @@ import com.nocteon.nocteon_api.common.exception.RateLimitExceededException;
 import com.nocteon.nocteon_api.common.ratelimit.RateLimiterService;
 import com.nocteon.nocteon_api.contact.dto.request.ContactRequest;
 import com.nocteon.nocteon_api.contact.dto.response.ContactResponse;
+import com.nocteon.nocteon_api.contact.dto.response.ContactStatsResponse;
+import com.nocteon.nocteon_api.contact.entity.ContactStatus;
 import com.nocteon.nocteon_api.contact.service.ContactService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -50,6 +52,12 @@ public class ContactController {
                 .body(ApiResponse.success(response, "Message sent successfully"));
     }
 
+    @GetMapping("/dashboard/contact-messages/stats/summary")
+    @PreAuthorize("hasAuthority('contact:read')")
+    public ResponseEntity<ApiResponse<ContactStatsResponse>> getStats() {
+        return ResponseEntity.ok(ApiResponse.success(contactService.getStats(), "Contact stats retrieved"));
+    }
+
     @GetMapping("/dashboard/contact-messages")
     @PreAuthorize("hasAuthority('contact:read')")
     public ResponseEntity<ApiResponse<PageResponse<ContactResponse>>> getAll(
@@ -64,6 +72,15 @@ public class ContactController {
             @Valid
             @ModelAttribute BaseFilterRequest filter) {
         return ResponseEntity.ok(ApiResponse.success(contactService.getAllUnread(filter), "Unread messages retrieved"));
+    }
+
+    @GetMapping("/dashboard/contact-messages/status/{status}")
+    @PreAuthorize("hasAuthority('contact:read')")
+    public ResponseEntity<ApiResponse<PageResponse<ContactResponse>>> getByStatus(
+            @PathVariable ContactStatus status,
+            @Valid
+            @ModelAttribute BaseFilterRequest filter) {
+        return ResponseEntity.ok(ApiResponse.success(contactService.getAllByStatus(status, filter), "Contact messages retrieved"));
     }
 
     @GetMapping("/dashboard/contact-messages/{id}")
@@ -99,6 +116,12 @@ public class ContactController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         contactService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/dashboard/contact-messages/{id}/archive")
+    @PreAuthorize("hasAuthority('contact:update')")
+    public ResponseEntity<ApiResponse<ContactResponse>> archive(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(contactService.archive(id), "Message archived"));
     }
 
     // ── Inner DTO for reply request ─────────────────────────────────────────────

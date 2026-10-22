@@ -46,4 +46,24 @@ public class Cart extends BaseEntity {
     @Column(name = "last_reminded_at")
     private Instant lastRemindedAt;
 
+    /**
+     * Lifecycle state of the cart. Updated by CartService on mutations and by
+     * OrderService when an order is created from the cart.
+     */
+    @Column(name = "status", nullable = false, length = 20)
+    private String status = "ACTIVE";
+
+    /**
+     * Last time any item was added/updated/removed in this cart.
+     * Updated by CartService on every mutation.
+     */
+    @Column(name = "last_activity_at")
+    private Instant lastActivityAt;
+
+    /**
+     * If this cart was converted to an order, the order's id.
+     * Set by OrderService when creating an order.
+     */
+    @Column(name = "converted_order_id")
+    private Long convertedOrderId;
 }

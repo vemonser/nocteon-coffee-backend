@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.nocteon.nocteon_api.review.dto.response.ReviewStatsResponse;
+import com.nocteon.nocteon_api.review.entity.ReviewStatus;
 import com.nocteon.nocteon_api.review.repository.ReviewRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,11 +26,11 @@ class ReviewStatsServiceTest {
 
     @Test
     void theDistributionCoversEveryStarFromOneToFive() {
-        when(reviewRepository.count()).thenReturn(15L);
-        when(reviewRepository.countByIsApprovedFalse()).thenReturn(2L);
-        when(reviewRepository.countByIsApprovedTrue()).thenReturn(13L);
-        when(reviewRepository.averageApprovedRating()).thenReturn(4.1);
-        when(reviewRepository.countByRating())
+        when(reviewRepository.countByDeletedAtIsNull()).thenReturn(15L);
+        when(reviewRepository.countByDeletedAtIsNullAndStatus(ReviewStatus.PENDING)).thenReturn(2L);
+        when(reviewRepository.countByDeletedAtIsNullAndStatus(ReviewStatus.APPROVED)).thenReturn(13L);
+        when(reviewRepository.findAverageRatingApproved()).thenReturn(4.1);
+        when(reviewRepository.findRatingDistribution())
                 .thenReturn(List.of(new Object[] { 5, 8L }, new Object[] { 4, 4L }, new Object[] { 3, 2L }));
 
         ReviewStatsResponse stats = reviewService.getReviewStats();

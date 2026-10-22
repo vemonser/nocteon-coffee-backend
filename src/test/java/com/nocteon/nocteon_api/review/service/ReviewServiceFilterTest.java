@@ -20,6 +20,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
 import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
+import com.nocteon.nocteon_api.review.entity.ReviewStatus;
 import com.nocteon.nocteon_api.review.repository.ReviewRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,7 +49,7 @@ class ReviewServiceFilterTest {
         ArgumentCaptor<Instant> createdFrom = ArgumentCaptor.forClass(Instant.class);
         ArgumentCaptor<Instant> createdTo = ArgumentCaptor.forClass(Instant.class);
         verify(reviewRepository).findAllDashboard(
-                product.capture(), search.capture(), eq(Boolean.FALSE), eq(Boolean.TRUE), eq(3),
+                product.capture(), search.capture(), eq(ReviewStatus.PENDING), eq(Boolean.TRUE), eq(3),
                 createdFrom.capture(), createdTo.capture(), any(Pageable.class));
 
         assertThat(product.getValue()).isEqualTo("brazil-mogiana");
