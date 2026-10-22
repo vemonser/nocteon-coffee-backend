@@ -4,6 +4,8 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.Instant;
+
 /**
  * The shipment of an order.
  *
@@ -22,4 +24,6 @@ public class UpdateShipmentRequest {
 
         @Size(max = 500, message = "{validation.trackingUrl.size}")
         private String trackingUrl;
+
+        private Instant estimatedDeliveryAt;
 }

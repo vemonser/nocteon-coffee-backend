@@ -107,6 +107,9 @@ public class Order extends SoftDeletableEntity {
     @Column(name = "delivered_at")
     private Instant deliveredAt;
 
+    @Column(name = "estimated_delivery_at")
+    private Instant estimatedDeliveryAt;
+
     // ─── The cancellation ───────────────────────────────────────────────────
     // Why the order was cancelled. The order page shows it on the destructive
     // branch of the tracker, and it is the answer to "why did we cancel?".

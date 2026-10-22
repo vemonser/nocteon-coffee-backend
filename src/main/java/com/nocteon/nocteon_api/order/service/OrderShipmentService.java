@@ -39,6 +39,9 @@ public class OrderShipmentService {
                 if (request.getTrackingUrl() != null) {
                         order.setTrackingUrl(blankToNull(request.getTrackingUrl()));
                 }
+                if (request.getEstimatedDeliveryAt() != null) {
+                        order.setEstimatedDeliveryAt(request.getEstimatedDeliveryAt());
+                }
                 orderRepository.save(order);
 
                 return toResponse(order);
@@ -63,6 +66,7 @@ public class OrderShipmentService {
                                 .trackingUrl(order.getTrackingUrl())
                                 .shippedAt(order.getShippedAt())
                                 .deliveredAt(order.getDeliveredAt())
+                                .estimatedDeliveryAt(order.getEstimatedDeliveryAt())
                                 .build();
         }
 }

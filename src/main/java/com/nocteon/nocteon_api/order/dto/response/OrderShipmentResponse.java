@@ -27,4 +27,6 @@ public class OrderShipmentResponse {
         private Instant shippedAt;
 
         private Instant deliveredAt;
+
+        private Instant estimatedDeliveryAt;
 }
