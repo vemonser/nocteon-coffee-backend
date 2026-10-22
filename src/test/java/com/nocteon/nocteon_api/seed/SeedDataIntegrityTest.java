@@ -72,12 +72,22 @@ class SeedDataIntegrityTest {
     void theReviewCountsAreUnchanged() {
         Integer total = jdbcTemplate.queryForObject(
                 "select count(*) from reviews where deleted_at is null", Integer.class);
+        Integer approved = jdbcTemplate.queryForObject(
+                "select count(*) from reviews where deleted_at is null and status = 'APPROVED'",
+                Integer.class);
         Integer pending = jdbcTemplate.queryForObject(
-                "select count(*) from reviews where deleted_at is null and is_approved = false",
+                "select count(*) from reviews where deleted_at is null and status = 'PENDING'",
+                Integer.class);
+        Integer rejected = jdbcTemplate.queryForObject(
+                "select count(*) from reviews where deleted_at is null and status = 'REJECTED'",
                 Integer.class);
 
-        assertThat(total).isEqualTo(15);
+        // The SEED is the truth: 17 reviews, 15 of them approved and 2 still
+        // waiting for a moderator.
+        assertThat(total).isEqualTo(17);
+        assertThat(approved).isEqualTo(15);
         assertThat(pending).isEqualTo(2);
+        assertThat(rejected).isZero();
     }
 
     /**

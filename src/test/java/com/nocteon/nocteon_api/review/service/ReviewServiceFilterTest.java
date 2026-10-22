@@ -53,16 +53,25 @@ class ReviewServiceFilterTest {
                 createdFrom.capture(), createdTo.capture(), any(Pageable.class));
 
         assertThat(product.getValue()).isEqualTo("brazil-mogiana");
-        assertThat(search.getValue()).isEqualTo("excellent");
+        // The search arrives as a READY-MADE PATTERN: the repository compares
+        // it with LOWER(column) LIKE :search, and the pattern is NOT wrapped
+        // in LOWER() — that would make PostgreSQL infer the parameter's type
+        // as bytea, which has no lower().
+        assertThat(search.getValue()).isEqualTo("%excellent%");
         assertThat(createdFrom.getValue()).isEqualTo(from);
         assertThat(createdTo.getValue()).isEqualTo(to);
     }
 
     /**
-     * A null search must stay null all the way down. The repository query
+     * An absent search must stay null all the way down. The repository query
      * compares it against a value, and the binding guard fails the build on a
      * comparison without a null guard — so a blank string here would become a
      * build failure, not a subtle filter bug.
+     *
+     * <p>The DATE range is the opposite: an absent bound is a WIDE-OPEN one.
+     * A parameter that appears in an "is null" test has no type there, and
+     * PostgreSQL then cannot infer it ("could not determine data type of
+     * parameter").
      */
     @Test
     void anAbsentSearchStaysNull() {
@@ -73,8 +82,13 @@ class ReviewServiceFilterTest {
         reviewService.getDashboardReviews(
                 null, null, null, null, null, null, null, new BaseFilterRequest());
 
+        ArgumentCaptor<Instant> createdFrom = ArgumentCaptor.forClass(Instant.class);
+        ArgumentCaptor<Instant> createdTo = ArgumentCaptor.forClass(Instant.class);
         verify(reviewRepository).findAllDashboard(
-                isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                any(Pageable.class));
+                isNull(), isNull(), isNull(), isNull(), isNull(),
+                createdFrom.capture(), createdTo.capture(), any(Pageable.class));
+
+        assertThat(createdFrom.getValue()).isEqualTo(ReviewService.ANY_TIME_FROM);
+        assertThat(createdTo.getValue()).isEqualTo(ReviewService.ANY_TIME_TO);
     }
 }

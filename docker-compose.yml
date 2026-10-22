@@ -9,6 +9,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-nocteon_db}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    # 200 connections: the default 100 is not enough to run the app AND the
+    # test suite against the same database. Each Spring test context opens a
+    # pool of 10, and six contexts plus the running app exhaust 100.
+    command: ["postgres", "-c", "max_connections=200"]
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:

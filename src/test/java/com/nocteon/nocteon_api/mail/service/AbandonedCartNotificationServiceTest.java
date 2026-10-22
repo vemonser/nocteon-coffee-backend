@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -14,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.cart.entity.Cart;
 import com.nocteon.nocteon_api.cart.repository.CartRepository;
+import com.nocteon.nocteon_api.mail.config.MailProperties;
 import com.nocteon.nocteon_api.mail.enums.EmailType;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,8 +40,21 @@ class AbandonedCartNotificationServiceTest {
     @Mock
     private TransactionalEmailService transactionalEmailService;
 
+    /**
+     * The service reads the inactivity window from the mail properties, so
+     * the mock has to answer it: two hours, which is what the query test
+     * below pins.
+     */
+    @Mock
+    private MailProperties mailProperties;
+
     @InjectMocks
     private AbandonedCartNotificationService service;
+
+    @BeforeEach
+    void setUp() {
+        when(mailProperties.getAbandonedCartHours()).thenReturn(2);
+    }
 
     private static Cart abandonedCart(long id, String email) {
         return Cart.builder()
