@@ -12,6 +12,7 @@ import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.auth.enums.Role;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.broadcast.dto.request.CreateBroadcastRequest;
+import com.nocteon.nocteon_api.broadcast.dto.response.BroadcastRecipientResponse;
 import com.nocteon.nocteon_api.broadcast.dto.response.BroadcastResponse;
 import com.nocteon.nocteon_api.broadcast.entity.Broadcast;
 import com.nocteon.nocteon_api.broadcast.entity.BroadcastRecipient;
@@ -176,6 +177,36 @@ public class BroadcastCreationService {
         Broadcast broadcast = broadcastRepository.findById(id)
                 .orElseThrow(BroadcastNotFoundException::new);
         return buildResponse(broadcast);
+    }
+
+    /**
+     * The recipients of a broadcast, with their delivery status.
+     *
+     * <p>One row per recipient: the email, the status (SENT / FAILED /
+     * PENDING), the attempt count, and the last error when it failed. A
+     * broadcast that has not been sent yet has every recipient at PENDING.
+     */
+    @Transactional(readOnly = true)
+    public List<BroadcastRecipientResponse> getRecipients(Long id) {
+        Broadcast broadcast = broadcastRepository.findById(id)
+                .orElseThrow(BroadcastNotFoundException::new);
+        return recipientRepository.findByBroadcast(broadcast).stream()
+                .map(this::buildRecipientResponse)
+                .toList();
+    }
+
+    private BroadcastRecipientResponse buildRecipientResponse(BroadcastRecipient r) {
+        // The recipient's `updatedAt` IS the moment the send finished: it is
+        // written when the recipient is saved with SENT or FAILED, and never
+        // before. The broadcast page reads it as the delivery time.
+        return BroadcastRecipientResponse.builder()
+                .id(r.getId())
+                .email(r.getEmail())
+                .status(r.getStatus())
+                .attemptCount(r.getAttemptCount())
+                .lastError(r.getLastError())
+                .sentAt(r.getUpdatedAt())
+                .build();
     }
 
     @Transactional

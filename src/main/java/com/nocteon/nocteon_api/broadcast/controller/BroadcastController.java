@@ -12,7 +12,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.validation.annotation.Validated;
 
+import java.util.List;
+
 import com.nocteon.nocteon_api.broadcast.dto.request.CreateBroadcastRequest;
+import com.nocteon.nocteon_api.broadcast.dto.response.BroadcastRecipientResponse;
 import com.nocteon.nocteon_api.broadcast.dto.response.BroadcastResponse;
 import com.nocteon.nocteon_api.broadcast.service.BroadcastCreationService;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
@@ -48,6 +51,12 @@ public class BroadcastController {
     @PreAuthorize("hasAuthority('broadcast:read')")
     public ResponseEntity<ApiResponse<BroadcastResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(broadcastCreationService.getById(id), "Broadcast retrieved"));
+    }
+
+    @GetMapping("/api/dashboard/broadcasts/{id}/recipients")
+    @PreAuthorize("hasAuthority('broadcast:read')")
+    public ResponseEntity<ApiResponse<List<BroadcastRecipientResponse>>> getRecipients(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(broadcastCreationService.getRecipients(id), "Recipients retrieved"));
     }
 
     /**
