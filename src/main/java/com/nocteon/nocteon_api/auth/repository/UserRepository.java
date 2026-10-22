@@ -115,7 +115,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
            "(:role IS NULL OR u.role = :role) AND " +
            "(:isActive IS NULL OR u.isActive = :isActive) AND " +
            "(:enabled IS NULL OR u.enabled = :enabled) AND " +
-           "(LOWER(u.username) LIKE :search OR " +
+           "(:search IS NULL OR " +
+           " LOWER(u.username) LIKE :search OR " +
            " LOWER(u.email) LIKE :search OR " +
            " LOWER(p.firstName) LIKE :search OR " +
            " LOWER(p.lastName) LIKE :search)")
