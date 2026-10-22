@@ -25,4 +25,5 @@ public class ContactResponse {
     private Instant createdAt;
     /** NONE / PENDING / SENT / FAILED / DEAD — the recorded state of the reply email. */
     private String emailStatus;
+    private String status; // NEW / REPLIED / ARCHIVED
 }

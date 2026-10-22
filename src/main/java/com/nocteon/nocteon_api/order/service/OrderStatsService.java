@@ -1,5 +1,7 @@
 package com.nocteon.nocteon_api.order.service;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -8,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.nocteon.nocteon_api.order.dto.request.OrderFilterRequest;
 import com.nocteon.nocteon_api.order.dto.response.OrderStatsResponse;
 import com.nocteon.nocteon_api.order.repository.OrderRepository;
+import com.nocteon.nocteon_api.order.service.OrderQueryService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -30,32 +33,56 @@ public class OrderStatsService {
         @Transactional(readOnly = true)
         public OrderStatsResponse getStats(OrderFilterRequest filter) {
                 String search = normalise(filter.getSearch());
+                Instant dateFrom = OrderQueryService.startOfDay(filter.getDateFrom());
+                Instant dateTo = OrderQueryService.startOfDayAfter(filter.getDateTo());
 
                 List<Object[]> byStatus = orderRepository.countByStatusWithFilters(
                                 filter.getStatus(),
                                 filter.getPaymentStatus(),
                                 filter.getPaymentMethod(),
-                                OrderQueryService.startOfDay(filter.getDateFrom()),
-                                OrderQueryService.startOfDayAfter(filter.getDateTo()),
+                                dateFrom,
+                                dateTo,
                                 search);
 
                 List<Object[]> byPaymentStatus = orderRepository.countByPaymentStatusWithFilters(
                                 filter.getStatus(),
                                 filter.getPaymentStatus(),
                                 filter.getPaymentMethod(),
-                                OrderQueryService.startOfDay(filter.getDateFrom()),
-                                OrderQueryService.startOfDayAfter(filter.getDateTo()),
+                                dateFrom,
+                                dateTo,
                                 search);
 
                 List<Object[]> byPaymentMethod = orderRepository.countByPaymentMethodWithFilters(
                                 filter.getStatus(),
                                 filter.getPaymentStatus(),
                                 filter.getPaymentMethod(),
-                                OrderQueryService.startOfDay(filter.getDateFrom()),
-                                OrderQueryService.startOfDayAfter(filter.getDateTo()),
+                                dateFrom,
+                                dateTo,
                                 search);
 
                 long total = byStatus.stream().mapToLong(row -> ((Number) row[1]).longValue()).sum();
+
+                // Revenue: sum of PAID non-cancelled orders minus refunds
+                List<Object[]> revenueAgg = orderRepository.getRevenueAggregate(
+                                filter.getStatus(),
+                                filter.getPaymentStatus(),
+                                filter.getPaymentMethod(),
+                                dateFrom,
+                                dateTo,
+                                search);
+                BigDecimal gross = revenueAgg.isEmpty() ? BigDecimal.ZERO : (BigDecimal) revenueAgg.get(0)[0];
+                long revenueCount = revenueAgg.isEmpty() ? 0L : ((Number) revenueAgg.get(0)[1]).longValue();
+
+                BigDecimal refunded = orderRepository.getRefundedAggregate(
+                                filter.getStatus(),
+                                filter.getPaymentStatus(),
+                                filter.getPaymentMethod(),
+                                dateFrom,
+                                dateTo,
+                                search);
+                if (refunded == null) refunded = BigDecimal.ZERO;
+
+                BigDecimal revenue = gross.subtract(refunded);
 
                 return OrderStatsResponse.builder()
                                 .total(total)
@@ -77,6 +104,8 @@ public class OrderStatsService {
                                                                 .count(((Number) row[1]).longValue())
                                                                 .build())
                                                 .toList())
+                                .revenue(revenue)
+                                .revenueOrderCount(revenueCount)
                                 .build();
         }
 

@@ -237,10 +237,10 @@ public class ProductDocumentFactory {
     /** Brewing methods as {@code slug:score} pairs, sorted for a stable text projection. */
     private List<String> brewingLabels(List<ProductBrewingMethod> brewingMethods) {
         return brewingMethods.stream()
-                .filter(brewingMethod -> brewingMethod.getBrewingMethod() != null)
-                .filter(brewingMethod -> StringUtils.hasText(brewingMethod.getBrewingMethod().getSlug()))
-                .map(brewingMethod -> brewingMethod.getBrewingMethod().getSlug().trim()
-                        + ":" + brewingMethod.getScore())
+                .filter(bm -> bm.getBrewingMethod() != null)
+                .filter(bm -> StringUtils.hasText(bm.getBrewingMethod().getSlug()))
+                .map(bm -> bm.getBrewingMethod().getSlug().trim()
+                        + ":" + bm.getScore())
                 .sorted()
                 .toList();
     }

@@ -263,4 +263,77 @@ List<Order> searchOrders(@Param("query") String query, Pageable pageable);
                         @Param("dateFrom") Instant dateFrom,
                         @Param("dateTo") Instant dateTo,
                         @Param("search") String searchPattern);
+
+        /**
+         * The gross revenue (sum of totalAmount) and count of paid, non-cancelled orders
+         * matching the filter.
+         *
+         * <p>The predicate matches the row query exactly so the revenue and the rows
+         * describe the same set.
+         */
+        @Query("""
+                        SELECT COALESCE(SUM(o.totalAmount), 0), COUNT(o)
+                        FROM Order o
+                        JOIN o.user u
+                        LEFT JOIN o.address a
+                        LEFT JOIN u.profile p
+                        WHERE o.paymentStatus = 'PAID'
+                          AND o.status != 'CANCELLED'
+                          AND (:status IS NULL OR o.status = :status)
+                          AND (:paymentStatus IS NULL OR o.paymentStatus = :paymentStatus)
+                          AND (:paymentMethod IS NULL OR o.paymentMethod = :paymentMethod)
+                          AND o.createdAt >= :dateFrom
+                          AND o.createdAt < :dateTo
+                          AND (
+                                :search IS NULL
+                                OR LOWER(o.orderNumber) LIKE :search
+                                OR CAST(o.id AS string) LIKE :search
+                                OR LOWER(u.email) LIKE :search
+                                OR LOWER(p.firstName) LIKE :search
+                                OR LOWER(p.lastName) LIKE :search
+                                OR a.phone LIKE :search
+                              )
+                        """)
+        List<Object[]> getRevenueAggregate(
+                        @Param("status") OrderStatus status,
+                        @Param("paymentStatus") PaymentStatus paymentStatus,
+                        @Param("paymentMethod") PaymentMethod paymentMethod,
+                        @Param("dateFrom") Instant dateFrom,
+                        @Param("dateTo") Instant dateTo,
+                        @Param("search") String searchPattern);
+
+        /**
+         * The total refunded amount for paid, non-cancelled orders matching the filter.
+         */
+        @Query("""
+                        SELECT COALESCE(SUM(r.amount), 0)
+                        FROM OrderRefund r
+                        JOIN r.order o
+                        JOIN o.user u
+                        LEFT JOIN o.address a
+                        LEFT JOIN u.profile p
+                        WHERE o.paymentStatus = 'PAID'
+                          AND o.status != 'CANCELLED'
+                          AND (:status IS NULL OR o.status = :status)
+                          AND (:paymentStatus IS NULL OR o.paymentStatus = :paymentStatus)
+                          AND (:paymentMethod IS NULL OR o.paymentMethod = :paymentMethod)
+                          AND o.createdAt >= :dateFrom
+                          AND o.createdAt < :dateTo
+                          AND (
+                                :search IS NULL
+                                OR LOWER(o.orderNumber) LIKE :search
+                                OR CAST(o.id AS string) LIKE :search
+                                OR LOWER(u.email) LIKE :search
+                                OR LOWER(p.firstName) LIKE :search
+                                OR LOWER(p.lastName) LIKE :search
+                                OR a.phone LIKE :search
+                              )
+                        """)
+        BigDecimal getRefundedAggregate(
+                        @Param("status") OrderStatus status,
+                        @Param("paymentStatus") PaymentStatus paymentStatus,
+                        @Param("paymentMethod") PaymentMethod paymentMethod,
+                        @Param("dateFrom") Instant dateFrom,
+                        @Param("dateTo") Instant dateTo,
+                        @Param("search") String searchPattern);
 }

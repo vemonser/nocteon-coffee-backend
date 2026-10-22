@@ -84,6 +84,11 @@ public class CartService {
                                 .quantity(request.getQuantity())
                                 .build()));
 
+        // Update last_activity_at so the dashboard's "last activity" and
+        // abandoned-cart detection reflect real basket activity.
+        cart.setLastActivityAt(java.time.Instant.now());
+        cartRepository.save(cart);
+
         return buildResponse(cart);
     }
 
@@ -113,6 +118,9 @@ public class CartService {
             cartItemRepository.save(item);
         }
 
+        cart.setLastActivityAt(java.time.Instant.now());
+        cartRepository.save(cart);
+
         return buildResponse(cart);
     }
 
@@ -128,6 +136,10 @@ public class CartService {
         }
 
         cartItemRepository.delete(item);
+
+        cart.setLastActivityAt(java.time.Instant.now());
+        cartRepository.save(cart);
+
         return buildResponse(cart);
     }
 
@@ -135,6 +147,8 @@ public class CartService {
     public void clearCart(Long userId) {
         Cart cart = getOrCreateCart(userId);
         cartItemRepository.deleteByCartId(cart.getId());
+        cart.setLastActivityAt(java.time.Instant.now());
+        cartRepository.save(cart);
     }
 
     private Cart getOrCreateCart(Long userId) {

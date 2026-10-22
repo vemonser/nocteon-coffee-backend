@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.nocteon.nocteon_api.cart.entity.Cart;
 import com.nocteon.nocteon_api.cart.repository.CartRepository;
+import com.nocteon.nocteon_api.mail.config.MailProperties;
 import com.nocteon.nocteon_api.mail.enums.EmailType;
 
 import lombok.RequiredArgsConstructor;
@@ -46,9 +47,7 @@ public class AbandonedCartNotificationService {
 
     private final CartRepository cartRepository;
     private final TransactionalEmailService transactionalEmailService;
-
-    /** Carts untouched for this long are considered abandoned. */
-    static final Duration INACTIVITY_WINDOW = Duration.ofHours(2);
+    private final MailProperties mailProperties;
 
     /** A cart already reminded within this window is not reminded again. */
     static final Duration REMINDER_COOLDOWN = Duration.ofDays(3);
@@ -62,12 +61,14 @@ public class AbandonedCartNotificationService {
      */
     @Transactional
     public int notifyAbandonedCarts() {
-        Instant inactivityThreshold = Instant.now().minus(INACTIVITY_WINDOW);
+        Duration inactivityWindow = Duration.ofHours(mailProperties.getAbandonedCartHours());
+        Instant inactivityThreshold = Instant.now().minus(inactivityWindow);
         Instant reminderCooldown = Instant.now().minus(REMINDER_COOLDOWN);
 
         List<Cart> abandonedCarts = cartRepository.findAbandonedCarts(inactivityThreshold, reminderCooldown);
 
-        log.info("Found {} abandoned carts to notify", abandonedCarts.size());
+        log.info("Found {} abandoned carts to notify (inactivity window: {}h)", abandonedCarts.size(),
+                mailProperties.getAbandonedCartHours());
 
         for (Cart cart : abandonedCarts) {
             String idempotencyKey = "CART-" + cart.getId() + "-ABANDONED-" + LocalDate.now();

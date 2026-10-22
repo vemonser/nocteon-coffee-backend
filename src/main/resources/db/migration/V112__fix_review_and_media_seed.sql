@@ -1,5 +1,5 @@
 -- ============================================================
--- V111: Make the review seed coherent
+-- V112: Make the review seed coherent
 -- ============================================================
 -- The moderation console shows a check mark next to a reviewer's name
 -- when the purchase is CONFIRMED, and the dashboard links that mark to
@@ -128,4 +128,4 @@ WHERE url LIKE '%photo-1521302080334-4bebac2763a6%'
   AND EXISTS (SELECT 1 FROM products p WHERE p.id = product_media.product_id
               AND p.slug = 'colombia-huila');
 
--- End of V111
+-- End of V112

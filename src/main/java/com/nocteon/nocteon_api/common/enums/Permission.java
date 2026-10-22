@@ -147,8 +147,10 @@ public enum Permission {
     // DashboardCartService reads by id without an ownership check, so reusing it there let any
     // registered customer enumerate every other user's cart, including their email and full name.
     // CART_READ_ALL exists so that staff-wide cart visibility is an explicit, separate grant.
+    // CART_NOTIFY is for sending abandonment reminders on demand — staff-only action.
     CART_MANAGE("cart:manage"),
     CART_READ_ALL("cart:read_all"),
+    CART_NOTIFY("cart:notify"),
     WISHLIST_MANAGE("wishlist:manage"),
     AUDIT_READ("audit:read"),
 

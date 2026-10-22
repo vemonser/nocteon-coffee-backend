@@ -18,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.nocteon.nocteon_api.review.entity.Review;
+import com.nocteon.nocteon_api.review.entity.ReviewStatus;
 import com.nocteon.nocteon_api.review.repository.ReviewRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,8 +32,8 @@ class ReviewBulkApprovalTest {
 
     @Test
     void everyReviewInTheListIsApproved() {
-        when(reviewRepository.findById(1L)).thenReturn(Optional.of(Review.builder().isApproved(false).build()));
-        when(reviewRepository.findById(2L)).thenReturn(Optional.of(Review.builder().isApproved(false).build()));
+        when(reviewRepository.findById(1L)).thenReturn(Optional.of(Review.builder().status(ReviewStatus.PENDING).build()));
+        when(reviewRepository.findById(2L)).thenReturn(Optional.of(Review.builder().status(ReviewStatus.PENDING).build()));
         when(reviewRepository.save(any(Review.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -41,7 +42,7 @@ class ReviewBulkApprovalTest {
         assertThat(updated).isEqualTo(2);
         ArgumentCaptor<Review> saved = ArgumentCaptor.forClass(Review.class);
         verify(reviewRepository, times(2)).save(saved.capture());
-        assertThat(saved.getAllValues()).allMatch(Review::isApproved);
+        assertThat(saved.getAllValues()).allMatch(r -> r.getStatus() == ReviewStatus.APPROVED);
     }
 
     /**
@@ -51,7 +52,7 @@ class ReviewBulkApprovalTest {
      */
     @Test
     void aReviewThatNoLongerExistsIsSkippedAndNotCounted() {
-        when(reviewRepository.findById(1L)).thenReturn(Optional.of(Review.builder().isApproved(false).build()));
+        when(reviewRepository.findById(1L)).thenReturn(Optional.of(Review.builder().status(ReviewStatus.PENDING).build()));
         when(reviewRepository.findById(99L)).thenReturn(Optional.empty());
         when(reviewRepository.save(any(Review.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));

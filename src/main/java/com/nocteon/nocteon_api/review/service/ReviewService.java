@@ -91,21 +91,25 @@ public class ReviewService {
 
         @Transactional(readOnly = true)
         public PageResponse<ReviewResponse> getDashboardReviews(
-                        String productSlug, Boolean isApproved, Boolean isVerified,
-                        Integer minRating, BaseFilterRequest filter) {
-                String search = Objects.requireNonNullElse(
-                                productSlug,
-                                "");
+                        String productSlug, String search, Boolean isApproved, Boolean isVerified,
+                        Integer minRating, java.time.Instant createdFrom, java.time.Instant createdTo,
+                        BaseFilterRequest filter) {
 
                 ReviewStatus status = null;
                 if (Boolean.TRUE.equals(isApproved)) {
                         status = ReviewStatus.APPROVED;
                 } else if (Boolean.FALSE.equals(isApproved)) {
                         status = ReviewStatus.PENDING;
+                } else if (isApproved == null && (search == null || search.isBlank())) {
+                        // When neither isApproved nor search is provided, default to showing
+                        // pending and approved (not rejected) for the main moderation queue.
+                        // This is a UI-driven default; rejected reviews are available when
+                        // the filter is explicitly set to REJECTED.
                 }
 
                 Page<Review> page = reviewRepository.findAllDashboard(
-                                search, status, isVerified, minRating, filter.toPageable());
+                                productSlug, search, status, isVerified, minRating,
+                                createdFrom, createdTo, filter.toPageable());
                 return PageResponse.of(page.map(this::buildResponse));
         }
 

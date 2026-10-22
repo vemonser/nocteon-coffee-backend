@@ -35,6 +35,8 @@ public enum Role {
             // work, and this is the permission that grants it — CART_MANAGE alone is not enough,
             // because that one is deliberately shared with CUSTOMER for the storefront basket.
             Permission.CART_READ_ALL,
+            // Send abandonment reminders on demand
+            Permission.CART_NOTIFY,
             // Audit log access for moderators and admins
             Permission.AUDIT_READ
     )),

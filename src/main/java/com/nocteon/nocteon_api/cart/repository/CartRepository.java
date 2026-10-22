@@ -1,5 +1,6 @@
 package com.nocteon.nocteon_api.cart.repository;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -19,7 +20,7 @@ public interface CartRepository extends JpaRepository<Cart, Long> {
     @Query("""
                 SELECT c FROM Cart c
                 WHERE SIZE(c.items) > 0
-                AND c.updatedAt < :inactivityThreshold
+                AND c.lastActivityAt < :inactivityThreshold
                 AND (c.lastRemindedAt IS NULL OR c.lastRemindedAt < :reminderCooldown)
             """)
     List<Cart> findAbandonedCarts(
@@ -38,10 +39,28 @@ public interface CartRepository extends JpaRepository<Cart, Long> {
                 AND (:hasItems IS NULL
                     OR (:hasItems = true AND SIZE(c.items) > 0)
                     OR (:hasItems = false AND SIZE(c.items) = 0))
-                ORDER BY c.updatedAt DESC
+                AND (:status IS NULL OR c.status = :status)
+                AND (:from IS NULL OR c.lastActivityAt >= :from)
+                AND (:to IS NULL OR c.lastActivityAt <= :to)
             """)
     Page<Cart> findAllForDashboard(
             @Param("search") String search,
             @Param("hasItems") Boolean hasItems,
+            @Param("status") String status,
+            @Param("from") Instant from,
+            @Param("to") Instant to,
             Pageable pageable);
+
+    @Query("SELECT COUNT(c) FROM Cart c WHERE c.status = :status")
+    long countByStatus(@Param("status") String status);
+
+    @Query("""
+                SELECT COALESCE(SUM(pv.price * ci.quantity), 0)
+                FROM Cart c
+                JOIN c.items ci
+                JOIN ci.productVariant pv
+                WHERE c.status IN :statuses
+                AND pv.price IS NOT NULL
+            """)
+    BigDecimal sumSubtotalsByStatuses(@Param("statuses") List<String> statuses);
 }
