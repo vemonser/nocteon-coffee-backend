@@ -108,9 +108,49 @@ public class ReviewService {
                 }
 
                 Page<Review> page = reviewRepository.findAllDashboard(
-                                productSlug, search, status, isVerified, minRating,
-                                createdFrom, createdTo, filter.toPageable());
-                return PageResponse.of(page.map(this::buildResponse));
+                                productSlug, searchPattern(search), status, isVerified, minRating,
+                                from(createdFrom), to(createdTo), filter.toPageable());
+
+                // The order behind a verified review is attached HERE, so the
+                // check mark the dashboard shows next to the reviewer's name
+                // is a promise the link keeps. ONE query for the whole page.
+                Map<String, OrderRef> refs = loadOrderRefs(page.getContent());
+                return PageResponse.of(page.map(review -> buildResponse(review, refs)));
+        }
+
+        /**
+         * The search term as a ready-made LIKE pattern, lower-cased.
+         *
+         * <p>The repository compares it with LOWER(column) LIKE :search, so
+         * the pattern must already be lower-cased. Wrapping the pattern in
+         * LOWER() instead would make PostgreSQL infer the parameter's type
+         * as bytea — which has no lower(), and the query fails.
+         */
+        private static String searchPattern(String search) {
+                if (search == null || search.isBlank()) {
+                        return null;
+                }
+                return "%" + search.trim().toLowerCase() + "%";
+        }
+
+        /**
+         * The widest range the query accepts, used when the filter has no
+         * bound.
+         *
+         * <p>A parameter that appears in an "is null" test has no type there,
+         * and PostgreSQL then cannot infer the type of the parameter
+         * ("could not determine data type of parameter"). So the bounds are
+         * never null: an absent filter is a range that covers everything.
+         */
+        static final Instant ANY_TIME_FROM = Instant.parse("1970-01-01T00:00:00Z");
+        static final Instant ANY_TIME_TO = Instant.parse("2100-01-01T00:00:00Z");
+
+        private static Instant from(Instant bound) {
+                return bound == null ? ANY_TIME_FROM : bound;
+        }
+
+        private static Instant to(Instant bound) {
+                return bound == null ? ANY_TIME_TO : bound;
         }
 
 	@Transactional(readOnly = true)

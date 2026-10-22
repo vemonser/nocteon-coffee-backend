@@ -37,6 +37,16 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
          * this one is for admins and intentionally does NOT filter by
          * isApproved, so the dashboard can show pending + approved + filter
          * between them via the :status param (null = show both).
+         *
+         * <p>The search is a ready-made PATTERN ("%term%"), lower-cased by the
+         * caller: the columns are compared with LOWER(), and the pattern is
+         * not, because LOWER() around a concatenation makes PostgreSQL infer
+         * the parameter's type — and it picks bytea, which has no lower().
+         *
+         * <p>The date range is a pair of INSTANTS that are NEVER null: a
+         * parameter that appears in an "is null" test has no type there, and
+         * PostgreSQL then cannot infer it. An absent bound is a wide-open
+         * one (see ReviewService.ANY_TIME_FROM / ANY_TIME_TO).
          */
         @Query("""
                             SELECT r
@@ -44,16 +54,16 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
                             LEFT JOIN r.product p
                             LEFT JOIN r.user u
                             WHERE r.deletedAt IS NULL
-                            AND (:productSlug IS NULL OR LOWER(p.slug) = LOWER(:productSlug))
-                            AND (:search IS NULL OR
-                                LOWER(p.slug) LIKE LOWER(CONCAT('%', :search, '%'))
-                                OR LOWER(u.username) LIKE LOWER(CONCAT('%', :search, '%'))
-                                OR LOWER(r.comment) LIKE LOWER(CONCAT('%', :search, '%')))
+                            AND (CAST(:productSlug AS text) IS NULL OR LOWER(p.slug) = LOWER(CAST(:productSlug AS text)))
+                            AND (CAST(:search AS text) IS NULL OR
+                                LOWER(p.slug) LIKE CAST(:search AS text)
+                                OR LOWER(u.username) LIKE CAST(:search AS text)
+                                OR LOWER(r.comment) LIKE CAST(:search AS text))
                               AND (:status IS NULL OR r.status = :status)
                               AND (:isVerified IS NULL OR r.isVerified = :isVerified)
                               AND (:minRating IS NULL OR r.rating >= :minRating)
-                              AND (:createdFrom IS NULL OR r.createdAt >= :createdFrom)
-                              AND (:createdTo IS NULL OR r.createdAt <= :createdTo)
+                              AND r.createdAt >= :createdFrom
+                              AND r.createdAt <= :createdTo
                             ORDER BY r.createdAt DESC
                         """)
         Page<Review> findAllDashboard(

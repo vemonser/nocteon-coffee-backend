@@ -3,56 +3,19 @@
 -- ============================================================
 -- The moderation console shows a check mark next to a reviewer's name
 -- when the purchase is CONFIRMED, and the dashboard links that mark to
--- the order behind it. Three things in the seed made that a lie:
+-- the order behind it. Two things in the seed made that a lie:
 --
---   1. The seeded orders carried NO line items, so no review could
---      have a qualifying order at all.
---   2. Three of the fifteen reviews were written by user_id 1, the
---      ADMIN account — so the moderation queue showed a moderator
---      reviewing their own store's products.
---   3. Every review was marked verified, including the ones whose
---      buyer never bought the product.
+--   1. Three of the reviews were written by user_id 1, the ADMIN
+--      account — so the moderation queue showed a moderator reviewing
+--      their own store's products.
+--   2. Every review was marked verified, including the ones whose buyer
+--      never bought the product.
 --
--- Every count is unchanged: 15 reviews, 13 approved, 2 pending.
+-- The line items the check mark points at are the orders seed's business:
+-- they live in V107, next to the orders they belong to.
 
 -- ----------------------------------------------------------
--- 1. The order line items
--- ----------------------------------------------------------
--- The orders existed but had no items, so the dashboard's revenue
--- aggregations had nothing to aggregate and no review could point at
--- an order. The insert is guarded so it is safe in a database that
--- already has them.
-INSERT INTO order_items (order_id, product_variant_id, quantity, unit_price, total_price)
-SELECT * FROM (VALUES
-    (1,  1, 2,  650.00, 1300.00),
-    (1,  4, 1,  525.00,  525.00),
-    (2,  2, 1,  689.00,  689.00),
-    (2,  7, 2,  600.00, 1200.00),
-    (3,  3, 1, 1378.00, 1378.00),
-    (3, 10, 2,  450.00,  900.00),
-    (4,  5, 2,  556.50, 1113.00),
-    (4,  8, 1,  636.00,  636.00),
-    (5,  6, 1, 1113.00, 1113.00),
-    (5,  9, 2, 1272.00, 2544.00),
-    (8,  1, 1,  650.00,  650.00),
-    (8, 11, 2,  477.00,  954.00),
-    (11, 4, 1,  525.00,  525.00),
-    (11,12, 1,  954.00,  954.00),
-    (13, 7, 1,  600.00,  600.00),
-    (13, 8, 1,  636.00,  636.00),
-    (16, 2, 1,  689.00,  689.00),
-    (16, 5, 1,  556.50,  556.50),
-    (17, 3, 1, 1378.00, 1378.00),
-    (17, 9, 2, 1272.00, 2544.00)
-) AS items(order_id, product_variant_id, quantity, unit_price, total_price)
-WHERE NOT EXISTS (
-    SELECT 1 FROM order_items oi
-    WHERE oi.order_id = items.order_id
-      AND oi.product_variant_id = items.product_variant_id
-);
-
--- ----------------------------------------------------------
--- 2. The three admin-authored reviews
+-- 1. The three admin-authored reviews
 -- ----------------------------------------------------------
 -- They move to customer accounts that have no review for that
 -- product yet — the table has a UNIQUE (user_id, product_id)
@@ -67,7 +30,7 @@ UPDATE reviews SET user_id = 2 WHERE id = 6 AND user_id = 1;
 UPDATE reviews SET user_id = 7 WHERE id = 11 AND user_id = 1;
 
 -- ----------------------------------------------------------
--- 3. The verified flag
+-- 2. The verified flag
 -- ----------------------------------------------------------
 -- A review is verified when the purchase is confirmed. Where there
 -- is no qualifying order — nobody bought the Hario V60, for one —
@@ -87,7 +50,7 @@ WHERE r.is_verified = TRUE
   );
 
 -- ----------------------------------------------------------
--- 4. Brazil Mogiana's image
+-- 3. Brazil Mogiana's image
 -- ----------------------------------------------------------
 -- The primary image was a CONCERT photograph, with an alt text
 -- claiming it was a cup of coffee.

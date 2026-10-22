@@ -66,7 +66,7 @@ BEGIN
         SELECT id INTO o6 FROM orders WHERE order_number = 'ORD-2026-000006';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (1, 1, 'ORD-2026-000006', 'PENDING', 'PENDING', 'CASH_ON_DELIVERY', 50.00, 60.00, 0.00, 'Pending order 1', NOW(), NOW())
+        VALUES (1, 1, 'ORD-2026-000006', 'CANCELLED', 'FAILED', 'CASH_ON_DELIVERY', 50.00, 60.00, 0.00, 'Cancelled COD order 1', NOW(), NOW())
         RETURNING id INTO o6;
     END IF;
 
@@ -102,7 +102,7 @@ BEGIN
         SELECT id INTO o10 FROM orders WHERE order_number = 'ORD-2026-000010';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (4, 5, 'ORD-2026-000010', 'PENDING', 'PENDING', 'CASH_ON_DELIVERY', 50.00, 80.00, 0.00, 'Pending payment order 1', NOW(), NOW())
+        VALUES (4, 5, 'ORD-2026-000010', 'CANCELLED', 'FAILED', 'CASH_ON_DELIVERY', 50.00, 80.00, 0.00, 'Cancelled COD order 2', NOW(), NOW())
         RETURNING id INTO o10;
     END IF;
 
@@ -303,6 +303,86 @@ BEGIN
         (o16, 2, 2, 689.00, 1378.00),
         (o16, 5, 1, 556.50, 556.50),
         (o17, 3, 1, 1378.00, 1378.00),
-        (o17, 9, 1, 1272.00, 1272.00);
+        (o17, 9, 1, 1272.00, 1272.00),
+        -- ORD-9 is a DELIVERED, REFUNDED order: it has real items, so the
+        -- refund has something to be a refund OF.
+        (o9, 1, 1, 650.00, 650.00),
+        (o9, 2, 1, 689.00, 689.00);
 
 END $$;
+
+-- ─── 5. The totals the seed wrote by hand ───────────────────────────────────
+--
+-- The seed wrote `orders.total_amount` by hand, independently of the
+-- `order_items` rows it inserted in the same file, so every seeded order
+-- disagreed with its own items. The RUNTIME formula in
+-- `OrderService.createOrder` is the truth:
+--
+--     total = (sum of the line totals - discount) + shipping
+--
+-- so the stored total is recomputed with exactly that formula, and only for
+-- the rows that disagree. The seventeen seeded order numbers are listed
+-- EXPLICITLY on purpose: this is a data fix for the seed, not a rule for
+-- the store's real orders. An order the application creates later must keep
+-- the total it was given.
+--
+-- The orders with no items are repaired too: their total becomes the
+-- shipping, less the discount — which is what the formula says they cost.
+UPDATE orders o
+SET total_amount = (
+        SELECT COALESCE(SUM(oi.total_price), 0)
+                   - COALESCE(o.discount_amount, 0)
+                   + o.shipping_cost
+        FROM order_items oi
+        WHERE oi.order_id = o.id
+    )
+WHERE o.order_number IN (
+        'ORD-2026-000001', 'ORD-2026-000002', 'ORD-2026-000003',
+        'ORD-2026-000004', 'ORD-2026-000005', 'ORD-2026-000006',
+        'ORD-2026-000007', 'ORD-2026-000008', 'ORD-2026-000009',
+        'ORD-2026-000010', 'ORD-2026-000011', 'ORD-2026-000012',
+        'ORD-2026-000013', 'ORD-2026-000014', 'ORD-2026-000015',
+        'ORD-2026-000016', 'ORD-2026-000017'
+    )
+  AND o.total_amount <> (
+        SELECT COALESCE(SUM(oi.total_price), 0)
+                   - COALESCE(o.discount_amount, 0)
+                   + o.shipping_cost
+        FROM order_items oi
+        WHERE oi.order_id = o.id
+    );
+
+-- ─── 6. A cancelled cash-on-delivery order was never COLLECTED ─────────────
+--
+-- Money that was never collected cannot have failed: "FAILED" is a gateway
+-- verdict, and a cancelled COD order never reached one. The correct state
+-- is NOT_COLLECTED, and the order page says exactly that.
+UPDATE orders
+SET payment_status = 'NOT_COLLECTED'
+WHERE status = 'CANCELLED'
+  AND payment_method = 'CASH_ON_DELIVERY'
+  AND payment_status IN ('PENDING', 'FAILED');
+
+-- ─── 7. The payment facts of the paid orders ────────────────────────────────
+--
+-- The seed created the orders but no payment rows, so the order page had
+-- nothing to show: no paid-at time, no transaction reference, and a
+-- "marked paid but never paid at" warning on every paid order.
+--
+-- The rows live here, next to the orders they belong to, because a payment
+-- without its order is a row nobody can read.
+INSERT INTO payments (order_id, provider, provider_payment_id, amount, currency, status, payment_method, attempt_number, paid_at, created_at, updated_at)
+SELECT o.id, 'PAYMOB', 'PAYMOB-' || o.id, o.total_amount, 'EGP', 'PAID', 'ONLINE', 1, o.updated_at, o.created_at, o.updated_at
+FROM orders o
+WHERE o.payment_status = 'PAID'
+  AND o.payment_method = 'ONLINE'
+  AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.order_id = o.id);
+
+-- A cash-on-delivery order that was paid has no gateway: the cash was
+-- collected at the door, so the reference says exactly that.
+INSERT INTO payments (order_id, provider, provider_payment_id, amount, currency, status, payment_method, attempt_number, paid_at, created_at, updated_at)
+SELECT o.id, 'COD', 'COD', o.total_amount, 'EGP', 'PAID', 'CASH_ON_DELIVERY', 1, o.updated_at, o.created_at, o.updated_at
+FROM orders o
+WHERE o.payment_status = 'PAID'
+  AND o.payment_method = 'CASH_ON_DELIVERY'
+  AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.order_id = o.id);
