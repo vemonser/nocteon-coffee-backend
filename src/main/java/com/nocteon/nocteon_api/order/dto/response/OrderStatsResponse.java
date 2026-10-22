@@ -1,5 +1,6 @@
 package com.nocteon.nocteon_api.order.dto.response;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import lombok.Builder;
@@ -25,6 +26,12 @@ public class OrderStatsResponse {
         private List<PaymentStatusCount> byPaymentStatus;
 
         private List<PaymentMethodCount> byPaymentMethod;
+
+        /** The money the set brought in: the paid orders, less the refunds. */
+        private BigDecimal revenue;
+
+        /** How many orders the revenue was summed over. */
+        private long revenueOrderCount;
 
         @Getter
         @Setter
