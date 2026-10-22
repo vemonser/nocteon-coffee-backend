@@ -33,6 +33,7 @@ import com.nocteon.nocteon_api.common.exception.user.PasswordMismatchException;
 import com.nocteon.nocteon_api.common.exception.user.UsernameAlreadyExistsException;
 import com.nocteon.nocteon_api.common.util.PasswordValidator;
 import com.nocteon.nocteon_api.dashboard.dto.UserGrowthDto;
+import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -169,7 +170,7 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public PageResponse<UserResponse> getAllForAdmin(UserFilterRequest filter) {
-        String searchTerm = filter.getSearch() != null ? filter.getSearch() : "";
+        String searchTerm = SearchPatterns.like(filter.getSearch());
 
         Page<User> users = userRepository.findAllForAdmin(
                 filter.getRole(),

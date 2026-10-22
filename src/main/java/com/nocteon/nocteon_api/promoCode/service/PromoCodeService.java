@@ -42,6 +42,7 @@ import com.nocteon.nocteon_api.promoCode.exceptions.PromoCodeNotApplicableExcept
 import com.nocteon.nocteon_api.promoCode.exceptions.PromoCodeNotFoundException;
 import com.nocteon.nocteon_api.promoCode.repository.PromoCodeRedemptionRepository;
 import com.nocteon.nocteon_api.promoCode.repository.PromoCodeRepository;
+import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -165,7 +166,7 @@ public class PromoCodeService {
 
     @Transactional(readOnly = true)
     public PageResponse<PromoCodeResponse> getAllDeleted(LookupFilterRequest filter) {
-        String search = Objects.requireNonNullElse(filter.getSearch(), "");
+        String search = SearchPatterns.like(filter.getSearch());
         int pageNum = filter.getPage();
         int size = filter.getSize();
         String sort = filter.getSort();

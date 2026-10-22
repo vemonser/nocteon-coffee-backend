@@ -50,6 +50,17 @@ public class BroadcastController {
         return ResponseEntity.ok(ApiResponse.success(broadcastCreationService.getById(id), "Broadcast retrieved"));
     }
 
+    /**
+     * Re-send a broadcast that is still pending or that failed on some
+     * recipients. The broadcast is sent the same way it was the first time;
+     * recipients that already reached SENT are skipped.
+     */
+    @PostMapping("/api/dashboard/broadcasts/{id}/send")
+    @PreAuthorize("hasAuthority('broadcast:create')")
+    public ResponseEntity<ApiResponse<BroadcastResponse>> send(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(broadcastCreationService.send(id), "Broadcast sent"));
+    }
+
     @DeleteMapping("/api/dashboard/broadcasts/{id}")
     @PreAuthorize("hasAuthority('broadcast:delete')")
     public ResponseEntity<Void> delete(@PathVariable Long id) {

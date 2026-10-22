@@ -17,10 +17,10 @@ public interface PromoCodeRepository extends JpaRepository<PromoCode, Long> {
 
     @Query("""
                     SELECT pc FROM PromoCode pc
-                    WHERE LOWER(pc.code) LIKE LOWER(CONCAT('%', :query, '%'))
+                    WHERE LOWER(pc.code) LIKE :query
                     ORDER BY CASE
                             WHEN LOWER(pc.code) = LOWER(:query) THEN 0
-                            WHEN LOWER(pc.code) LIKE LOWER(CONCAT(:query, '%')) THEN 1
+                            WHEN LOWER(pc.code) LIKE :query THEN 1
                             ELSE 2
                         END,
                         LOWER(pc.code)
@@ -41,7 +41,7 @@ List<PromoCode> searchPromoCodes(@Param("query") String query, Pageable pageable
          * query's predicates exactly so the two cannot drift apart.
          */
         @Query("""
-                        SELECT COUNT(pc) FROM PromoCode pc WHERE LOWER(pc.code) LIKE LOWER(CONCAT('%', :query, '%'))
+                        SELECT COUNT(pc) FROM PromoCode pc WHERE LOWER(pc.code) LIKE :query
                         """)
         long countSearchPromoCodes(@Param("query") String query);
 
@@ -64,7 +64,7 @@ List<PromoCode> searchPromoCodes(@Param("query") String query, Pageable pageable
     @Query(value = "SELECT e.* FROM promo_codes e WHERE e.deleted_at IS NOT NULL", nativeQuery = true)
     List<PromoCode> findAllDeletedNative();
 
-    @Query(value = "SELECT e.* FROM promo_codes e WHERE e.deleted_at IS NOT NULL AND (LOWER(e.code) LIKE LOWER(CONCAT('%', :search, '%')))", nativeQuery = true)
+    @Query(value = "SELECT e.* FROM promo_codes e WHERE e.deleted_at IS NOT NULL AND (LOWER(e.code) LIKE :search)", nativeQuery = true)
     List<PromoCode> findDeletedBySearchNative(@Param("search") String search);
 
     @Query(value = "SELECT e.* FROM promo_codes e WHERE e.id = :id AND e.deleted_at IS NOT NULL", nativeQuery = true)

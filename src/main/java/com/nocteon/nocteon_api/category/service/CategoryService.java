@@ -33,6 +33,7 @@ import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.enums.MediaType;
 import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
+import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -173,9 +174,7 @@ public class CategoryService {
 
         public PageResponse<CategoryResponse> getAll(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
-                String search = Objects.requireNonNullElse(
-                                filter.getSearch(),
-                                "");
+                String search = SearchPatterns.like(filter.getSearch());
 
                 Page<Category> page = categoryRepository.findAllPublic(
                                 language,
@@ -188,9 +187,7 @@ public class CategoryService {
         public PageResponse<DashboardCategoryResponse> getAllDashboard(
                         LookupFilterRequest filter) {
 
-                String search = Objects.requireNonNullElse(
-                                filter.getSearch(),
-                                "");
+                String search = SearchPatterns.like(filter.getSearch());
 
                 Page<Category> page = categoryRepository.findAllDashboard(
                                 search,
@@ -268,7 +265,7 @@ public class CategoryService {
          * translations across two pages. See {@link SoftDeleteRowFolder}.
          */
         public PageResponse<DashboardCategoryResponse> getAllDeleted(LookupFilterRequest filter) {
-                String search = Objects.requireNonNullElse(filter.getSearch(), "");
+                String search = SearchPatterns.like(filter.getSearch());
                 int pageNum = filter.getPage();
                 int size = filter.getSize();
                 String sort = filter.getSort();

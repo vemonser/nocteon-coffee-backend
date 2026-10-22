@@ -32,16 +32,16 @@ public interface CartRepository extends JpaRepository<Cart, Long> {
                 LEFT JOIN FETCH c.user u
                 LEFT JOIN FETCH u.profile p
                 WHERE (:search IS NULL OR COALESCE(:search, '') = ''
-                    OR LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%'))
-                    OR LOWER(u.username) LIKE LOWER(CONCAT('%', :search, '%'))
-                    OR LOWER(p.firstName) LIKE LOWER(CONCAT('%', :search, '%'))
-                    OR LOWER(p.lastName) LIKE LOWER(CONCAT('%', :search, '%')))
+                    OR LOWER(u.email) LIKE :search
+                    OR LOWER(u.username) LIKE :search
+                    OR LOWER(p.firstName) LIKE :search
+                    OR LOWER(p.lastName) LIKE :search)
                 AND (:hasItems IS NULL
                     OR (:hasItems = true AND SIZE(c.items) > 0)
                     OR (:hasItems = false AND SIZE(c.items) = 0))
                 AND (:status IS NULL OR c.status = :status)
-                AND (:from IS NULL OR c.lastActivityAt >= :from)
-                AND (:to IS NULL OR c.lastActivityAt <= :to)
+                AND c.lastActivityAt >= :from
+                AND c.lastActivityAt <= :to
             """)
     Page<Cart> findAllForDashboard(
             @Param("search") String search,

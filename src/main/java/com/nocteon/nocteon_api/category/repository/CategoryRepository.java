@@ -34,15 +34,15 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
         @Query("""
                         SELECT c FROM Category c
                         JOIN c.translations t
-                        WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :query, '%'))
-                           OR LOWER(c.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        WHERE LOWER(t.name) LIKE :query
+                           OR LOWER(c.slug) LIKE :query
                         GROUP BY c.id, c.slug
                         ORDER BY MIN(CASE
                                 WHEN LOWER(c.slug) = LOWER(:query) THEN 0
                                 WHEN LOWER(t.name) = LOWER(:query) THEN 0
-                                WHEN LOWER(c.slug) LIKE LOWER(CONCAT(:query, '%')) THEN 1
-                                WHEN LOWER(t.name) LIKE LOWER(CONCAT(:query, '%')) THEN 1
-                                WHEN LOWER(t.name) LIKE LOWER(CONCAT('% ', :query, '%')) THEN 2
+                                WHEN LOWER(c.slug) LIKE :query THEN 1
+                                WHEN LOWER(t.name) LIKE :query THEN 1
+                                WHEN LOWER(t.name) LIKE :query THEN 2
                                 ELSE 3
                             END),
                             MIN(LOWER(c.slug))
@@ -57,7 +57,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
          * query's predicates exactly so the two cannot drift apart.
          */
         @Query("""
-                        SELECT COUNT(DISTINCT c) FROM Category c JOIN c.translations t WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(c.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        SELECT COUNT(DISTINCT c) FROM Category c JOIN c.translations t WHERE LOWER(t.name) LIKE :query OR LOWER(c.slug) LIKE :query
                         """)
         long countSearchCategories(@Param("query") String query);
 
@@ -68,7 +68,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
                WHERE t.language = :language
                AND c.isActive = true
                AND (COALESCE(:search, '') = ''
-                    OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                    OR LOWER(t.name) LIKE :search
                )
                """)
 
@@ -81,8 +81,8 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
                SELECT DISTINCT c FROM Category c
                LEFT JOIN c.translations t
                WHERE (COALESCE(:search, '') = ''
-                      OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
-                      OR LOWER(c.slug) LIKE LOWER(CONCAT('%', :search, '%'))
+                      OR LOWER(t.name) LIKE :search
+                      OR LOWER(c.slug) LIKE :search
                      )
                  AND (:isActive IS NULL
                       OR c.isActive = :isActive)
@@ -132,7 +132,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
         FROM categories c
         JOIN category_translations ct ON c.id = ct.category_id
         WHERE c.deleted_at IS NOT NULL
-        AND (LOWER(ct.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(c.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+        AND (COALESCE(:search, '') = '' OR LOWER(ct.name) LIKE :search OR LOWER(c.slug) LIKE :search)
         GROUP BY c.id, c.slug, c.image_url, c.is_active, c.created_at, ct.language, ct.name, ct.description, c.deleted_at
         ORDER BY c.created_at DESC, ct.language
         """, nativeQuery = true)

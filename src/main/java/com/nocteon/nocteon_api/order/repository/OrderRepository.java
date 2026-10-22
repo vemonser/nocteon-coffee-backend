@@ -24,7 +24,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                         SELECT o FROM Order o
                         JOIN o.user u
                         WHERE CAST(o.id AS string) LIKE CONCAT('%', :query, '%')
-                           OR LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%'))
+                           OR LOWER(u.email) LIKE :query
                         ORDER BY CASE
                                 WHEN CAST(o.id AS string) = :query THEN 0
                                 WHEN CAST(o.id AS string) LIKE CONCAT(:query, '%') THEN 1
@@ -50,7 +50,7 @@ List<Order> searchOrders(@Param("query") String query, Pageable pageable);
          * query's predicates exactly so the two cannot drift apart.
          */
         @Query("""
-                        SELECT COUNT(o) FROM Order o JOIN o.user u WHERE CAST(o.id AS string) LIKE CONCAT('%', :query, '%') OR LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%'))
+                        SELECT COUNT(o) FROM Order o JOIN o.user u WHERE CAST(o.id AS string) LIKE CONCAT('%', :query, '%') OR LOWER(u.email) LIKE :query
                         """)
         long countSearchOrders(@Param("query") String query);
 

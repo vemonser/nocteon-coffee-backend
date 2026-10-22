@@ -22,20 +22,29 @@ import com.nocteon.nocteon_api.broadcast.repository.BroadcastRecipientRepository
 import com.nocteon.nocteon_api.broadcast.repository.BroadcastRepository;
 import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.mail.entity.EmailLog;
+import com.nocteon.nocteon_api.mail.enums.EmailStatus;
+import com.nocteon.nocteon_api.mail.enums.EmailType;
+import com.nocteon.nocteon_api.mail.repository.EmailLogRepository;
+import com.nocteon.nocteon_api.mail.service.TransactionalEmailService;
 import com.nocteon.nocteon_api.newsletter.entity.NewsletterSubscriber;
 import com.nocteon.nocteon_api.newsletter.repository.NewsletterSubscriberRepository;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class BroadcastCreationService {
 
     private final BroadcastRepository broadcastRepository;
     private final BroadcastRecipientRepository recipientRepository;
     private final UserRepository userRepository;
     private final NewsletterSubscriberRepository subscriberRepository;
+    private final TransactionalEmailService transactionalEmailService;
+    private final EmailLogRepository emailLogRepository;
 
     @Transactional
     public BroadcastResponse createBroadcast(CreateBroadcastRequest request) {
@@ -58,7 +67,74 @@ public class BroadcastCreationService {
         recipients.forEach(recipient -> recipient.setBroadcast(broadcast));
         recipientRepository.saveAll(recipients);
 
+        // The broadcast is sent HERE, in the same request, so the admin sees
+        // the real result instead of a "pending" that never moves. Each
+        // recipient is its own send: a failure on one address does not stop
+        // the others, and the broadcast ends in the state the recipients
+        // actually reached.
+        send(broadcast, recipients);
+
         return buildResponse(broadcast);
+    }
+
+    /**
+     * Send the broadcast to every recipient that is still pending.
+     *
+     * <p>Each recipient is its own send: the recipient's status ends in
+     * SENT or FAILED, and the broadcast's counters say how many of each.
+     * A failed send is recorded with its error so it can be retried.
+     */
+    @Transactional
+    public BroadcastResponse send(Long broadcastId) {
+        Broadcast broadcast = broadcastRepository.findById(broadcastId)
+                .orElseThrow(BroadcastNotFoundException::new);
+        List<BroadcastRecipient> recipients = recipientRepository
+                .findByBroadcast(broadcast);
+        send(broadcast, recipients);
+        return buildResponse(broadcastRepository.findById(broadcastId).orElse(broadcast));
+    }
+
+    private void send(Broadcast broadcast, List<BroadcastRecipient> recipients) {
+        broadcast.setStatus(BroadcastStatus.IN_PROGRESS);
+        broadcastRepository.save(broadcast);
+
+        int sent = 0;
+        int failed = 0;
+        for (BroadcastRecipient recipient : recipients) {
+            if (recipient.getStatus() != BroadcastRecipientStatus.PENDING) {
+                continue;
+            }
+            String key = "BROADCAST-" + broadcast.getId() + "-" + recipient.getEmail();
+            try {
+                transactionalEmailService.enqueueEmail(
+                        key, EmailType.ADMIN_BROADCAST, recipient.getEmail(),
+                        "BROADCAST", broadcast.getId());
+
+                EmailLog logEntry = emailLogRepository.findByIdempotencyKey(key).orElse(null);
+                if (logEntry != null && logEntry.getStatus() == EmailStatus.SENT) {
+                    recipient.setStatus(BroadcastRecipientStatus.SENT);
+                    sent++;
+                } else {
+                    recipient.setStatus(BroadcastRecipientStatus.FAILED);
+                    failed++;
+                }
+            } catch (Exception ex) {
+                recipient.setStatus(BroadcastRecipientStatus.FAILED);
+                failed++;
+                log.error("Failed to send broadcast {} to {}", broadcast.getId(), recipient.getEmail(), ex);
+            }
+            recipientRepository.save(recipient);
+        }
+
+        broadcast.setSentCount(sent);
+        broadcast.setFailedCount(failed);
+        // COMPLETED even when some addresses failed: the run finished, and the
+        // counters say how many of each. A broadcast that never ran at all
+        // stays PENDING; one that ran is COMPLETED.
+        broadcast.setStatus(BroadcastStatus.COMPLETED);
+        broadcastRepository.save(broadcast);
+
+        log.info("Broadcast {} sent: {} sent, {} failed", broadcast.getId(), sent, failed);
     }
 
     private List<BroadcastRecipient> buildRecipients(List<User> users, List<NewsletterSubscriber> subscribers) {

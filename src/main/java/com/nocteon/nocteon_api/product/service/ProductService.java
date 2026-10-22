@@ -46,6 +46,7 @@ import com.nocteon.nocteon_api.product.repository.ProductOptionValueRepository;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
 import com.nocteon.nocteon_api.product.repository.specification.ProductSpecifications;
+import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -276,7 +277,7 @@ public class ProductService {
 
     private Page<Product> findDashboardPage(ProductFilterRequest filter) {
         return productRepository.findAllDashboard(
-                Objects.requireNonNullElse(filter.getSearch(), ""),
+                SearchPatterns.like(filter.getSearch()),
                 filter.getCategorySlug(),
                 filter.getProductType(),
                 filter.getIsActive(),
@@ -285,7 +286,7 @@ public class ProductService {
     }
 
     public PageResponse<DashboardProductResponse> getAllDeleted(LookupFilterRequest filter) {
-        String search = Objects.requireNonNullElse(filter.getSearch(), "");
+        String search = SearchPatterns.like(filter.getSearch());
         int pageNum = filter.getPage();
         int size = filter.getSize();
         String sort = filter.getSort();

@@ -22,6 +22,7 @@ import com.nocteon.nocteon_api.shippingZone.exception.CityAlreadyAssignedExcepti
 import com.nocteon.nocteon_api.shippingZone.exception.ShippingNotAvailableException;
 import com.nocteon.nocteon_api.shippingZone.exception.ShippingZoneNotFoundException;
 import com.nocteon.nocteon_api.shippingZone.repository.ShippingZoneRepository;
+import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -109,7 +110,7 @@ public class ShippingZoneService {
 
     @Transactional(readOnly = true)
     public PageResponse<ShippingZoneResponse> getAllDeleted(LookupFilterRequest filter) {
-        String search = Objects.requireNonNullElse(filter.getSearch(), "");
+        String search = SearchPatterns.like(filter.getSearch());
         int pageNum = filter.getPage();
         int size = filter.getSize();
         String sort = filter.getSort();

@@ -19,7 +19,7 @@ public interface ProcessingMethodRepository extends JpaRepository<ProcessingMeth
             LEFT JOIN p.translations t
             WHERE (COALESCE(:search, '') = ''
                    OR (t.language = :language
-                       AND LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))))
+                       AND LOWER(t.name) LIKE :search))
             """)
     Page<ProcessingMethod> findAllPublic(
             @Param("search") String search,
@@ -31,8 +31,8 @@ public interface ProcessingMethodRepository extends JpaRepository<ProcessingMeth
             LEFT JOIN p.translations t
             WHERE (
             COALESCE(:search, '') = ''
-            OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
-            OR LOWER(p.slug) LIKE LOWER(CONCAT('%', :search, '%'))
+            OR LOWER(t.name) LIKE :search
+            OR LOWER(p.slug) LIKE :search
         )
         """)
     Page<ProcessingMethod> findAllDashboard(
@@ -75,7 +75,7 @@ public interface ProcessingMethodRepository extends JpaRepository<ProcessingMeth
         FROM processing_methods e
         JOIN processing_method_translations et ON e.id = et.processing_method_id
         WHERE e.deleted_at IS NOT NULL
-        AND (LOWER(et.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(e.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+        AND (LOWER(et.name) LIKE :search OR LOWER(e.slug) LIKE :search)
         GROUP BY e.id, e.slug, e.created_at, et.language, et.name, et.description
         """, nativeQuery = true)
     List<Object[]> findDeletedBySearchNative(@Param("search") String search);

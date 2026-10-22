@@ -27,6 +27,7 @@ import com.nocteon.nocteon_api.roastLevel.entity.RoastLevelTranslation;
 import com.nocteon.nocteon_api.roastLevel.repository.RoastLevelRepository;
 import com.nocteon.nocteon_api.product.repository.CoffeeDetailsRepository;
 import com.nocteon.nocteon_api.roastLevel.repository.RoastLevelTranslationRepository;
+import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -134,7 +135,7 @@ public class RoastLevelService {
         public PageResponse<RoastLevelResponse> getAll(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 Page<RoastLevel> page = roastLevelRepository.findAllPublic(
-                                filter.getSearch(),
+                                SearchPatterns.like(filter.getSearch()),
                                 language, filter.toPageable());
                 return PageResponse.of(page.map(r -> buildResponse(r, language)));
         }
@@ -146,9 +147,7 @@ public class RoastLevelService {
         }
 
         public PageResponse<DashboardRoastLevelResponse> getAllDashboard(LookupFilterRequest filter) {
-                String search = Objects.requireNonNullElse(
-                                filter.getSearch(),
-                                "");
+                String search = SearchPatterns.like(filter.getSearch());
                 Page<RoastLevel> page = roastLevelRepository.findAllDashboard(
                                 search,
                                filter.toPageable());
@@ -207,7 +206,7 @@ public class RoastLevelService {
          * translations across two pages. See {@link SoftDeleteRowFolder}.
          */
         public PageResponse<DashboardRoastLevelResponse> getAllDeleted(LookupFilterRequest filter) {
-                String search = Objects.requireNonNullElse(filter.getSearch(), "");
+                String search = SearchPatterns.like(filter.getSearch());
                 int pageNum = filter.getPage();
                 int size = filter.getSize();
                 String sort = filter.getSort();

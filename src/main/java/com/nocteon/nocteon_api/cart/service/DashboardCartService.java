@@ -34,6 +34,7 @@ import com.nocteon.nocteon_api.mail.enums.EmailType;
 import com.nocteon.nocteon_api.mail.service.TransactionalEmailService;
 import com.nocteon.nocteon_api.storeSettings.service.StoreSettingsService;
 import com.nocteon.nocteon_api.storeSettings.dto.response.StoreSettingsResponse;
+import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,15 +54,17 @@ public class DashboardCartService {
 
         @Transactional(readOnly = true)
         public Page<DashboardCartResponse> getAll(DashboardCartFilterRequest filter) {
-                // Normalise a missing search term to "" before it reaches the query, exactly like
-                // UserService and ProductService do. Passing a raw null makes Hibernate bind
-                // :search with no concrete type, which PostgreSQL cannot resolve in the
-                // lower()/`||` text context (COALESCE(:search, '') is not enough — the null bind
-                // itself fails with "function lower(bytea) does not exist").
-                String search = Objects.requireNonNullElse(filter.getSearch(), "");
+                // The search reaches the query as a READY-MADE PATTERN and the
+                // date bounds as INSTANTS that are never null: a parameter that
+                // only appears in an "is null" test has no type there, and
+                // PostgreSQL then fails with "function lower(bytea) does not
+                // exist" or "could not determine data type of parameter".
+                String search = SearchPatterns.like(filter.getSearch());
                 return cartRepository
                                 .findAllForDashboard(search, filter.getHasItems(), filter.getStatus(),
-                                                filter.getFrom(), filter.getTo(), filter.toPageable())
+                                                SearchPatterns.from(filter.getFrom()),
+                                                SearchPatterns.to(filter.getTo()),
+                                                filter.toPageable())
                                 .map(this::buildDashboardResponse);
         }
 

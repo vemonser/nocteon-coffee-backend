@@ -19,7 +19,7 @@ public interface RoastLevelRepository extends JpaRepository<RoastLevel, Long> {
             LEFT JOIN r.translations t
             WHERE (COALESCE(:search, '') = ''
                    OR (t.language = :language
-                       AND LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))))
+                       AND LOWER(t.name) LIKE :search))
             """)
     Page<RoastLevel> findAllPublic(
             @Param("search") String search,
@@ -30,8 +30,8 @@ public interface RoastLevelRepository extends JpaRepository<RoastLevel, Long> {
             SELECT DISTINCT r FROM RoastLevel r
             LEFT JOIN  r.translations t
                         WHERE (COALESCE(:search, '') = ''
-            OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
-            OR LOWER(r.slug) LIKE LOWER(CONCAT('%', :search, '%'))
+            OR LOWER(t.name) LIKE :search
+            OR LOWER(r.slug) LIKE :search
             )
             """)
     Page<RoastLevel> findAllDashboard(
@@ -70,7 +70,7 @@ public interface RoastLevelRepository extends JpaRepository<RoastLevel, Long> {
         FROM roast_levels e
         JOIN roast_level_translations et ON e.id = et.roast_level_id
         WHERE e.deleted_at IS NOT NULL
-        AND (LOWER(et.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(e.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+        AND (LOWER(et.name) LIKE :search OR LOWER(e.slug) LIKE :search)
         GROUP BY e.id, e.slug, e.color, e.created_at, e.updated_at, et.language, et.name, et.description
         """, nativeQuery = true)
     List<Object[]> findDeletedBySearchNative(@Param("search") String search);

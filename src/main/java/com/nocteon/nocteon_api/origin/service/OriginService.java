@@ -33,6 +33,7 @@ import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.enums.MediaType;
 import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
+import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -205,7 +206,7 @@ public class OriginService {
         public PageResponse<OriginResponse> getAll(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 Page<Origin> page = originRepository.findAllPublic(
-                                filter.getSearch(),
+                                SearchPatterns.like(filter.getSearch()),
                                 language,
                                 filter.toPageable());
                 return PageResponse.of(page.map(o -> buildResponse(o, language)));
@@ -213,9 +214,7 @@ public class OriginService {
 
         public PageResponse<DashboardOriginResponse> getAllDashboard(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
-                String search = Objects.requireNonNullElse(
-                                filter.getSearch(),
-                                "");
+                String search = SearchPatterns.like(filter.getSearch());
 
                 Page<Origin> page = originRepository.findAllDashboard(
                                 search,
@@ -279,7 +278,7 @@ public class OriginService {
          * translations across two pages. See {@link SoftDeleteRowFolder}.
          */
         public PageResponse<DashboardOriginResponse> getAllDeleted(LookupFilterRequest filter) {
-                String search = Objects.requireNonNullElse(filter.getSearch(), "");
+                String search = SearchPatterns.like(filter.getSearch());
                 int pageNum = filter.getPage();
                 int size = filter.getSize();
                 String sort = filter.getSort();

@@ -11,6 +11,7 @@ import com.nocteon.nocteon_api.order.dto.request.OrderFilterRequest;
 import com.nocteon.nocteon_api.order.dto.response.OrderStatsResponse;
 import com.nocteon.nocteon_api.order.repository.OrderRepository;
 import com.nocteon.nocteon_api.order.service.OrderQueryService;
+import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import lombok.RequiredArgsConstructor;
 
@@ -32,7 +33,7 @@ public class OrderStatsService {
         /** The counts of the filtered set. */
         @Transactional(readOnly = true)
         public OrderStatsResponse getStats(OrderFilterRequest filter) {
-                String search = normalise(filter.getSearch());
+                String search = SearchPatterns.like(filter.getSearch());
                 Instant dateFrom = OrderQueryService.startOfDay(filter.getDateFrom());
                 Instant dateTo = OrderQueryService.startOfDayAfter(filter.getDateTo());
 
@@ -114,10 +115,5 @@ public class OrderStatsService {
          * same shape the row query uses, so the counts and the rows can
          * never describe different sets.
          */
-        private static String normalise(String search) {
-                if (search == null || search.isBlank()) {
-                        return null;
-                }
-                return "%" + search.trim().toLowerCase() + "%";
-        }
+
 }

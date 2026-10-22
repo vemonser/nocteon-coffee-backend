@@ -37,6 +37,7 @@ import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.enums.MediaType;
 import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
+import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -66,9 +67,7 @@ public class FarmService {
 
         public PageResponse<FarmResponse> getAll(FarmFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
-                String search = Objects.requireNonNullElse(
-                                filter.getSearch(),
-                                "");
+                String search = SearchPatterns.like(filter.getSearch());
 
                 Page<Farm> page = farmRepository.findAllPublic(
                                 language,
@@ -80,9 +79,7 @@ public class FarmService {
 
         public PageResponse<DashboardFarmResponse> getAllDashboard(FarmFilterRequest filter) {
 
-                String search = Objects.requireNonNullElse(
-                                filter.getSearch(),
-                                "");
+                String search = SearchPatterns.like(filter.getSearch());
                 Page<Farm> page = farmRepository.findAllDashboard(
                                 search,
                                 filter.getOriginSlug(),
@@ -273,7 +270,7 @@ public class FarmService {
          * translations across two pages. See {@link SoftDeleteRowFolder}.
          */
         public PageResponse<DashboardFarmResponse> getAllDeleted(LookupFilterRequest filter) {
-                String search = Objects.requireNonNullElse(filter.getSearch(), "");
+                String search = SearchPatterns.like(filter.getSearch());
                 int pageNum = filter.getPage();
                 int size = filter.getSize();
                 String sort = filter.getSort();

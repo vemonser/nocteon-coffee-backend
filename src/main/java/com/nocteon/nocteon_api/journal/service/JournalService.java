@@ -39,6 +39,7 @@ import com.nocteon.nocteon_api.journal.repository.JournalPostTranslationReposito
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.enums.MediaType;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
+import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -62,7 +63,7 @@ public class JournalService {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 Page<JournalPost> page = postRepository.findAllPublic(
                                 language,
-                                filter.getSearch(),
+                                SearchPatterns.like(filter.getSearch()),
                                 filter.getCategorySlug(),
                                 filter.getFeatured(),
                                 filter.toPageable());
@@ -72,7 +73,7 @@ public class JournalService {
         public PageResponse<JournalPostResponse> getAllDashboard(JournalFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 Page<JournalPost> page = postRepository.findAllDashboard(
-                                filter.getSearch(),
+                                SearchPatterns.like(filter.getSearch()),
                                 filter.getCategorySlug(),
                                 filter.toPageable());
                 return PageResponse.of(page.map(p -> buildListResponse(p, language)));
@@ -349,7 +350,7 @@ public class JournalService {
          * query does not honour.
          */
         public PageResponse<JournalPostResponseDashboard> getAllDeleted(LookupFilterRequest filter) {
-                String search = Objects.requireNonNullElse(filter.getSearch(), "");
+                String search = SearchPatterns.like(filter.getSearch());
                 int pageNum = filter.getPage();
                 int size = filter.getSize();
                 String sort = filter.getSort();
@@ -448,7 +449,7 @@ public class JournalService {
          */
         public PageResponse<JournalCategoryResponseDashboard> getAllDeletedCategories(
                         LookupFilterRequest filter) {
-                String search = Objects.requireNonNullElse(filter.getSearch(), "");
+                String search = SearchPatterns.like(filter.getSearch());
                 int pageNum = filter.getPage();
                 int size = filter.getSize();
                 String sort = filter.getSort();

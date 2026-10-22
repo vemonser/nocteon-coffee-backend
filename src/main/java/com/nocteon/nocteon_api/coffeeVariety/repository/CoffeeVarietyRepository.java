@@ -19,7 +19,7 @@ public interface CoffeeVarietyRepository extends JpaRepository<CoffeeVariety, Lo
             LEFT JOIN c.translations t
             WHERE (COALESCE(:search, '') = ''
                    OR (t.language = :language
-                       AND LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))))
+                       AND LOWER(t.name) LIKE :search))
             """)
     Page<CoffeeVariety> findAllPublic(
             @Param("search") String search,
@@ -30,8 +30,8 @@ public interface CoffeeVarietyRepository extends JpaRepository<CoffeeVariety, Lo
             SELECT DISTINCT c FROM CoffeeVariety c
             LEFT JOIN c.translations t
             WHERE (COALESCE(:search, '') = ''
-                   OR  LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
-                   OR  LOWER(c.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+                   OR  LOWER(t.name) LIKE :search
+                   OR  LOWER(c.slug) LIKE :search)
             """)
     Page<CoffeeVariety> findAllDashboard(
             @Param("search") String search,
@@ -75,7 +75,7 @@ public interface CoffeeVarietyRepository extends JpaRepository<CoffeeVariety, Lo
         FROM coffee_varieties e
         JOIN coffee_variety_translations et ON e.id = et.coffee_variety_id
         WHERE e.deleted_at IS NOT NULL
-        AND (LOWER(et.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(e.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+        AND (LOWER(et.name) LIKE :search OR LOWER(e.slug) LIKE :search)
         GROUP BY e.id, e.slug, e.created_at, et.language, et.name, et.description
         """, nativeQuery = true)
     List<Object[]> findDeletedBySearchNative(@Param("search") String search);

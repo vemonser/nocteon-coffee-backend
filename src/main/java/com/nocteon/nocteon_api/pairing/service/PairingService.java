@@ -27,6 +27,7 @@ import com.nocteon.nocteon_api.pairing.entity.PairingTranslation;
 import com.nocteon.nocteon_api.pairing.repository.PairingRepository;
 import com.nocteon.nocteon_api.pairing.repository.PairingTranslationRepository;
 import com.nocteon.nocteon_api.product.enums.MediaType;
+import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -148,7 +149,7 @@ public class PairingService {
         public PageResponse<PairingResponse> getAll(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 Page<Pairing> page = pairingRepository.findAllPublic(
-                                filter.getSearch(),
+                                SearchPatterns.like(filter.getSearch()),
                                 language, filter.toPageable());
                 return PageResponse.of(page.map(p -> buildResponse(p, language)));
         }
@@ -160,9 +161,7 @@ public class PairingService {
         }
 
         public PageResponse<PairingResponseDashboard> getAllDashboard(LookupFilterRequest filter) {
-                String search = Objects.requireNonNullElse(
-                                filter.getSearch(),
-                                "");
+                String search = SearchPatterns.like(filter.getSearch());
 
                 Page<Pairing> page = pairingRepository.findAllDashboard(
                                 search,
@@ -223,7 +222,7 @@ public class PairingService {
          * translations across two pages. See {@link SoftDeleteRowFolder}.
          */
         public PageResponse<PairingResponseDashboard> getAllDeleted(LookupFilterRequest filter) {
-                String search = Objects.requireNonNullElse(filter.getSearch(), "");
+                String search = SearchPatterns.like(filter.getSearch());
                 int pageNum = filter.getPage();
                 int size = filter.getSize();
                 String sort = filter.getSort();

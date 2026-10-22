@@ -33,6 +33,7 @@ import com.nocteon.nocteon_api.product.repository.ProductOptionTranslationReposi
 import com.nocteon.nocteon_api.product.repository.ProductOptionValueRepository;
 import com.nocteon.nocteon_api.product.repository.ProductOptionValueTranslationRepository;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
+import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -124,7 +125,7 @@ public class ProductOptionService {
     }
 
     public PageResponse<ProductOptionResponseDashboard> getAllDashboard(LookupFilterRequest filter) {
-        String search = Objects.requireNonNullElse(filter.getSearch(), "");
+        String search = SearchPatterns.like(filter.getSearch());
         Page<ProductOption> page = optionRepository.findAllDashboard(search, filter.toPageable());
         return PageResponse.of(page.map(this::buildDashboardResponse));
     }

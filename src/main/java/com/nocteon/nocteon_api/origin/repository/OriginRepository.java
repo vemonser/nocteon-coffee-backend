@@ -19,7 +19,7 @@ public interface OriginRepository extends JpaRepository<Origin, Long> {
             LEFT JOIN o.translations t
             WHERE (COALESCE(:search, '') = ''
                    OR (t.language = :language
-                       AND LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))))
+                       AND LOWER(t.name) LIKE :search))
             """)
     Page<Origin> findAllPublic(
             @Param("search") String search,
@@ -31,7 +31,7 @@ public interface OriginRepository extends JpaRepository<Origin, Long> {
             LEFT JOIN o.translations t
             WHERE (COALESCE(:search, '') = ''
                    OR (t.language = :language
-                       AND LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))))
+                       AND LOWER(t.name) LIKE :search))
             """)
     Page<Origin> findAllDashboard(
             @Param("search") String search,
@@ -83,7 +83,7 @@ public interface OriginRepository extends JpaRepository<Origin, Long> {
         FROM origins e
         JOIN origin_translations et ON e.id = et.origin_id
         WHERE e.deleted_at IS NOT NULL
-        AND (LOWER(et.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(e.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+        AND (LOWER(et.name) LIKE :search OR LOWER(e.slug) LIKE :search)
         GROUP BY e.id, e.slug, e.code, e.image_url, e.created_at, et.language, et.name, et.description
         """, nativeQuery = true)
     List<Object[]> findDeletedBySearchNative(@Param("search") String search);

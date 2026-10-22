@@ -19,7 +19,7 @@ public interface TastingNoteRepository extends JpaRepository<TastingNote, Long> 
             LEFT JOIN t.translations tr
             WHERE (COALESCE(:search, '') = ''
                    OR (tr.language = :language
-                       AND LOWER(tr.name) LIKE LOWER(CONCAT('%', :search, '%'))))
+                       AND LOWER(tr.name) LIKE :search))
             """)
     Page<TastingNote> findAllPublic(
             @Param("search") String search,
@@ -30,8 +30,8 @@ public interface TastingNoteRepository extends JpaRepository<TastingNote, Long> 
             SELECT DISTINCT t FROM TastingNote t
             LEFT JOIN t.translations tr
             WHERE (COALESCE(:search, '') = ''
-                   OR LOWER(tr.name) LIKE LOWER(CONCAT('%', :search, '%'))
-                   OR LOWER(t.slug) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(tr.name) LIKE :search
+                   OR LOWER(t.slug) LIKE :search
                 )
             """)
     Page<TastingNote> findAllDashboard(
@@ -72,8 +72,8 @@ public interface TastingNoteRepository extends JpaRepository<TastingNote, Long> 
                 FROM tasting_notes e
                 JOIN tasting_note_translations et ON e.id = et.tasting_note_id
                 WHERE e.deleted_at IS NOT NULL
-                AND (LOWER(et.name) LIKE LOWER(CONCAT('%', :search, '%'))
-                     OR LOWER(e.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+                AND (LOWER(et.name) LIKE :search
+                     OR LOWER(e.slug) LIKE :search)
                 GROUP BY e.id, e.slug, e.created_at, et.language, et.name
                 """, nativeQuery = true)
         List<Object[]> findDeletedBySearchNative(@Param("search") String search);

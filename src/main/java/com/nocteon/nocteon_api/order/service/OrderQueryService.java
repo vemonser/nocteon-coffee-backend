@@ -24,6 +24,7 @@ import com.nocteon.nocteon_api.order.dto.response.OrderRefundResponse;
 import com.nocteon.nocteon_api.payment.entity.Payment;
 import com.nocteon.nocteon_api.payment.enums.PaymentStatus;
 import com.nocteon.nocteon_api.payment.repository.PaymentRepository;
+import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import lombok.RequiredArgsConstructor;
 
@@ -49,7 +50,7 @@ public class OrderQueryService {
                 filter.getPaymentMethod(),
                 startOfDay(filter.getDateFrom()),
                 startOfDayAfter(filter.getDateTo()),
-                normaliseSearch(filter.getSearch()),
+                SearchPatterns.like(filter.getSearch()),
                 filter.toPageable());
         return PageResponse.of(page.map(this::buildResponse));
     }
@@ -84,8 +85,8 @@ public class OrderQueryService {
      * comparison next to it. So the bounds are never null: an absent filter
      * is a range that covers everything.
      */
-    static final Instant ANY_TIME_FROM = Instant.parse("1970-01-01T00:00:00Z");
-    static final Instant ANY_TIME_TO = Instant.parse("2100-01-01T00:00:00Z");
+    static final Instant ANY_TIME_FROM = SearchPatterns.ANY_TIME_FROM;
+    static final Instant ANY_TIME_TO = SearchPatterns.ANY_TIME_TO;
 
     /**
      * The search term as a ready-made LIKE pattern, lower-cased.
@@ -93,12 +94,6 @@ public class OrderQueryService {
      * <p>An empty term matches everything; a blank one must not become a
      * "%%" that the query reads as "contains nothing".
      */
-    private static String normaliseSearch(String search) {
-        if (search == null || search.isBlank()) {
-            return null;
-        }
-        return "%" + search.trim().toLowerCase() + "%";
-    }
 
     /**
      * The payment of an order, in full: the transaction reference, when the

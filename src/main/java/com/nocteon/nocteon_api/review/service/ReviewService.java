@@ -34,6 +34,7 @@ import com.nocteon.nocteon_api.review.dto.response.ReviewStatsResponse;
 import com.nocteon.nocteon_api.review.entity.Review;
 import com.nocteon.nocteon_api.review.entity.ReviewStatus;
 import com.nocteon.nocteon_api.review.repository.ReviewRepository;
+import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -108,8 +109,8 @@ public class ReviewService {
                 }
 
                 Page<Review> page = reviewRepository.findAllDashboard(
-                                productSlug, searchPattern(search), status, isVerified, minRating,
-                                from(createdFrom), to(createdTo), filter.toPageable());
+                                productSlug, SearchPatterns.like(search), status, isVerified, minRating,
+                                SearchPatterns.from(createdFrom), SearchPatterns.to(createdTo), filter.toPageable());
 
                 // The order behind a verified review is attached HERE, so the
                 // check mark the dashboard shows next to the reviewer's name
@@ -126,13 +127,6 @@ public class ReviewService {
          * LOWER() instead would make PostgreSQL infer the parameter's type
          * as bytea — which has no lower(), and the query fails.
          */
-        private static String searchPattern(String search) {
-                if (search == null || search.isBlank()) {
-                        return null;
-                }
-                return "%" + search.trim().toLowerCase() + "%";
-        }
-
         /**
          * The widest range the query accepts, used when the filter has no
          * bound.

@@ -19,7 +19,7 @@ public interface BrewingMethodRepository extends JpaRepository<BrewingMethod, Lo
             LEFT JOIN b.translations t
             WHERE (COALESCE(:search, '') = ''
                    OR (t.language = :language
-                       AND LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))))
+                       AND LOWER(t.name) LIKE :search))
             """)
     Page<BrewingMethod> findAllPublic(
             @Param("search") String search,
@@ -30,8 +30,8 @@ public interface BrewingMethodRepository extends JpaRepository<BrewingMethod, Lo
             SELECT DISTINCT b FROM BrewingMethod b
             LEFT JOIN b.translations t
             WHERE (COALESCE(:search, '') = ''
-                   OR  LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
-                   OR  LOWER(b.slug) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR  LOWER(t.name) LIKE :search
+                   OR  LOWER(b.slug) LIKE :search
                 )
             """)
     Page<BrewingMethod> findAllDashboard(
@@ -74,8 +74,8 @@ public interface BrewingMethodRepository extends JpaRepository<BrewingMethod, Lo
                 FROM brewing_methods e
                 JOIN brewing_method_translations et ON e.id = et.brewing_method_id
                 WHERE e.deleted_at IS NOT NULL
-                AND (LOWER(et.name) LIKE LOWER(CONCAT('%', :search, '%'))
-                     OR LOWER(e.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+                AND (LOWER(et.name) LIKE :search
+                     OR LOWER(e.slug) LIKE :search)
                 GROUP BY e.id, e.slug, e.created_at, et.language, et.name, et.description
                 """, nativeQuery = true)
         List<Object[]> findDeletedBySearchNative(@Param("search") String search);

@@ -56,15 +56,15 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
         @Query("""
                         SELECT p FROM Product p
                         JOIN p.translations t
-                        WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :query, '%'))
-                        OR LOWER(p.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        WHERE LOWER(t.name) LIKE :query
+                        OR LOWER(p.slug) LIKE :query
                         GROUP BY p.id, p.slug
                         ORDER BY MIN(CASE
                                 WHEN LOWER(p.slug) = LOWER(:query) THEN 0
                                 WHEN LOWER(t.name) = LOWER(:query) THEN 0
-                                WHEN LOWER(p.slug) LIKE LOWER(CONCAT(:query, '%')) THEN 1
-                                WHEN LOWER(t.name) LIKE LOWER(CONCAT(:query, '%')) THEN 1
-                                WHEN LOWER(t.name) LIKE LOWER(CONCAT('% ', :query, '%')) THEN 2
+                                WHEN LOWER(p.slug) LIKE :query THEN 1
+                                WHEN LOWER(t.name) LIKE :query THEN 1
+                                WHEN LOWER(t.name) LIKE :query THEN 2
                                 ELSE 3
                             END),
                             MIN(LOWER(p.slug))
@@ -79,7 +79,7 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
          * query's predicates exactly so the two cannot drift apart.
          */
         @Query("""
-                        SELECT COUNT(DISTINCT p) FROM Product p JOIN p.translations t WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(p.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        SELECT COUNT(DISTINCT p) FROM Product p JOIN p.translations t WHERE LOWER(t.name) LIKE :query OR LOWER(p.slug) LIKE :query
                         """)
         long countSearchProducts(@Param("query") String query);
 
@@ -92,7 +92,7 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
                         LEFT JOIN p.category c
                         LEFT JOIN FETCH p.pairings
                         WHERE (:search IS NULL OR COALESCE(:search, '') = ''
-                               OR  LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
+                               OR  LOWER(t.name) LIKE :search)
                         AND (:categorySlug IS NULL OR c.slug = :categorySlug)
                         AND (:productType IS NULL OR p.productType = :productType)
                         AND (:isActive IS NULL OR p.isActive = :isActive)
@@ -103,7 +103,7 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
                         LEFT JOIN p.translations t
                         LEFT JOIN p.category c
                         WHERE (:search IS NULL OR COALESCE(:search, '') = ''
-                               OR  LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
+                               OR  LOWER(t.name) LIKE :search)
                         AND (:categorySlug IS NULL OR c.slug = :categorySlug)
                         AND (:productType IS NULL OR p.productType = :productType)
                         AND (:isActive IS NULL OR p.isActive = :isActive)
@@ -287,7 +287,7 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
             FROM products p
             JOIN product_translations pt ON p.id = pt.product_id
             WHERE p.deleted_at IS NOT NULL
-            AND (LOWER(pt.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(p.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+            AND (COALESCE(:search, '') = '' OR LOWER(pt.name) LIKE :search OR LOWER(p.slug) LIKE :search)
             GROUP BY p.id, p.slug, p.is_active, p.created_at, pt.language, pt.name, pt.description
             ORDER BY p.created_at DESC, pt.language
             """, nativeQuery = true)

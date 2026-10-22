@@ -26,15 +26,15 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
         @Query("""
                         SELECT jp FROM JournalPost jp
                         JOIN jp.translations t
-                        WHERE LOWER(t.title) LIKE LOWER(CONCAT('%', :query, '%'))
-                           OR LOWER(jp.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        WHERE LOWER(t.title) LIKE :query
+                           OR LOWER(jp.slug) LIKE :query
                         GROUP BY jp.id, jp.slug
                         ORDER BY MIN(CASE
                                 WHEN LOWER(jp.slug) = LOWER(:query) THEN 0
                                 WHEN LOWER(t.title) = LOWER(:query) THEN 0
-                                WHEN LOWER(jp.slug) LIKE LOWER(CONCAT(:query, '%')) THEN 1
-                                WHEN LOWER(t.title) LIKE LOWER(CONCAT(:query, '%')) THEN 1
-                                WHEN LOWER(t.title) LIKE LOWER(CONCAT('% ', :query, '%')) THEN 2
+                                WHEN LOWER(jp.slug) LIKE :query THEN 1
+                                WHEN LOWER(t.title) LIKE :query THEN 1
+                                WHEN LOWER(t.title) LIKE :query THEN 2
                                 ELSE 3
                             END),
                             MIN(LOWER(jp.slug))
@@ -49,7 +49,7 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
          * query's predicates exactly so the two cannot drift apart.
          */
         @Query("""
-                        SELECT COUNT(DISTINCT jp) FROM JournalPost jp JOIN jp.translations t WHERE LOWER(t.title) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(jp.slug) LIKE LOWER(CONCAT('%', :query, '%'))
+                        SELECT COUNT(DISTINCT jp) FROM JournalPost jp JOIN jp.translations t WHERE LOWER(t.title) LIKE :query OR LOWER(jp.slug) LIKE :query
                         """)
         long countSearchJournalPosts(@Param("query") String query);
 
@@ -81,7 +81,7 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
                         WHERE t.language = :language
                         AND p.status = com.nocteon.nocteon_api.journal.enums.JournalPostStatus.PUBLISHED
                         AND (COALESCE(:search, '') = ''
-                             OR LOWER(t.title) LIKE LOWER(CONCAT('%', :search, '%')))
+                             OR LOWER(t.title) LIKE :search)
                         AND (:categorySlug IS NULL OR p.journalCategory.slug = :categorySlug)
                         AND (:featured IS NULL OR p.featured = :featured)
                         ORDER BY p.publishedAt DESC
@@ -98,7 +98,7 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
                         LEFT JOIN p.translations t
                         LEFT JOIN FETCH p.author
                         WHERE (COALESCE(:search, '') = ''
-                               OR  LOWER(t.title) LIKE LOWER(CONCAT('%', :search, '%')))
+                               OR  LOWER(t.title) LIKE :search)
                         AND (:categorySlug IS NULL OR p.journalCategory.slug = :categorySlug)
                         """)
         Page<JournalPost> findAllDashboard(
@@ -172,8 +172,8 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
                 FROM journal_posts p
                 JOIN journal_post_translations t ON p.id = t.journal_post_id
                 WHERE p.deleted_at IS NOT NULL
-                AND (LOWER(t.title) LIKE LOWER(CONCAT('%', :search, '%'))
-                     OR LOWER(p.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+                AND (COALESCE(:search, '') = '' OR LOWER(t.title) LIKE :search
+                     OR LOWER(p.slug) LIKE :search)
                 GROUP BY p.id, p.slug, p.cover_image_url, p.featured, p.status, p.created_at,
                          t.language, t.title
                 ORDER BY p.created_at DESC, t.language

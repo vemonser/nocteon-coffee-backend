@@ -26,7 +26,7 @@ public interface ProductOptionRepository extends JpaRepository<ProductOption, Lo
             SELECT o FROM ProductOption o
             LEFT JOIN o.translations t
             WHERE (:search IS NULL OR COALESCE(:search, '') = ''
-                   OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))
+                   OR LOWER(t.name) LIKE :search)
             ORDER BY o.sortOrder
             """)
     Page<ProductOption> findAllDashboard(@Param("search") String search, Pageable pageable);

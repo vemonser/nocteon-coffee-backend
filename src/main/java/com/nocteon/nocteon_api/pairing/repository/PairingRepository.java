@@ -19,7 +19,7 @@ public interface PairingRepository extends JpaRepository<Pairing, Long> {
             LEFT JOIN p.translations t
             WHERE (COALESCE(:search, '') = ''
                    OR (t.language = :language
-                       AND LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))))
+                       AND LOWER(t.name) LIKE :search))
             """)
     Page<Pairing> findAllPublic(
             @Param("search") String search,
@@ -30,8 +30,8 @@ public interface PairingRepository extends JpaRepository<Pairing, Long> {
             SELECT DISTINCT p FROM Pairing p
             LEFT JOIN p.translations t
             WHERE (COALESCE(:search, '') = ''
-                   OR  LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
-                   OR  LOWER(p.slug) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR  LOWER(t.name) LIKE :search
+                   OR  LOWER(p.slug) LIKE :search
                 )
             """)
     Page<Pairing> findAllDashboard(
@@ -86,8 +86,8 @@ public interface PairingRepository extends JpaRepository<Pairing, Long> {
                 FROM pairings e
                 JOIN pairing_translations et ON e.id = et.pairing_id
                 WHERE e.deleted_at IS NOT NULL
-                AND (LOWER(et.name) LIKE LOWER(CONCAT('%', :search, '%'))
-                     OR LOWER(e.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+                AND (LOWER(et.name) LIKE :search
+                     OR LOWER(e.slug) LIKE :search)
                 GROUP BY e.id, e.slug, e.image_url, e.created_at, et.language, et.name, et.description
                 """, nativeQuery = true)
         List<Object[]> findDeletedBySearchNative(@Param("search") String search);

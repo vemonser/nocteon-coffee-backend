@@ -115,10 +115,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
            "(:role IS NULL OR u.role = :role) AND " +
            "(:isActive IS NULL OR u.isActive = :isActive) AND " +
            "(:enabled IS NULL OR u.enabled = :enabled) AND " +
-           "(LOWER(u.username) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
-           " LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
-           " LOWER(p.firstName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
-           " LOWER(p.lastName) LIKE LOWER(CONCAT('%', :search, '%')))")
+           "(LOWER(u.username) LIKE :search OR " +
+           " LOWER(u.email) LIKE :search OR " +
+           " LOWER(p.firstName) LIKE :search OR " +
+           " LOWER(p.lastName) LIKE :search)")
     Page<User> findAllForAdmin(
         @Param("role") Role role,
         @Param("isActive") Boolean isActive,

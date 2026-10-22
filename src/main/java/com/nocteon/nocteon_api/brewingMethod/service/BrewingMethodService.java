@@ -33,6 +33,7 @@ import com.nocteon.nocteon_api.product.dto.response.ProductWithScoreResponse;
 import com.nocteon.nocteon_api.product.entity.ProductBrewingMethod;
 import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
 import com.nocteon.nocteon_api.product.repository.ProductBrewingMethodRepository;
+import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -163,16 +164,14 @@ public class BrewingMethodService {
         public PageResponse<BrewingMethodResponse> getAll(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 Page<BrewingMethod> page = brewingMethodRepository.findAllPublic(
-                                filter.getSearch(),
+                                SearchPatterns.like(filter.getSearch()),
                                 language, filter.toPageable());
                 return PageResponse.of(page.map(b -> buildResponse(b, language)));
         }
 
         public PageResponse<BrewingMethodResponseDashboard> getAllDashboard(LookupFilterRequest filter) {
 
-                String search = Objects.requireNonNullElse(
-                                filter.getSearch(),
-                                "");
+                String search = SearchPatterns.like(filter.getSearch());
 
                 Page<BrewingMethod> page = brewingMethodRepository.findAllDashboard(
                                 search,
@@ -232,7 +231,7 @@ public class BrewingMethodService {
          * translations across two pages. See {@link SoftDeleteRowFolder}.
          */
         public PageResponse<BrewingMethodResponseDashboard> getAllDeleted(LookupFilterRequest filter) {
-                String search = Objects.requireNonNullElse(filter.getSearch(), "");
+                String search = SearchPatterns.like(filter.getSearch());
                 int pageNum = filter.getPage();
                 int size = filter.getSize();
                 String sort = filter.getSort();

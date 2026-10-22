@@ -53,8 +53,8 @@ public interface JournalCategoryRepository extends JpaRepository<JournalCategory
             FROM journal_categories c
             JOIN journal_category_translations t ON c.id = t.journal_category_id
             WHERE c.deleted_at IS NOT NULL
-            AND (LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%'))
-                 OR LOWER(c.slug) LIKE LOWER(CONCAT('%', :search, '%')))
+            AND (COALESCE(:search, '') = '' OR LOWER(t.name) LIKE :search
+                 OR LOWER(c.slug) LIKE :search)
             GROUP BY c.id, c.slug, c.created_at, t.language, t.name
             ORDER BY c.created_at DESC, t.language
             """, nativeQuery = true)
