@@ -1,0 +1,9 @@
+  order_number   | from_status | to_status  |         note          | changed_by |          created_at           
+-----------------+-------------+------------+-----------------------+------------+-------------------------------
+ ORD-2026-000009 |             | PENDING    |                       | seed       | 2026-10-22 04:16:50.909462+00
+ ORD-2026-000009 | PENDING     | CONFIRMED  | Payment received      | seed       | 2026-10-22 05:16:50.909462+00
+ ORD-2026-000009 | CONFIRMED   | PROCESSING | Order confirmed       | seed       | 2026-10-22 06:16:50.909462+00
+ ORD-2026-000009 | PROCESSING  | SHIPPED    | Shipped to carrier    | seed       | 2026-10-23 04:16:50.909462+00
+ ORD-2026-000009 | SHIPPED     | DELIVERED  | Delivered to customer | seed       | 2026-10-25 04:16:50.909462+00
+(5 rows)
+

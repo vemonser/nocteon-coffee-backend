@@ -1,0 +1,117 @@
+--- terminating the open sessions ---
+ pg_terminate_backend 
+----------------------
+ t
+ t
+ t
+ t
+ t
+ t
+ t
+ t
+ t
+ t
+(10 rows)
+
+--- dropping and recreating nocteon_db ---
+DROP DATABASE
+CREATE DATABASE
+--- applying the migrations ---
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.nocteon:nocteon-api >-----------------------
+[INFO] Building  0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- flyway:12.4.0:migrate (default-cli) @ nocteon-api ---
+[INFO] Database: jdbc:postgresql://localhost:5432/nocteon_db (PostgreSQL 16.15)
+[INFO] Schema history table "public"."flyway_schema_history" does not exist yet
+[INFO] Successfully validated 24 migrations (execution time 00:00.045s)
+[INFO] Creating Schema History table "public"."flyway_schema_history" ...
+[INFO] Current version of schema "public": << Empty Schema >>
+[INFO] Migrating schema "public" to version "1 - create auth tables"
+[INFO] Migrating schema "public" to version "2 - create lookup tables"
+[INFO] Migrating schema "public" to version "3 - create product tables"
+[INFO] Migrating schema "public" to version "4 - create commerce and promo code tables"
+[INFO] Migrating schema "public" to version "5 - create journal tables"
+[INFO] Migrating schema "public" to version "6 - create notifications and emails table"
+[INFO] Migrating schema "public" to version "7 - create broadcasts and broadcasts recipients"
+[INFO] Migrating schema "public" to version "8 - create shipping zones table"
+[INFO] Migrating schema "public" to version "9 - add dashboard indexes"
+[INFO] Migrating schema "public" to version "100 - seed lookups"
+[INFO] Migrating schema "public" to version "101 - seed users"
+[INFO] Migrating schema "public" to version "102 - seed products complete"
+[WARNING] DB: there is already a transaction in progress (SQL State: 25001 - Error Code: 0)
+[INFO] Migrating schema "public" to version "103 - enable pgvector"
+[INFO] DB: V103: pgvector extension is available and has been enabled.
+[INFO] Migrating schema "public" to version "104 - differentiate catalog content"
+[INFO] Migrating schema "public" to version "105 - catalog pricing and imagery"
+[INFO] Migrating schema "public" to version "106 - seed dashboard data"
+[INFO] Migrating schema "public" to version "106.1 - add review status column"
+[INFO] Migrating schema "public" to version "106.5 - add contact status"
+[INFO] Migrating schema "public" to version "107 - seed orders reviews contacts"
+[INFO] Migrating schema "public" to version "108 - seed shipping login"
+[INFO] Migrating schema "public" to version "109 - create audit log table"
+[INFO] Migrating schema "public" to version "110 - order history notes shipment refunds"
+[INFO] Migrating schema "public" to version "112 - fix review and media seed"
+[INFO] Migrating schema "public" to version "113 - add cart status and activity"
+[INFO] Successfully applied 24 migrations to schema "public", now at version v113 (execution time 00:00.972s)
+[INFO] Database: jdbc:postgresql://localhost:5432/nocteon_db (PostgreSQL 16.15)
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  4.969 s
+[INFO] Finished at: 2026-10-22T15:16:51+03:00
+[INFO] ------------------------------------------------------------------------
+--- the applied versions ---
+ version |                 description                 | success 
+---------+---------------------------------------------+---------
+ 1       | create auth tables                          | t
+ 2       | create lookup tables                        | t
+ 3       | create product tables                       | t
+ 4       | create commerce and promo code tables       | t
+ 5       | create journal tables                       | t
+ 6       | create notifications and emails table       | t
+ 7       | create broadcasts and broadcasts recipients | t
+ 8       | create shipping zones table                 | t
+ 9       | add dashboard indexes                       | t
+ 100     | seed lookups                                | t
+ 101     | seed users                                  | t
+ 102     | seed products complete                      | t
+ 103     | enable pgvector                             | t
+ 104     | differentiate catalog content               | t
+ 105     | catalog pricing and imagery                 | t
+ 106     | seed dashboard data                         | t
+ 106.1   | add review status column                    | t
+ 106.5   | add contact status                          | t
+ 107     | seed orders reviews contacts                | t
+ 108     | seed shipping login                         | t
+ 109     | create audit log table                      | t
+ 110     | order history notes shipment refunds        | t
+ 112     | fix review and media seed                   | t
+ 113     | add cart status and activity                | t
+(24 rows)
+
+--- the seeded orders ---
+  order_number   |   status   | payment_status |  payment_method  | total_amount 
+-----------------+------------+----------------+------------------+--------------
+ ORD-2026-000001 | DELIVERED  | PAID           | ONLINE           |      1875.00
+ ORD-2026-000002 | DELIVERED  | PAID           | ONLINE           |      1939.00
+ ORD-2026-000003 | DELIVERED  | PAID           | ONLINE           |      2328.00
+ ORD-2026-000004 | DELIVERED  | PAID           | ONLINE           |      1799.00
+ ORD-2026-000005 | DELIVERED  | PAID           | ONLINE           |      3707.00
+ ORD-2026-000006 | CANCELLED  | NOT_COLLECTED  | CASH_ON_DELIVERY |        50.00
+ ORD-2026-000007 | CANCELLED  | FAILED         | ONLINE           |        50.00
+ ORD-2026-000008 | SHIPPED    | PAID           | ONLINE           |      1654.00
+ ORD-2026-000009 | DELIVERED  | REFUNDED       | ONLINE           |      1339.00
+ ORD-2026-000010 | CANCELLED  | NOT_COLLECTED  | CASH_ON_DELIVERY |        50.00
+ ORD-2026-000011 | DELIVERED  | PAID           | ONLINE           |      2054.00
+ ORD-2026-000012 | CANCELLED  | REFUNDED       | ONLINE           |        40.00
+ ORD-2026-000013 | PROCESSING | PAID           | ONLINE           |      1286.00
+ ORD-2026-000014 | PENDING    | PENDING        | ONLINE           |        50.00
+ ORD-2026-000015 | CONFIRMED  | PENDING        | CASH_ON_DELIVERY |        50.00
+ ORD-2026-000016 | DELIVERED  | PAID           | ONLINE           |      1984.50
+ ORD-2026-000017 | DELIVERED  | PAID           | ONLINE           |      2700.00
+(17 rows)
+

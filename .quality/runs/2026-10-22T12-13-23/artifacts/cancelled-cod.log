@@ -1,0 +1,6 @@
+  order_number   |  status   | payment_status |  payment_method  
+-----------------+-----------+----------------+------------------
+ ORD-2026-000006 | CANCELLED | NOT_COLLECTED  | CASH_ON_DELIVERY
+ ORD-2026-000010 | CANCELLED | NOT_COLLECTED  | CASH_ON_DELIVERY
+(2 rows)
+

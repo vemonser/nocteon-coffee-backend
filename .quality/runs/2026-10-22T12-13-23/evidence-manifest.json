@@ -1,0 +1,303 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "2026-10-22T12-13-23",
+    "task": "Orders v5 — the backend: one migration per table, the money aggregates, and the recorded facts",
+    "source": "docs/orders-v5-criteria.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-01",
+      "statement": "Given the migrations, when Flyway validates them against an empty database, then every version is unique and the whole chain applies",
+      "sourceRef": {
+        "path": "docs/orders-v5-criteria.md",
+        "line": 9
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/resources/db/migration/V107__seed_orders_reviews_contacts.sql",
+        "src/main/resources/db/migration/V110__order_history_notes_shipment_refunds.sql",
+        "src/main/resources/db/migration/V112__fix_review_and_media_seed.sql"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/2026-10-22T12-13-23/artifacts/flyway-chain.log",
+          "command": "bash scripts/rebuild-database.sh",
+          "exitCode": 0,
+          "recordedAt": "2026-10-22T12:16:51.317Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-02",
+      "statement": "Given the payment status enum, when a cancelled cash-on-delivery order is read, then it carries NOT_COLLECTED and never FAILED",
+      "sourceRef": {
+        "path": "docs/orders-v5-criteria.md",
+        "line": 10
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/payment/enums/PaymentStatus.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": ".quality/runs/2026-10-22T12-13-23/artifacts/not-collected-enum.log",
+          "command": "grep -A 8 public enum PaymentStatus src/main/java/com/nocteon/nocteon_api/payment/enums/PaymentStatus.java",
+          "exitCode": 0,
+          "recordedAt": "2026-10-22T12:17:10.645Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-03",
+      "statement": "Given the orders stats endpoint, when it is called with a filter, then it returns the revenue and the number of paid orders the revenue came from",
+      "sourceRef": {
+        "path": "docs/orders-v5-criteria.md",
+        "line": 11
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/order/service/OrderStatsService.java",
+        "src/main/java/com/nocteon/nocteon_api/order/dto/response/OrderStatsResponse.java",
+        "src/main/java/com/nocteon/nocteon_api/order/repository/OrderRepository.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/2026-10-22T12-13-23/artifacts/stats-endpoint.log",
+          "command": "curl -s http://localhost:8080/api/dashboard/orders/stats -H Authorization: Bearer eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJhZG1pbkBhdXJ1bS5sb2NhbCIsInJvbGUiOiJBRE1JTiIsInRva2VuVmVyc2lvbiI6MCwiaWF0IjoxNzkyNjcxNTI2LCJleHAiOjE3OTI2NzI0MjZ9.dnxQ0CiRB7OpU6TK6ifWzHbsgBzVyFd0KHPDJcjBzN32Kym8tud0bQXicdOyhxl8_mM6GSDvOCy6Da8V6iCM83UJv5c3TT6UqGMLRjVUwe_3_OqRWOlmbo-Uw5qhYuon_Dpmj6aYiaGfGRlKor5ADculXLl7n_LCeQukj_37KjM5OlUf38X8Q8YpaaZHxO7YvUlRVSjt8-NaZkGeV9_SHZcjrByWRi9hPpX5aoBXXZFO09ktcAKkEtqEBZxBnB0zTfRYkzrAPJODcpPay0W1aPv80JI_QXcdVyLX95kkLd8Sp6i9MjEhRlAubai__DpfbHQEgzejyUUyw-Rt_EwOCg",
+          "exitCode": 0,
+          "recordedAt": "2026-10-22T12:18:47.281Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-04",
+      "statement": "Given the seeded orders, when the migration runs, then the cancelled cash-on-delivery orders carry NOT_COLLECTED",
+      "sourceRef": {
+        "path": "docs/orders-v5-criteria.md",
+        "line": 12
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/resources/db/migration/V107__seed_orders_reviews_contacts.sql"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/2026-10-22T12-13-23/artifacts/cancelled-cod.log",
+          "command": "psql -h localhost -U postgres -d nocteon_db -c SELECT order_number, status, payment_status, payment_method FROM orders WHERE status='CANCELLED' AND payment_method='CASH_ON_DELIVERY';",
+          "exitCode": 0,
+          "recordedAt": "2026-10-22T12:17:10.716Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-05",
+      "statement": "Given ORD-9, when the seed runs, then it carries line items and a total that is not zero",
+      "sourceRef": {
+        "path": "docs/orders-v5-criteria.md",
+        "line": 13
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/resources/db/migration/V107__seed_orders_reviews_contacts.sql"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/2026-10-22T12-13-23/artifacts/ord-9.log",
+          "command": "psql -h localhost -U postgres -d nocteon_db -c SELECT o.order_number, o.total_amount, count(i.id) AS items FROM orders o LEFT JOIN order_items i ON i.order_id=o.id WHERE o.order_number='ORD-2026-000009' GROUP BY o.id;",
+          "exitCode": 0,
+          "recordedAt": "2026-10-22T12:17:10.780Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-06",
+      "statement": "Given a seeded order, when its history is read, then it carries a creation row and every transition it actually made",
+      "sourceRef": {
+        "path": "docs/orders-v5-criteria.md",
+        "line": 14
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/resources/db/migration/V110__order_history_notes_shipment_refunds.sql"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/2026-10-22T12-13-23/artifacts/history.log",
+          "command": "psql -h localhost -U postgres -d nocteon_db -c SELECT o.order_number, h.from_status, h.to_status, h.note, h.changed_by, h.created_at FROM order_status_history h JOIN orders o ON o.id=h.order_id WHERE o.order_number='ORD-2026-000009' ORDER BY h.created_at;",
+          "exitCode": 0,
+          "recordedAt": "2026-10-22T12:21:58.922Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-07",
+      "statement": "Given a shipped or delivered order, when it is read, then it carries its shipped-at or delivered-at time, and the ETA column exists",
+      "sourceRef": {
+        "path": "docs/orders-v5-criteria.md",
+        "line": 15
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/resources/db/migration/V110__order_history_notes_shipment_refunds.sql"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/2026-10-22T12-13-23/artifacts/shipment-stamps.log",
+          "command": "psql -h localhost -U postgres -d nocteon_db -c SELECT o.order_number, o.status, o.shipped_at, o.delivered_at FROM orders o WHERE o.status IN ('SHIPPED','DELIVERED') ORDER BY o.id; -c SELECT column_name FROM information_schema.columns WHERE table_name='orders' AND column_name='estimated_delivery_at';",
+          "exitCode": 0,
+          "recordedAt": "2026-10-22T12:17:33.119Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-08",
+      "statement": "Given a paid order, when its payment is read, then it carries a paid-at time and a transaction reference",
+      "sourceRef": {
+        "path": "docs/orders-v5-criteria.md",
+        "line": 16
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/resources/db/migration/V107__seed_orders_reviews_contacts.sql"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/2026-10-22T12-13-23/artifacts/payment-facts.log",
+          "command": "psql -h localhost -U postgres -d nocteon_db -c SELECT o.order_number, o.payment_status, p.paid_at, p.provider_payment_id FROM payments p JOIN orders o ON o.id=p.order_id ORDER BY o.id;",
+          "exitCode": 0,
+          "recordedAt": "2026-10-22T12:17:33.188Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-09",
+      "statement": "Given a refunded order, when its refunds are read, then it carries the refund row its flag promises",
+      "sourceRef": {
+        "path": "docs/orders-v5-criteria.md",
+        "line": 17
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/resources/db/migration/V110__order_history_notes_shipment_refunds.sql"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/2026-10-22T12-13-23/artifacts/refund-rows.log",
+          "command": "psql -h localhost -U postgres -d nocteon_db -c SELECT o.order_number, o.payment_status, r.amount, r.reason FROM order_refunds r JOIN orders o ON o.id=r.order_id ORDER BY o.id;",
+          "exitCode": 0,
+          "recordedAt": "2026-10-22T12:17:33.254Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-10",
+      "statement": "Given a status change, a shipment and a payment, when they are written, then their rows are written in the same transaction",
+      "sourceRef": {
+        "path": "docs/orders-v5-criteria.md",
+        "line": 18
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/order/service/OrderStatusService.java",
+        "src/main/java/com/nocteon/nocteon_api/order/service/OrderShipmentService.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": ".quality/runs/2026-10-22T12-13-23/artifacts/service-wiring.log",
+          "command": "./mvnw test -Dtest=OrderStatusServiceTest,OrderShipmentServiceTest,OrderRefundServiceTest -q",
+          "exitCode": 0,
+          "recordedAt": "2026-10-22T12:19:06.759Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-11",
+      "statement": "Given the backend test suite, when it runs, then every test passes",
+      "sourceRef": {
+        "path": "docs/orders-v5-criteria.md",
+        "line": 19
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/test/java/com/nocteon/nocteon_api/order/service/OrderStatusServiceTest.java",
+        "src/test/java/com/nocteon/nocteon_api/review/service/ReviewServiceFilterTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/2026-10-22T12-13-23/artifacts/backend-verify.log",
+          "command": "./mvnw verify",
+          "exitCode": 0,
+          "recordedAt": "2026-10-22T12:21:11.219Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

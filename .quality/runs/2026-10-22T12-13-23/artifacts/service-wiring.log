@@ -1,0 +1,19 @@
+15:19:06.329 [main] INFO com.nocteon.nocteon_api.order.service.OrderStatusService -- Order 1 status changed from PENDING to CONFIRMED by admin
+15:19:06.352 [main] INFO com.nocteon.nocteon_api.order.service.OrderStatusService -- Order 1 status changed from PENDING to CANCELLED by admin
+15:19:06.365 [main] INFO com.nocteon.nocteon_api.order.service.OrderStatusService -- Order 1 status changed from CONFIRMED to PROCESSING by admin
+15:19:06.376 [main] INFO com.nocteon.nocteon_api.order.service.OrderStatusService -- Order 1 status changed from CONFIRMED to CANCELLED by admin
+15:19:06.386 [main] INFO com.nocteon.nocteon_api.order.service.OrderStatusService -- Order 1 status changed from PROCESSING to SHIPPED by admin
+15:19:06.400 [main] INFO com.nocteon.nocteon_api.order.service.OrderStatusService -- Order 1 status changed from PROCESSING to CANCELLED by admin
+15:19:06.412 [main] INFO com.nocteon.nocteon_api.order.service.OrderStatusService -- Order 1 status changed from SHIPPED to DELIVERED by admin
+15:19:06.422 [main] INFO com.nocteon.nocteon_api.order.service.OrderStatusService -- Order 1 status changed from PENDING to CANCELLED by admin
+15:19:06.431 [main] INFO com.nocteon.nocteon_api.order.service.OrderStatusService -- Order 1 status changed from PROCESSING to SHIPPED by admin
+15:19:06.441 [main] INFO com.nocteon.nocteon_api.order.service.OrderStatusService -- Order 1 status changed from PENDING to CONFIRMED by admin
+15:19:06.450 [main] INFO com.nocteon.nocteon_api.order.service.OrderStatusService -- Order 1 status changed from PENDING to CONFIRMED by admin@aurum.local
+15:19:06.479 [main] INFO com.nocteon.nocteon_api.order.service.OrderStatusService -- Order 1 status changed from PROCESSING to SHIPPED by admin
+15:19:06.487 [main] INFO com.nocteon.nocteon_api.order.service.OrderStatusService -- Order 1 status changed from SHIPPED to DELIVERED by admin
+Mockito is currently self-attaching to enable the inline-mock-maker. This will no longer work in future releases of the JDK. Please add Mockito as an agent to your build as described in Mockito's documentation: https://javadoc.io/doc/org.mockito/mockito-core/latest/org.mockito/org/mockito/Mockito.html#0.3
+OpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+WARNING: A Java agent has been loaded dynamically (/home/abdelrhman/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release

@@ -1,0 +1,6 @@
+  order_number   | payment_status | amount  |       reason       
+-----------------+----------------+---------+--------------------
+ ORD-2026-000009 | REFUNDED       | 1339.00 | Full refund (seed)
+ ORD-2026-000012 | REFUNDED       |   40.00 | Full refund (seed)
+(2 rows)
+

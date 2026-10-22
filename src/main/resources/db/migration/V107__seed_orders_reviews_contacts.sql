@@ -21,7 +21,7 @@ BEGIN
         SELECT id INTO o1 FROM orders WHERE order_number = 'ORD-2026-000001';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (1, 1, 'ORD-2026-000001', 'DELIVERED', 'PAID', 'ONLINE', 50.00, 120.50, 0.00, 'Test order 1', NOW(), NOW())
+        VALUES (1, 1, 'ORD-2026-000001', 'DELIVERED', 'PAID', 'ONLINE', 50.00, 120.50, 0.00, 'Test order 1', NOW() - interval '16 hours', NOW() - interval '16 hours')
         RETURNING id INTO o1;
     END IF;
 
@@ -30,7 +30,7 @@ BEGIN
         SELECT id INTO o2 FROM orders WHERE order_number = 'ORD-2026-000002';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (2, 2, 'ORD-2026-000002', 'DELIVERED', 'PAID', 'ONLINE', 50.00, 85.00, 0.00, 'Test order 2', NOW(), NOW())
+        VALUES (2, 2, 'ORD-2026-000002', 'DELIVERED', 'PAID', 'ONLINE', 50.00, 85.00, 0.00, 'Test order 2', NOW() - interval '15 hours', NOW() - interval '15 hours')
         RETURNING id INTO o2;
     END IF;
 
@@ -39,7 +39,7 @@ BEGIN
         SELECT id INTO o3 FROM orders WHERE order_number = 'ORD-2026-000003';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (3, 3, 'ORD-2026-000003', 'DELIVERED', 'PAID', 'ONLINE', 50.00, 95.25, 0.00, 'Test order 3', NOW(), NOW())
+        VALUES (3, 3, 'ORD-2026-000003', 'DELIVERED', 'PAID', 'ONLINE', 50.00, 95.25, 0.00, 'Test order 3', NOW() - interval '14 hours', NOW() - interval '14 hours')
         RETURNING id INTO o3;
     END IF;
 
@@ -48,7 +48,7 @@ BEGIN
         SELECT id INTO o4 FROM orders WHERE order_number = 'ORD-2026-000004';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (4, 4, 'ORD-2026-000004', 'DELIVERED', 'PAID', 'ONLINE', 50.00, 110.00, 0.00, 'Test order 4', NOW(), NOW())
+        VALUES (4, 4, 'ORD-2026-000004', 'DELIVERED', 'PAID', 'ONLINE', 50.00, 110.00, 0.00, 'Test order 4', NOW() - interval '13 hours', NOW() - interval '13 hours')
         RETURNING id INTO o4;
     END IF;
 
@@ -57,7 +57,7 @@ BEGIN
         SELECT id INTO o5 FROM orders WHERE order_number = 'ORD-2026-000005';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (5, 5, 'ORD-2026-000005', 'DELIVERED', 'PAID', 'ONLINE', 50.00, 75.00, 0.00, 'Test order 5', NOW(), NOW())
+        VALUES (5, 5, 'ORD-2026-000005', 'DELIVERED', 'PAID', 'ONLINE', 50.00, 75.00, 0.00, 'Test order 5', NOW() - interval '12 hours', NOW() - interval '12 hours')
         RETURNING id INTO o5;
     END IF;
 
@@ -66,7 +66,7 @@ BEGIN
         SELECT id INTO o6 FROM orders WHERE order_number = 'ORD-2026-000006';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (1, 1, 'ORD-2026-000006', 'CANCELLED', 'FAILED', 'CASH_ON_DELIVERY', 50.00, 60.00, 0.00, 'Cancelled COD order 1', NOW(), NOW())
+        VALUES (1, 1, 'ORD-2026-000006', 'CANCELLED', 'FAILED', 'CASH_ON_DELIVERY', 50.00, 60.00, 0.00, 'Cancelled COD order 1', NOW() - interval '11 hours', NOW() - interval '11 hours')
         RETURNING id INTO o6;
     END IF;
 
@@ -75,7 +75,7 @@ BEGIN
         SELECT id INTO o7 FROM orders WHERE order_number = 'ORD-2026-000007';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (2, 2, 'ORD-2026-000007', 'CANCELLED', 'FAILED', 'ONLINE', 50.00, 45.00, 0.00, 'Cancelled order 1', NOW(), NOW())
+        VALUES (2, 2, 'ORD-2026-000007', 'CANCELLED', 'FAILED', 'ONLINE', 50.00, 45.00, 0.00, 'Cancelled order 1', NOW() - interval '10 hours', NOW() - interval '10 hours')
         RETURNING id INTO o7;
     END IF;
 
@@ -84,7 +84,7 @@ BEGIN
         SELECT id INTO o8 FROM orders WHERE order_number = 'ORD-2026-000008';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (3, 3, 'ORD-2026-000008', 'SHIPPED', 'PAID', 'ONLINE', 50.00, 130.00, 0.00, 'Shipped order 1', NOW(), NOW())
+        VALUES (3, 3, 'ORD-2026-000008', 'SHIPPED', 'PAID', 'ONLINE', 50.00, 130.00, 0.00, 'Shipped order 1', NOW() - interval '9 hours', NOW() - interval '9 hours')
         RETURNING id INTO o8;
     END IF;
 
@@ -93,7 +93,7 @@ BEGIN
         SELECT id INTO o9 FROM orders WHERE order_number = 'ORD-2026-000009';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (4, 4, 'ORD-2026-000009', 'DELIVERED', 'REFUNDED', 'ONLINE', 50.00, 200.00, 50.00, 'Refunded order 1', NOW(), NOW())
+        VALUES (4, 4, 'ORD-2026-000009', 'DELIVERED', 'REFUNDED', 'ONLINE', 50.00, 200.00, 50.00, 'Refunded order 1', NOW() - interval '8 hours', NOW() - interval '8 hours')
         RETURNING id INTO o9;
     END IF;
 
@@ -102,7 +102,7 @@ BEGIN
         SELECT id INTO o10 FROM orders WHERE order_number = 'ORD-2026-000010';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (4, 5, 'ORD-2026-000010', 'CANCELLED', 'FAILED', 'CASH_ON_DELIVERY', 50.00, 80.00, 0.00, 'Cancelled COD order 2', NOW(), NOW())
+        VALUES (4, 5, 'ORD-2026-000010', 'CANCELLED', 'FAILED', 'CASH_ON_DELIVERY', 50.00, 80.00, 0.00, 'Cancelled COD order 2', NOW() - interval '7 hours', NOW() - interval '7 hours')
         RETURNING id INTO o10;
     END IF;
 
@@ -111,7 +111,7 @@ BEGIN
         SELECT id INTO o11 FROM orders WHERE order_number = 'ORD-2026-000011';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (5, 1, 'ORD-2026-000011', 'DELIVERED', 'PAID', 'ONLINE', 50.00, 150.00, 0.00, 'Delivered order 1', NOW(), NOW())
+        VALUES (5, 1, 'ORD-2026-000011', 'DELIVERED', 'PAID', 'ONLINE', 50.00, 150.00, 0.00, 'Delivered order 1', NOW() - interval '6 hours', NOW() - interval '6 hours')
         RETURNING id INTO o11;
     END IF;
 
@@ -120,7 +120,7 @@ BEGIN
         SELECT id INTO o12 FROM orders WHERE order_number = 'ORD-2026-000012';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (1, 2, 'ORD-2026-000012', 'CANCELLED', 'REFUNDED', 'ONLINE', 50.00, 115.00, 10.00, 'Refunded order 1', NOW(), NOW())
+        VALUES (1, 2, 'ORD-2026-000012', 'CANCELLED', 'REFUNDED', 'ONLINE', 50.00, 115.00, 10.00, 'Refunded order 1', NOW() - interval '5 hours', NOW() - interval '5 hours')
         RETURNING id INTO o12;
     END IF;
 
@@ -129,7 +129,7 @@ BEGIN
         SELECT id INTO o13 FROM orders WHERE order_number = 'ORD-2026-000013';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (2, 3, 'ORD-2026-000013', 'PROCESSING', 'PAID', 'ONLINE', 50.00, 95.50, 0.00, 'Processing order 1', NOW(), NOW())
+        VALUES (2, 3, 'ORD-2026-000013', 'PROCESSING', 'PAID', 'ONLINE', 50.00, 95.50, 0.00, 'Processing order 1', NOW() - interval '4 hours', NOW() - interval '4 hours')
         RETURNING id INTO o13;
     END IF;
 
@@ -138,7 +138,7 @@ BEGIN
         SELECT id INTO o14 FROM orders WHERE order_number = 'ORD-2026-000014';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (3, 4, 'ORD-2026-000014', 'PENDING', 'PENDING', 'ONLINE', 50.00, 65.00, 0.00, 'Awaiting payment order 1', NOW(), NOW())
+        VALUES (3, 4, 'ORD-2026-000014', 'PENDING', 'PENDING', 'ONLINE', 50.00, 65.00, 0.00, 'Awaiting payment order 1', NOW() - interval '3 hours', NOW() - interval '3 hours')
         RETURNING id INTO o14;
     END IF;
 
@@ -147,7 +147,7 @@ BEGIN
         SELECT id INTO o15 FROM orders WHERE order_number = 'ORD-2026-000015';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (4, 5, 'ORD-2026-000015', 'CONFIRMED', 'PENDING', 'CASH_ON_DELIVERY', 50.00, 70.00, 0.00, 'Confirmed order 1', NOW(), NOW())
+        VALUES (4, 5, 'ORD-2026-000015', 'CONFIRMED', 'PENDING', 'CASH_ON_DELIVERY', 50.00, 70.00, 0.00, 'Confirmed order 1', NOW() - interval '2 hours', NOW() - interval '2 hours')
         RETURNING id INTO o15;
     END IF;
 
@@ -156,7 +156,7 @@ BEGIN
         SELECT id INTO o16 FROM orders WHERE order_number = 'ORD-2026-000016';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (5, 1, 'ORD-2026-000016', 'DELIVERED', 'PAID', 'ONLINE', 50.00, 175.00, 0.00, 'Quality issue resolved order 1', NOW(), NOW())
+        VALUES (5, 1, 'ORD-2026-000016', 'DELIVERED', 'PAID', 'ONLINE', 50.00, 175.00, 0.00, 'Quality issue resolved order 1', NOW() - interval '1 hours', NOW() - interval '1 hours')
         RETURNING id INTO o16;
     END IF;
 
@@ -165,7 +165,7 @@ BEGIN
         SELECT id INTO o17 FROM orders WHERE order_number = 'ORD-2026-000017';
     ELSE
         INSERT INTO orders (user_id, address_id, order_number, status, payment_status, payment_method, shipping_cost, total_amount, discount_amount, notes, created_at, updated_at)
-        VALUES (1, 1, 'ORD-2026-000017', 'DELIVERED', 'PAID', 'ONLINE', 50.00, 140.00, 0.00, 'Last test order 1', NOW(), NOW())
+        VALUES (1, 1, 'ORD-2026-000017', 'DELIVERED', 'PAID', 'ONLINE', 50.00, 140.00, 0.00, 'Last test order 1', NOW() - interval '0 hours', NOW() - interval '0 hours')
         RETURNING id INTO o17;
     END IF;
 
