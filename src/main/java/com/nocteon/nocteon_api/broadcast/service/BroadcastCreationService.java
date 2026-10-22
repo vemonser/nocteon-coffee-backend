@@ -52,7 +52,32 @@ public class BroadcastCreationService {
         List<User> eligibleUsers = userRepository.findByRoleAndSubscribedTrue(Role.CUSTOMER);
         List<NewsletterSubscriber> subscribers = subscriberRepository.findAllBySubscribedTrue();
 
-        List<BroadcastRecipient> recipients = buildRecipients(eligibleUsers, subscribers);
+        // The recipient set is "every customer, plus the newsletter subscribers"
+        // (deduplicated by email), and the exclude list removes the ones the
+        // admin does not want. When recipientIds is set, only those customers
+        // are kept — the newsletter subscribers are still added (unless
+        // excluded), so the audience stays complete.
+        List<User> users = eligibleUsers;
+        if (request.getRecipientIds() != null && !request.getRecipientIds().isEmpty()) {
+            Set<Long> wanted = new HashSet<>(request.getRecipientIds());
+            users = eligibleUsers.stream()
+                    .filter(u -> wanted.contains(u.getId()))
+                    .toList();
+        }
+
+        // The exclude list is by customer id: collect the emails of the
+        // customers the admin asked to leave out, so the newsletter
+        // subscribers with the same email are left out too.
+        Set<String> excludedEmails = new HashSet<>();
+        if (request.getExcludeIds() != null) {
+            for (User u : eligibleUsers) {
+                if (request.getExcludeIds().contains(u.getId())) {
+                    excludedEmails.add(u.getEmail().toLowerCase());
+                }
+            }
+        }
+
+        List<BroadcastRecipient> recipients = buildRecipients(users, subscribers, excludedEmails);
 
         Broadcast broadcast = Broadcast.builder()
                 .subject(request.getSubject())
@@ -76,6 +101,39 @@ public class BroadcastCreationService {
         send(broadcast, recipients);
 
         return buildResponse(broadcast);
+    }
+
+    private List<BroadcastRecipient> buildRecipients(List<User> users, List<NewsletterSubscriber> subscribers,
+            Set<String> excludedEmails) {
+        Set<String> seenEmails = new HashSet<>();
+        List<BroadcastRecipient> recipients = new ArrayList<>();
+
+        for (User user : users) {
+            String email = user.getEmail().toLowerCase();
+            if (excludedEmails.contains(email)) continue;
+            if (seenEmails.add(email)) {
+                recipients.add(BroadcastRecipient.builder()
+                        .user(user)
+                        .email(user.getEmail())
+                        .status(BroadcastRecipientStatus.PENDING)
+                        .attemptCount(0)
+                        .build());
+            }
+        }
+
+        for (NewsletterSubscriber subscriber : subscribers) {
+            String email = subscriber.getEmail().toLowerCase();
+            if (excludedEmails.contains(email)) continue;
+            if (seenEmails.add(email)) {
+                recipients.add(BroadcastRecipient.builder()
+                        .email(subscriber.getEmail())
+                        .status(BroadcastRecipientStatus.PENDING)
+                        .attemptCount(0)
+                        .build());
+            }
+        }
+
+        return recipients;
     }
 
     /**
