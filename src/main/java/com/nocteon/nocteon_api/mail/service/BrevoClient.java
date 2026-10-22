@@ -58,11 +58,32 @@ public class BrevoClient {
     }
 
     private BrevoEmailRequest buildRequest(String recipientEmail, EmailType type, Map<String, Object> params) {
+        // Brevo requires a subject on the template send. The template may
+        // carry its own, but when it does not the API rejects the call with
+        // "subject is required". Passing the params' subject (when present)
+        // overrides the template's, so the admin's typed subject wins.
+        String subject = null;
+        String htmlContent = null;
+        String textContent = null;
+        if (params != null) {
+            Object s = params.get("subject");
+            if (s instanceof String str && !str.isBlank()) {
+                subject = str;
+            }
+            Object c = params.get("content");
+            if (c instanceof String str && !str.isBlank()) {
+                htmlContent = str;
+                textContent = str;
+            }
+        }
         return new BrevoEmailRequest(
                 new BrevoSender("Nocteon", "orders@nocteon.com"),
                 List.of(new BrevoRecipient(recipientEmail)),
                 resolveTemplateId(type),
-                params);
+                params,
+                subject,
+                htmlContent,
+                textContent);
     }
 
     private Long resolveTemplateId(EmailType type) {

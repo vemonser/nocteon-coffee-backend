@@ -7,5 +7,8 @@ public record BrevoEmailRequest(
         BrevoSender sender,
         List<BrevoRecipient> to,
         Long templateId,
-        Map<String, Object> params
+        Map<String, Object> params,
+        String subject,
+        String htmlContent,
+        String textContent
 ) {}
