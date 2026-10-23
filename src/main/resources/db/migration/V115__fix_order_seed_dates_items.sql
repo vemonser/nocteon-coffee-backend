@@ -128,3 +128,44 @@ BEGIN
   END IF;
   RAISE NOTICE 'Seed check passed: % orders verified', v_count;
 END $$;
+
+-- 8. Ensure every order has 1-3 lines (fix orders that shipped with zero items).
+INSERT INTO order_items (order_id, product_variant_id, quantity, unit_price, total_price)
+SELECT o.id, pv.id, (1 + (o.id % 3))::int, pv.price, pv.price * (1 + (o.id % 3))::int
+FROM orders o
+CROSS JOIN LATERAL (SELECT id, price FROM product_variants ORDER BY id LIMIT 1 OFFSET (o.id % 5)) pv
+WHERE o.order_number LIKE 'ORD-2026-%'
+  AND NOT EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id);
+
+-- 9. Recompute totals for all orders (subtotal + shipping 50, free above 500).
+UPDATE orders o
+SET total_amount = COALESCE((SELECT SUM(oi.total_price) FROM order_items oi WHERE oi.order_id = o.id), 0)
+                 + CASE WHEN COALESCE((SELECT SUM(oi.total_price) FROM order_items oi WHERE oi.order_id = o.id),0) >= 500 THEN 0 ELSE 50 END
+WHERE o.order_number LIKE 'ORD-2026-%';
+
+UPDATE orders o
+SET shipping_cost = CASE WHEN COALESCE((SELECT SUM(oi.total_price) FROM order_items oi WHERE oi.order_id = o.id),0) >= 500 THEN 0 ELSE 50 END
+WHERE o.order_number LIKE 'ORD-2026-%';
+
+-- 10. Startup assertion: every order has >=1 line, total == subtotal + shipping, total >= shipping.
+DO $$
+DECLARE
+  v_count integer;
+  v_bad_lines integer;
+  v_bad_totals integer;
+BEGIN
+  SELECT count(*) INTO v_count FROM orders WHERE order_number LIKE 'ORD-2026-%';
+  SELECT count(*) INTO v_bad_lines
+  FROM orders o WHERE o.order_number LIKE 'ORD-2026-%'
+    AND NOT EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id);
+  SELECT count(*) INTO v_bad_totals
+  FROM orders o WHERE o.order_number LIKE 'ORD-2026-%'
+    AND o.total_amount <> COALESCE((SELECT SUM(oi.total_price) FROM order_items oi WHERE oi.order_id=o.id),0) + o.shipping_cost;
+  IF v_bad_lines > 0 THEN
+    RAISE EXCEPTION 'Seed: % orders have no line items', v_bad_lines;
+  END IF;
+  IF v_bad_totals > 0 THEN
+    RAISE EXCEPTION 'Seed: % orders have wrong total', v_bad_totals;
+  END IF;
+  RAISE NOTICE 'Seed items check passed: % orders verified (>=1 line, total=subtotal+shipping)', v_count;
+END $$;
