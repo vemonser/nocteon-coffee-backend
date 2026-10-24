@@ -46,9 +46,8 @@ public class User extends BaseEntity {
     @Column(name = "provider_id")
     private String providerId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Role role;
+    @Column(name = "role", nullable = false, length = 64)
+    private String role;
 
     @Builder.Default
     private boolean enabled = false;
