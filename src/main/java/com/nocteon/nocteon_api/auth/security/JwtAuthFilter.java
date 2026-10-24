@@ -57,7 +57,17 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if (user != null && user.isEnabled() && user.isActive() && !user.isLocked()) {
                 int tokenVersion = jwtService.extractTokenVersion(token);
                 if (tokenVersion != user.getTokenVersion()) {
-                    filterChain.doFilter(request, response);
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"success\":false,\"message\":\"TOKEN_STALE\"}");
+                    return;
+                }
+
+                int tokenAuthVersion = jwtService.extractAuthVersion(token);
+                if (tokenAuthVersion != user.getAuthVersion()) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"success\":false,\"message\":\"TOKEN_STALE\"}");
                     return;
                 }
 

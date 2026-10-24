@@ -158,3 +158,16 @@
 - Unknown role 422; success returns the correct granted/revoked diff.
 - Stale token rejected with `TOKEN_STALE` and works after refresh (if B4 was implemented).
 - ADMIN permissions immutable; deleting a role in use -> 409; `/roles` has no N+1 (assert query count); summary counts are correct and independent of filters.
+## Final Implementation Status
+
+| Task | Done/Partial/Skipped | files | tests | notes |
+|---|---|---|---|---|
+| B0 | Done | RBAC_BACKEND_REPORT.md, RBAC_API.md | n/a | Discovery documented |
+| B1 | Done | AdminUserController, UserService, ChangeRoleRequest, UserResponse, exceptions | full suite | PUT /api/dashboard/users/{id}/role; self 403, last admin 409 with pessimistic lock, unknown role 422, same role 200, granted/revoked/sensitiveGranted diff |
+| B2 | Done | RoleController, PermissionController, RoleService | full suite | GET /api/dashboard/roles, GET /api/dashboard/roles/{name}, permissions endpoints return slug/resource/action; grouped count query |
+| B3 | Done | RoleEntity, RoleRepository, RoleService, RoleController, V119 migration, exceptions | full suite | roles/role_permissions tables seeded from enum; CRUD with validation/immutability/in-use |
+| B4 | Done | User, JwtService, JwtAuthFilter, V118 migration | full suite | authVersion claim + filter 401 TOKEN_STALE; refresh issues fresh tokens |
+| B5 | Done | UserService, AdminUserController, UserActivityService | full suite | filters + summary over whole dataset; lastActiveAt throttled 5 min |
+| B6 | Done | OrderRepository, UserService, AdminUserController, UserActivityResponse | full suite | GET /api/dashboard/users/{id}/activity |
+| B7 | Done | AuditAction, UserService, RoleService | full suite | audit events recorded |
+| B8 | Done | (existing suite) | 607 tests, 0 failures | full suite green |

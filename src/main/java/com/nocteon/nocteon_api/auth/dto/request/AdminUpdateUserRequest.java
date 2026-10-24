@@ -40,7 +40,7 @@ public class AdminUpdateUserRequest {
     @Size(max = 255, message = "{validation.email.size}")
     private String email;
 
-    private Role role;
+    private String role;
 
     @Size(max = 50, message = "{validation.firstName.size}")
     @Pattern(regexp = "^[a-zA-Z\\u0600-\\u06FF]+$", message = "{validation.firstName.pattern}")

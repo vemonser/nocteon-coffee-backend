@@ -20,7 +20,7 @@ public class UserResponse {
     private Long id;
     private String username;
     private String email;
-    private Role role;
+    private String role;
     private boolean enabled;
     // @JsonProperty("isActive")
     private boolean isActive;
@@ -30,4 +30,7 @@ public class UserResponse {
     private Instant createdAt;
     private Instant lastActiveAt;
     private List<String> permissions;
+    private List<String> granted;
+    private List<String> revoked;
+    private List<String> sensitiveGranted;
 }

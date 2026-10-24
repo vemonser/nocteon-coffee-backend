@@ -28,7 +28,8 @@ public class JwtService {
         return Jwts.builder()
                 .subject(String.valueOf(userPrincipal.getUserId()))
                 .claim("email", userPrincipal.getUsername())
-                .claim("role", userPrincipal.getUser().getRole().name())
+                .claim("role", userPrincipal.getUser().getRole())
+                .claim("authVersion", userPrincipal.getUser().getAuthVersion())
                 .claim("tokenVersion", userPrincipal.getUser().getTokenVersion())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + jwtProperties.getAccessTokenExpiration()))
@@ -60,6 +61,11 @@ public class JwtService {
 
     public int extractTokenVersion(String token) {
         return extractAllClaims(token).get("tokenVersion", Integer.class);
+    }
+
+    public int extractAuthVersion(String token) {
+        Integer v = extractAllClaims(token).get("authVersion", Integer.class);
+        return v == null ? 0 : v;
     }
 
     public boolean isTokenValid(String token) {

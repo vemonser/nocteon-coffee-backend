@@ -18,18 +18,41 @@ public class UserPrincipal implements UserDetails, OAuth2User {
 
     private final User user;
     private final Map<String, Object> attributes;
+    private final java.util.List<String> permissions;
 
-    private UserPrincipal(User user, Map<String, Object> attributes) {
+    private UserPrincipal(User user, Map<String, Object> attributes, java.util.List<String> permissions) {
         this.user = user;
         this.attributes = attributes;
+        this.permissions = permissions != null ? permissions : java.util.List.of();
     }
 
     public static UserPrincipal create(User user) {
-        return new UserPrincipal(user, null);
+        java.util.List<String> perms = java.util.List.of();
+        com.nocteon.nocteon_api.auth.service.RoleService rs = com.nocteon.nocteon_api.auth.service.RoleService.getInstance();
+        if (rs != null) {
+            perms = new java.util.ArrayList<>(rs.getPermissions(user.getRole()));
+        } else {
+            // fallback to enum
+            try {
+                com.nocteon.nocteon_api.auth.enums.Role r = com.nocteon.nocteon_api.auth.enums.Role.valueOf(user.getRole());
+                perms = r.getPermissions().stream().map(com.nocteon.nocteon_api.common.enums.Permission::getPermission).toList();
+            } catch (Exception ignored) {}
+        }
+        return new UserPrincipal(user, null, perms);
     }
 
     public static UserPrincipal create(User user, Map<String, Object> attributes) {
-        return new UserPrincipal(user, attributes);
+        java.util.List<String> perms = java.util.List.of();
+        com.nocteon.nocteon_api.auth.service.RoleService rs = com.nocteon.nocteon_api.auth.service.RoleService.getInstance();
+        if (rs != null) {
+            perms = new java.util.ArrayList<>(rs.getPermissions(user.getRole()));
+        } else {
+            try {
+                com.nocteon.nocteon_api.auth.enums.Role r = com.nocteon.nocteon_api.auth.enums.Role.valueOf(user.getRole());
+                perms = r.getPermissions().stream().map(com.nocteon.nocteon_api.common.enums.Permission::getPermission).toList();
+            } catch (Exception ignored) {}
+        }
+        return new UserPrincipal(user, attributes, perms);
     }
 
     // ========== OAuth2User ==========
@@ -47,8 +70,8 @@ public class UserPrincipal implements UserDetails, OAuth2User {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return user.getRole().getPermissions().stream()
-                .map(p -> new SimpleGrantedAuthority(p.getPermission()))
+        return permissions.stream()
+                .map(SimpleGrantedAuthority::new)
                 .collect(Collectors.toList());
     }
 
