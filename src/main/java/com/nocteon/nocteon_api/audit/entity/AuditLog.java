@@ -57,13 +57,13 @@ public class AuditLog extends BaseEntity {
     @Column(name = "user_agent", columnDefinition = "TEXT")
     private String userAgent;
 
-    @Column(name = "old_values", columnDefinition = "JSONB")
+    @Column(name = "old_values", columnDefinition = "TEXT")
     private String oldValues;
 
-    @Column(name = "new_values", columnDefinition = "JSONB")
+    @Column(name = "new_values", columnDefinition = "TEXT")
     private String newValues;
 
-    @Column(name = "metadata", columnDefinition = "JSONB")
+    @Column(name = "metadata", columnDefinition = "TEXT")
     private String metadata;
 
     @Column(name = "success", nullable = false)
