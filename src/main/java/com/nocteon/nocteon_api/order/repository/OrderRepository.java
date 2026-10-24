@@ -337,4 +337,8 @@ List<Order> searchOrders(@Param("query") String query, Pageable pageable);
                         @Param("dateFrom") Instant dateFrom,
                         @Param("dateTo") Instant dateTo,
                         @Param("search") String searchPattern);
+    @Query("SELECT COUNT(o), COALESCE(SUM(CASE WHEN o.status <> com.nocteon.nocteon_api.order.enums.OrderStatus.CANCELLED AND o.paymentStatus <> com.nocteon.nocteon_api.payment.enums.PaymentStatus.REFUNDED THEN o.totalAmount ELSE 0 END), 0), MAX(o.createdAt) " +
+           "FROM Order o WHERE o.user.id = :userId")
+    Object[] getActivityByUser(@Param("userId") Long userId);
+
 }

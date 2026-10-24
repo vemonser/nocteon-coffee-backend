@@ -323,13 +323,13 @@ public class DashboardStatsBuilder {
 
             Instant currentPeriodStart = now.minus(days, ChronoUnit.DAYS);
             long currentPeriodCount = userRepository.countByRoleAndCreatedAtBetween(
-                            Role.CUSTOMER, currentPeriodStart, now);
+                            "CUSTOMER", currentPeriodStart, now);
 
             Instant previousPeriodStart = now.minus(days * 2L, ChronoUnit.DAYS);
             long previousPeriodCount = userRepository.countByRoleAndCreatedAtBetween(
-                            Role.CUSTOMER, previousPeriodStart, currentPeriodStart);
+                            "CUSTOMER", previousPeriodStart, currentPeriodStart);
 
-            long totalUsers = userRepository.countByRole(Role.CUSTOMER);
+            long totalUsers = userRepository.countByRole("CUSTOMER");
 
             BigDecimal growthPercentage = calculateGrowthPercentage(currentPeriodCount, previousPeriodCount);
 

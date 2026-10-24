@@ -91,7 +91,7 @@ public class DashboardService {
                         .coffeeSoldKg(coffeeSoldKg)
                         .userGrowth(statsBuilder.buildUserGrowth(days))
                         .onlineUsersCount(userRepository.countByRoleAndLastActiveAtAfter(
-                                        Role.CUSTOMER, Instant.now().minus(ONLINE_THRESHOLD)))
+                                        "CUSTOMER", Instant.now().minus(ONLINE_THRESHOLD)))
                         .deviceBreakdown(statsBuilder.buildDeviceBreakdown(since))
                         .revenueByDay(statsBuilder.buildFilledRevenueByDay(
                                         orderRepository.getRevenueByDay(PaymentStatus.PAID, since), days))
@@ -155,7 +155,7 @@ public class DashboardService {
                             .coffeeSoldKg(coffeeSoldKg)
                             .userGrowth(statsBuilder.buildUserGrowth(days))
                             .onlineUsersCount(userRepository.countByRoleAndLastActiveAtAfter(
-                                            Role.CUSTOMER, Instant.now().minus(ONLINE_THRESHOLD)))
+                                            "CUSTOMER", Instant.now().minus(ONLINE_THRESHOLD)))
                         .deviceBreakdown(statsBuilder.buildDeviceBreakdown(since))
                         .revenueByDay(statsBuilder.buildFilledRevenueByDay(
                                         orderRepository.getRevenueByDay(PaymentStatus.PAID, since), days))

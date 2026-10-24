@@ -49,7 +49,7 @@ public class BroadcastCreationService {
 
     @Transactional
     public BroadcastResponse createBroadcast(CreateBroadcastRequest request) {
-        List<User> eligibleUsers = userRepository.findByRoleAndSubscribedTrue(Role.CUSTOMER);
+        List<User> eligibleUsers = userRepository.findByRoleAndSubscribedTrue("CUSTOMER");
         List<NewsletterSubscriber> subscribers = subscriberRepository.findAllBySubscribedTrue();
 
         // The recipient set is "every customer, plus the newsletter subscribers"

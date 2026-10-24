@@ -90,7 +90,7 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
                 .username(username)
                 .provider(provider)
                 .providerId(userInfo.getId())
-                .role(Role.CUSTOMER)
+                .role("CUSTOMER")
                 .enabled(true)
                 .build();
 

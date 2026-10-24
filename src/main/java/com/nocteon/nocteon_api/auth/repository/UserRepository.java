@@ -9,10 +9,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 
 import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.auth.enums.Provider;
-import com.nocteon.nocteon_api.auth.enums.Role;
 
 import org.springframework.data.repository.query.Param;
 
@@ -73,7 +74,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             """, nativeQuery = true)
     long countSearchUsers(@Param("query") String query);
 
-    List<User> findByRoleAndSubscribedTrue(Role role);
+    List<User> findByRoleAndSubscribedTrue(String role);
 
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.profile WHERE u.id = :id")
     Optional<User> findByIdWithProfile(@Param("id") Long id);
@@ -93,9 +94,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findByEnabledFalseAndCreatedAtBefore(Instant cutoff);
 
-    long countByRoleAndCreatedAtBetween(Role role, Instant start, Instant end);
+    long countByRoleAndCreatedAtBetween(String role, Instant start, Instant end);
 
-    long countByRole(Role role);
+    long countByRole(String role);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM User u WHERE u.role = :role")
+    List<User> findByRoleForUpdate(@Param("role") String role);
 
     @Modifying
     @Query("UPDATE User u SET u.lastActiveAt = :now WHERE u.id = :userId")
@@ -103,7 +108,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     long countByLastActiveAtAfter(Instant threshold);
 
-    long countByRoleAndLastActiveAtAfter(Role role, Instant threshold);
+    long countByRoleAndLastActiveAtAfter(String role, Instant threshold);
 
     long countByEnabledFalse();
     @Query("SELECT COUNT(DISTINCT o.user.id) FROM Order o WHERE o.paymentStatus = com.nocteon.nocteon_api.payment.enums.PaymentStatus.PAID AND o.createdAt >= :since")
@@ -122,7 +127,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
            " LOWER(p.firstName) LIKE :search OR " +
            " LOWER(p.lastName) LIKE :search)")
     Page<User> findAllForAdmin(
-        @Param("role") Role role,
+        @Param("role") String role,
         @Param("isActive") Boolean isActive,
         @Param("enabled") Boolean enabled,
         @Param("search") String search,

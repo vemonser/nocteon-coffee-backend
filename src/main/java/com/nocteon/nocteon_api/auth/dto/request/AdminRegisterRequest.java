@@ -42,5 +42,5 @@ public class AdminRegisterRequest {
     @Size(min = 8, message = "{validation.password.size}")
     private String password;
     
-    private Role role;
+    private String role;
 }

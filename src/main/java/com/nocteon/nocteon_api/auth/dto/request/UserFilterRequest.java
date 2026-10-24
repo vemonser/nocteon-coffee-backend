@@ -11,6 +11,6 @@ import lombok.Setter;
 @Getter
 @Setter
 public class UserFilterRequest extends LookupFilterRequest {
-    private Role role;
+    private String role;
     private Boolean enabled;
 }

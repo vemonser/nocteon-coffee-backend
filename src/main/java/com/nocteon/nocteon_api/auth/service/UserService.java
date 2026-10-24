@@ -20,15 +20,22 @@ import com.nocteon.nocteon_api.auth.dto.request.ChangePasswordRequest;
 import com.nocteon.nocteon_api.auth.dto.request.UpdateProfileRequest;
 import com.nocteon.nocteon_api.auth.dto.request.UserFilterRequest;
 import com.nocteon.nocteon_api.auth.dto.response.UserResponse;
+import com.nocteon.nocteon_api.auth.dto.response.UserActivityResponse;
 import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.auth.entity.UserProfile;
 import com.nocteon.nocteon_api.auth.enums.Role;
 import com.nocteon.nocteon_api.auth.repository.UserProfileRepository;
+import com.nocteon.nocteon_api.auth.repository.RoleRepository;
+import com.nocteon.nocteon_api.audit.service.AuditLogService;
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.order.repository.OrderRepository;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.auth.exception.RoleChangeForbiddenException;
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.cloudinary.service.CloudinaryService;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.common.dto.Summary;
+import com.nocteon.nocteon_api.common.dto.Summary;
 import com.nocteon.nocteon_api.common.enums.Permission;
 import com.nocteon.nocteon_api.common.exception.email.EmailAlreadyExistsException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidCredentialsException;
@@ -49,11 +56,14 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class UserService {
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final AuditLogService auditLogService;
+    private final OrderRepository orderRepository;
     private final UserProfileRepository userProfileRepository;
     private final PasswordEncoder passwordEncoder;
     private final CloudinaryService cloudinaryService;
     private final PasswordValidator passwordValidator;
-
+    private final java.util.List<String> sensitivePermissions;
     @Transactional(readOnly = true)
     public UserResponse getMe(UserPrincipal principal) {
         return getById(principal.getUserId());
@@ -145,12 +155,12 @@ public class UserService {
 
         Instant currentPeriodStart = now.minus(period);
         long currentPeriodCount = userRepository.countByRoleAndCreatedAtBetween(
-                Role.CUSTOMER, currentPeriodStart, now);
+                "CUSTOMER", currentPeriodStart, now);
 
         Instant previousPeriodStart = now.minus(period.multipliedBy(2));
         Instant previousPeriodEnd = currentPeriodStart;
         long previousPeriodCount = userRepository.countByRoleAndCreatedAtBetween(
-                Role.CUSTOMER, previousPeriodStart, previousPeriodEnd);
+                "CUSTOMER", previousPeriodStart, previousPeriodEnd);
 
         BigDecimal growthPercentage = calculateGrowthPercentage(currentPeriodCount, previousPeriodCount);
 
@@ -186,8 +196,8 @@ public class UserService {
 
         // Compute summary over the WHOLE dataset (not the page, not the filters)
         long total = userRepository.count();
-        long admins = userRepository.countByRole(Role.ADMIN);
-        long customers = userRepository.countByRole(Role.CUSTOMER);
+        long admins = userRepository.countByRole("ADMIN");
+        long customers = userRepository.countByRole("CUSTOMER");
         long blocked = userRepository.countByEnabledFalse();
         long unverified = 0; // will be addressed in a future phase with emailVerified column
 
@@ -200,14 +210,36 @@ public class UserService {
         return pageResponse;
     }
 
+    @Transactional(readOnly = true)
+    public Summary getAdminSummary() {
+        long total = userRepository.count();
+        long admins = userRepository.countByRole("ADMIN");
+        long customers = userRepository.countByRole("CUSTOMER");
+        long blocked = userRepository.countByEnabledFalse();
+        long unverified = 0;
+        return Summary.builder()
+                .total(total)
+                .admins(admins)
+                .customers(customers)
+                .blocked(blocked)
+                .unverified(unverified)
+                .build();
+    }
+
     @Transactional
     public UserResponse toggleActive(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException());
 
-        user.setActive(!user.isActive());
+        boolean nowActive = !user.isActive();
+        user.setActive(nowActive);
         userRepository.save(user);
 
+        if (nowActive) {
+            auditLogService.logSuccess(AuditAction.USER_UNBLOCKED, null, null, "User", userId, null, null, null, null, null, null);
+        } else {
+            auditLogService.logSuccess(AuditAction.USER_BLOCKED, null, null, "User", userId, null, null, null, null, null, null);
+        }
         log.info("User {} isActive toggled to {} by admin", userId, user.isActive());
 
         return mapToResponse(user);
@@ -309,7 +341,7 @@ public class UserService {
     }
 
     @Transactional
-    public UserResponse changeRole(Long userId, UserPrincipal principal, Role newRole) {
+    public UserResponse changeRole(Long userId, UserPrincipal principal, String newRole) {
         User currentUser = userRepository.findByIdWithProfile(principal.getUserId())
                 .orElseThrow();
 
@@ -323,28 +355,27 @@ public class UserService {
 
         // 422: Unknown role - validate the role exists
         if (newRole == null) {
-            throw new UnknownRoleException(List.of(Role.ADMIN, Role.MODERATOR, Role.CUSTOMER));
+            throw new UnknownRoleException(List.of("ADMIN", "MODERATOR", "CUSTOMER"));
         }
 
-        // 409: Last admin required - prevent race condition
-        // Check that changing role won't leave zero admins
-        if (user.getRole() == Role.ADMIN && newRole != Role.ADMIN) {
-            // Demoting the last admin is not allowed
-            long adminCount = userRepository.countByRole(Role.ADMIN);
+        String oldRole = user.getRole();
+        if (oldRole.equals(newRole)) {
+            // Same role -> 200 with no changes
+            return mapToResponse(user);
+        }
+
+        // Validate role exists (system enum or roles table)
+        if (!isValidRole(newRole)) {
+            throw new UnknownRoleException(List.of("ADMIN", "MODERATOR", "CUSTOMER"));
+        }
+
+        // Last admin protection (with pessimistic locking)
+        if ("ADMIN".equals(oldRole) && !"ADMIN".equals(newRole)) {
+            // Lock admin rows and re-count inside lock
+            long adminCount = userRepository.findByRoleForUpdate("ADMIN").size();
             if (adminCount <= 1) {
                 throw new LastAdminRequiredException();
             }
-        } else if (newRole == Role.ADMIN && user.getRole() != Role.ADMIN) {
-            // Promoting to admin - ensure at least one admin will remain
-            long currentAdminCount = userRepository.countByRole(Role.ADMIN);
-            // After promotion, we'll have currentAdminCount + 1 admins, which is always >= 1
-            // The real check is for demotion, handled above
-        }
-
-        Role oldRole = user.getRole();
-        if (oldRole == newRole) {
-            // Same role -> 200 with no changes
-            return mapToResponse(user);
         }
 
         user.setRole(newRole);
@@ -359,12 +390,8 @@ public class UserService {
         userRepository.save(user);
 
         // Build granted/revoked diff
-        var oldPermissions = oldRole.getPermissions().stream()
-                .map(Permission::getPermission)
-                .toList();
-        var newPermissions = newRole.getPermissions().stream()
-                .map(Permission::getPermission)
-                .toList();
+        var oldPermissions = permissionsOf(oldRole);
+        var newPermissions = permissionsOf(newRole);
 
         var granted = new java.util.ArrayList<String>();
         var revoked = new java.util.ArrayList<String>();
@@ -380,11 +407,63 @@ public class UserService {
             }
         }
 
-        // Return user response with diff
+        // sensitive granted
+        java.util.List<String> sensitiveGranted = new java.util.ArrayList<>();
+        for (String perm : granted) {
+            if (sensitivePermissions.contains(perm)) {
+                sensitiveGranted.add(perm);
+            }
+        }
+
+        auditLogService.logSuccess(AuditAction.ROLE_CHANGED, principal.getUserId(), null, "User", userId, null, null, null,
+                java.util.Map.of("from", oldRole),
+                java.util.Map.of("to", newRole, "grantedCount", granted.size(), "revokedCount", revoked.size()),
+                null);
+
         UserResponse response = mapToResponse(user);
-        // Note: granted/revoked diff will be added in a future enhancement
-        // For now, return the basic user response
+        response.setGranted(granted);
+        response.setRevoked(revoked);
+        response.setSensitiveGranted(sensitiveGranted);
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public UserActivityResponse getUserActivity(Long userId) {
+        userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException());
+        Object[] row = orderRepository.getActivityByUser(userId);
+        long count = row[0] == null ? 0 : ((Number) row[0]).longValue();
+        java.math.BigDecimal spend = row[1] == null ? java.math.BigDecimal.ZERO : new java.math.BigDecimal(row[1].toString());
+        java.time.Instant last = (java.time.Instant) row[2];
+        return UserActivityResponse.builder()
+                .ordersCount(count)
+                .lifetimeSpend(spend)
+                .lastOrderAt(last)
+                .build();
+    }
+
+    private boolean isValidRole(String role) {
+        if (role == null) return false;
+        if (roleRepository.existsById(role)) return true;
+        try {
+            com.nocteon.nocteon_api.auth.enums.Role.valueOf(role);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    private java.util.List<String> permissionsOf(String role) {
+        if (role == null) return java.util.List.of();
+        if (roleRepository.existsById(role)) {
+            return new java.util.ArrayList<>(roleRepository.findWithPermissionsByName(role).orElseThrow().getPermissions());
+        }
+        try {
+            return com.nocteon.nocteon_api.auth.enums.Role.valueOf(role).getPermissions().stream()
+                    .map(com.nocteon.nocteon_api.common.enums.Permission::getPermission)
+                    .toList();
+        } catch (IllegalArgumentException e) {
+            return java.util.List.of();
+        }
     }
 
     // ─── Private helpers ───────────────────────────────────────────
@@ -404,9 +483,7 @@ public class UserService {
                 .avatarUrl(profile != null ? profile.getAvatarUrl() : null)
                 .createdAt(user.getCreatedAt())
                 .lastActiveAt(user.getLastActiveAt())
-                .permissions(user.getRole().getPermissions().stream()
-                        .map(Permission::getPermission)
-                        .toList())
+                .permissions(permissionsOf(user.getRole()))
                 .build();
     }
 }

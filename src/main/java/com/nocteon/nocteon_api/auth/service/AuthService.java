@@ -79,7 +79,7 @@ public class AuthService {
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .provider(Provider.LOCAL)
-                .role(Role.CUSTOMER)
+                .role("CUSTOMER")
                 .enabled(false)
                 .build();
         user = userRepository.save(user);
@@ -203,11 +203,13 @@ public class AuthService {
                 .build();
         refreshTokenRepository.save(refreshToken);
 
-        List<String> permissions = userWithProfile.getRole()
-                .getPermissions()
-                .stream()
-                .map(Permission::getPermission)
-                .toList();
+        List<String> permissions;
+        com.nocteon.nocteon_api.auth.service.RoleService rs = com.nocteon.nocteon_api.auth.service.RoleService.getInstance();
+        if (rs != null) {
+            permissions = new java.util.ArrayList<>(rs.getPermissions(userWithProfile.getRole()));
+        } else {
+            permissions = java.util.List.of();
+        }
 
         return AuthResult.builder()
                 .authResponse(AuthResponse.builder()

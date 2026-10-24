@@ -21,10 +21,12 @@ import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.auth.enums.Role;
 import com.nocteon.nocteon_api.auth.dto.request.AdminRegisterRequest;
 import com.nocteon.nocteon_api.auth.dto.request.AdminUpdateUserRequest;
+import com.nocteon.nocteon_api.auth.dto.request.ChangeRoleRequest;
 import com.nocteon.nocteon_api.auth.dto.request.UserFilterRequest;
 import com.nocteon.nocteon_api.auth.dto.response.UserResponse;
 import com.nocteon.nocteon_api.auth.dto.response.RoleResponse;
 import com.nocteon.nocteon_api.auth.service.UserService;
+import com.nocteon.nocteon_api.auth.service.RoleService;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
@@ -41,6 +43,8 @@ import lombok.RequiredArgsConstructor;
 public class AdminUserController {
 
         private final UserService userService;
+    @org.springframework.beans.factory.annotation.Autowired
+    private RoleService roleService;
     @Autowired
     private UserRepository userRepository;
 
@@ -52,7 +56,8 @@ public class AdminUserController {
 
                 return ResponseEntity.ok(ApiResponse.success(
                                 userService.getAllForAdmin(filter),
-                                "Users retrieved successfully"));
+                                "Users retrieved successfully",
+                                userService.getAdminSummary()));
         }
 
         @GetMapping("/{id}")
@@ -96,34 +101,52 @@ public class AdminUserController {
         }
 
         @GetMapping("/roles")
-        @PreAuthorize("hasAuthority('user:read')")
+        @PreAuthorize("hasAuthority('user:read') or hasAuthority('role:read')")
         public ResponseEntity<ApiResponse<List<RoleResponse>>> getAllRoles() {
-            List<Role> allRoles = List.of(Role.values());
-            long totalUsers = userRepository.countByRoleAndCreatedAtBetween(Role.ADMIN, Instant.EPOCH, Instant.now())
-                    + userRepository.countByRoleAndCreatedAtBetween(Role.MODERATOR, Instant.EPOCH, Instant.now())
-                    + userRepository.countByRoleAndCreatedAtBetween(Role.CUSTOMER, Instant.EPOCH, Instant.now());
-
-            List<RoleResponse> responses = allRoles.stream()
-                    .map(role -> RoleResponse.fromRole(
-                            role,
-                            userRepository.countByRole(role),
-                            role.getPermissions().size()))
-                    .toList();
-
+            List<RoleResponse> responses = roleService.getAllRoles().stream()
+                    .map(r -> {
+                        RoleResponse resp = new RoleResponse();
+                        resp.setName(r.getName());
+                        resp.setDescription(r.getDescription());
+                        resp.setSystem(r.isSystem());
+                        resp.setUserCount(roleService.userCount(r.getName()));
+                        resp.setPermissionCount(r.getPermissions().size());
+                        resp.setPermissions(new java.util.ArrayList<>(r.getPermissions()));
+                        return resp;
+                    }).toList();
             return ResponseEntity.ok(ApiResponse.success(responses, "Roles retrieved successfully"));
         }
 
         @GetMapping("/roles/{name}")
-        @PreAuthorize("hasAuthority('user:read')")
+        @PreAuthorize("hasAuthority('user:read') or hasAuthority('role:read')")
         public ResponseEntity<ApiResponse<RoleResponse>> getRoleByName(@PathVariable String name) {
-            Role role = List.of(Role.values()).stream()
-                    .filter(r -> r.name().equalsIgnoreCase(name))
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("Role not found: " + name));
-
-            long userCount = userRepository.countByRole(role);
-            RoleResponse response = RoleResponse.fromRole(role, userCount, role.getPermissions().size());
-
+            var r = roleService.getRole(name);
+            RoleResponse response = new RoleResponse();
+            response.setName(r.getName());
+            response.setDescription(r.getDescription());
+            response.setSystem(r.isSystem());
+            response.setUserCount(roleService.userCount(r.getName()));
+            response.setPermissionCount(r.getPermissions().size());
+            response.setPermissions(new java.util.ArrayList<>(r.getPermissions()));
             return ResponseEntity.ok(ApiResponse.success(response, "Role retrieved successfully"));
         }
+        @GetMapping("/{id}/activity")
+        @PreAuthorize("hasAuthority('user:read') and hasAuthority('order:read')")
+        public ResponseEntity<ApiResponse<com.nocteon.nocteon_api.auth.dto.response.UserActivityResponse>> getActivity(@PathVariable Long id) {
+            return ResponseEntity.ok(ApiResponse.success(
+                            userService.getUserActivity(id),
+                            "User activity retrieved successfully"));
+        }
+
+        @PutMapping("/{id}/role")
+        @PreAuthorize("hasAuthority('user:change_role')")
+        public ResponseEntity<ApiResponse<com.nocteon.nocteon_api.auth.dto.response.UserResponse>> changeRole(
+                        @PathVariable Long id,
+                        @org.springframework.security.core.annotation.AuthenticationPrincipal com.nocteon.nocteon_api.auth.security.UserPrincipal principal,
+                        @RequestBody @jakarta.validation.Valid ChangeRoleRequest request) {
+                return ResponseEntity.ok(ApiResponse.success(
+                                userService.changeRole(id, principal, request.getRole()),
+                                "Role changed successfully"));
+        }
+
 }

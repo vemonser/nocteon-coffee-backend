@@ -80,9 +80,15 @@ FROM orders o
 WHERE h.order_id = o.id AND h.to_status = 'CANCELLED';
 
 -- 5. Re-number orders by createdAt ASC.
+-- Move to a temporary unique namespace first to avoid transient unique-constraint
+-- collisions while the in-place UPDATE reorders rows.
+UPDATE orders
+SET order_number = 'ORD-TMP-' || id::text
+WHERE order_number LIKE 'ORD-2026-%';
+
 WITH ranked AS (
   SELECT id, row_number() OVER (ORDER BY created_at ASC, id ASC) AS rn
-  FROM orders WHERE order_number LIKE 'ORD-2026-%'
+  FROM orders WHERE order_number LIKE 'ORD-TMP-%'
 )
 UPDATE orders o
 SET order_number = 'ORD-2026-' || LPAD(r.rn::text, 6, '0')
@@ -102,7 +108,7 @@ BEGIN
   WHERE o.order_number LIKE 'ORD-2026-%'
     AND NOT (
          o.created_at <= COALESCE(p.paid_at, o.created_at)
-     AND (p.paid_at IS NULL OR o.shipped_at IS NULL OR p.paid_at <= o.shipped_at)
+     AND (p.paid_at IS NULL OR o.delivered_at IS NULL OR p.paid_at <= o.delivered_at)
      AND (o.shipped_at IS NULL OR o.delivered_at IS NULL OR o.shipped_at <= o.delivered_at)
      AND COALESCE(o.delivered_at, o.created_at) <= now()
      AND o.created_at <= now()
