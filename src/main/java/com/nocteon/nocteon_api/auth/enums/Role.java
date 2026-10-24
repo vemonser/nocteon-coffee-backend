@@ -9,36 +9,16 @@ public enum Role {
     ADMIN(Set.of(Permission.values())), 
     
     MODERATOR(Set.of(
-            Permission.CATEGORY_READ, Permission.CATEGORY_UPDATE,
-            Permission.PRODUCT_READ, Permission.PRODUCT_UPDATE,
-            Permission.ORIGIN_READ, Permission.ORIGIN_UPDATE,
-            Permission.FARM_READ, Permission.FARM_UPDATE,
-            Permission.ROAST_LEVEL_READ, Permission.ROAST_LEVEL_UPDATE,
-            Permission.PROCESSING_METHOD_READ, Permission.PROCESSING_METHOD_UPDATE,
-            Permission.COFFEE_VARIETY_READ, Permission.COFFEE_VARIETY_UPDATE,
-            Permission.TASTING_NOTE_READ, Permission.TASTING_NOTE_UPDATE,
-            Permission.BREWING_METHOD_READ, Permission.BREWING_METHOD_UPDATE,
-            Permission.PAIRING_READ, Permission.PAIRING_UPDATE,
-            Permission.JOURNAL_CREATE, Permission.JOURNAL_READ, Permission.JOURNAL_UPDATE,
-            Permission.ORDER_CREATE, Permission.ORDER_READ, Permission.ORDER_UPDATE,
-            Permission.REVIEW_CREATE, Permission.REVIEW_READ,
-            Permission.REVIEW_UPDATE, Permission.REVIEW_DELETE,
-            // Moderating is the one review permission MODERATOR was missing. It already holds
-            // REVIEW_UPDATE and REVIEW_DELETE, so without this the role could edit and remove a
-            // review but could not approve, reject or flag one — and ReviewController gates those
-            // three endpoints on review:moderate, which returned 403 for every moderator.
-            Permission.REVIEW_MODERATE,
             Permission.DASHBOARD_READ,
-            Permission.USER_READ, Permission.USER_UPDATE,
-            Permission.CART_MANAGE, Permission.WISHLIST_MANAGE,
-            // Staff-wide cart visibility. MODERATOR reads carts as part of day-to-day support
-            // work, and this is the permission that grants it — CART_MANAGE alone is not enough,
-            // because that one is deliberately shared with CUSTOMER for the storefront basket.
+            Permission.ORDER_READ,
             Permission.CART_READ_ALL,
-            // Send abandonment reminders on demand
-            Permission.CART_NOTIFY,
-            // Audit log access for moderators and admins
-            Permission.AUDIT_READ
+            Permission.REVIEW_READ,
+            Permission.REVIEW_MODERATE,
+            Permission.CONTACT_READ,
+            Permission.CONTACT_UPDATE,
+            Permission.NOTIFICATION_READ,
+            Permission.NOTIFICATION_UPDATE,
+            Permission.PRODUCT_READ
     )),
 
     CUSTOMER(Set.of(

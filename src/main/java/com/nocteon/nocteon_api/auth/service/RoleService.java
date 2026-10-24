@@ -56,7 +56,7 @@ public class RoleService {
     @Transactional(readOnly = true)
     public RoleEntity getRole(String name) {
         return roleRepository.findWithPermissionsByName(name)
-                .orElseThrow(() -> new IllegalArgumentException("Role not found: " + name));
+                .orElseThrow(() -> new com.nocteon.nocteon_api.auth.exception.RoleNotFoundException());
     }
 
     @Transactional(readOnly = true)
