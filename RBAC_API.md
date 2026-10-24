@@ -99,6 +99,7 @@ This document defines the RBAC (Role-Based Access Control) API endpoints for the
   - `customers`: count of users with CUSTOMER role
   - `blocked`: count of users with `enabled=false`
   - `unverified`: count of users without email verification (addressed in future phase)
+  - `byRole`: `[{role, userCount}]` per role over the whole dataset
 
 ### B6 — User activity
 
@@ -127,3 +128,9 @@ This document defines the RBAC (Role-Based Access Control) API endpoints for the
 - Unknown role 422; success returns the correct granted/revoked diff
 - Stale token rejected with `TOKEN_STALE` and works after refresh
 - ADMIN permissions immutable; deleting a role in use → 409; `/roles` has no N+1 (assert query count); summary counts are correct and independent of filters
+### Permission catalog
+
+**GET** `/api/dashboard/roles/permissions`
+
+- **Authority**: `user:read` or `role:read`
+- **Response**: `[{slug, resource, action}]` — every declared permission, with resource/action split on `":"`.

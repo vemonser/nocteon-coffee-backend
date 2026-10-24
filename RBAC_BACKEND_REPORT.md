@@ -171,3 +171,40 @@
 | B6 | Done | OrderRepository, UserService, AdminUserController, UserActivityResponse | full suite | GET /api/dashboard/users/{id}/activity |
 | B7 | Done | AuditAction, UserService, RoleService | full suite | audit events recorded |
 | B8 | Done | (existing suite) | 607 tests, 0 failures | full suite green |
+
+---
+
+## M1 — Moderator permissions
+
+### Reproduction
+
+- `GET /api/dashboard/roles/ADMIN` returns 90 permission slugs.
+- `GET /api/dashboard/roles/MODERATOR` returns the real permission slugs for the role (not only ADMIN). Before the redefinition it returned 39; the mapping is NOT empty.
+- The endpoint is not ADMIN-only: `RoleController` maps both `GET /roles` and `GET /roles/{name}` with `hasAuthority('user:read') or hasAuthority('role:read')`, and `RoleService.getRole(...)` loads permissions via `findWithPermissionsByName` for any role.
+- Fix applied: `RoleService.getRole(...)` now throws `RoleNotFoundException` (404) instead of `IllegalArgumentException` for unknown roles, so the contract's 404 is honoured for any role name.
+
+### Default set
+
+- Redefined `Role.MODERATOR` (and the seed migration) to the business default set:
+  `dashboard:read, order:read, cart:read_all, review:read, review:moderate, contact:read, contact:update, notification:read, notification:update, product:read`.
+- Added idempotent migration `V121__SeedModeratorDefaultPermissions` which inserts the set only when `MODERATOR` has zero permissions.
+- System-role rules kept: seeded roles remain `is_system = true`, so names are locked and deletion is blocked (`ROLE_IMMUTABLE`).
+
+## M2 — Per-role counts in the users summary
+
+- `GET /api/dashboard/users` summary now includes `byRole: [{role, userCount}]` computed over the whole dataset via `UserRepository.countUsersGroupByRole()`.
+- Existing summary fields (`total, admins, customers, blocked, unverified`) are unchanged.
+
+## M3 — Status of B1..B8
+
+| Task | Status | Endpoint path |
+|---|---|---|
+| B1 | Done | `PUT /api/dashboard/users/{id}/role` |
+| B2 | Done | `GET /api/dashboard/roles`, `GET /api/dashboard/roles/{name}`, `GET /api/dashboard/roles/permissions` |
+| B3 | Done | `POST /api/dashboard/roles`, `PUT /api/dashboard/roles/{name}`, `DELETE /api/dashboard/roles/{name}` |
+| B4 | Done | JWT `authVersion` claim + `401 TOKEN_STALE` on mismatch |
+| B5 | Done | `GET /api/dashboard/users` |
+| B6 | Done | `GET /api/dashboard/users/{id}/activity` |
+| B7 | Done | `audit_events` recording via `AuditLogService` |
+| B8 | Done | Integration tests (MockMvc + real DB) |
+
