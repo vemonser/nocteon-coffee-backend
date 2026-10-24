@@ -111,6 +111,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
     long countByRoleAndLastActiveAtAfter(String role, Instant threshold);
 
     long countByEnabledFalse();
+
+    @Query("SELECT u.role, COUNT(u) FROM User u GROUP BY u.role")
+    List<Object[]> countUsersGroupByRole();
     @Query("SELECT COUNT(DISTINCT o.user.id) FROM Order o WHERE o.paymentStatus = com.nocteon.nocteon_api.payment.enums.PaymentStatus.PAID AND o.createdAt >= :since")
     long countCustomersWithOrdersSince(@Param("since") Instant since);
 

@@ -1,10 +1,18 @@
 package com.nocteon.nocteon_api.common.dto;
 
+import java.util.List;
+
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
+@Setter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Summary {
 
     private long total;
@@ -12,14 +20,15 @@ public class Summary {
     private long customers;
     private long blocked;
     private long unverified;
+    private List<RoleCount> byRole;
 
-    public Summary() {}
-
-    public Summary(long total, long admins, long customers, long blocked, long unverified) {
-        this.total = total;
-        this.admins = admins;
-        this.customers = customers;
-        this.blocked = blocked;
-        this.unverified = unverified;
+    @Getter
+    @Setter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RoleCount {
+        private String role;
+        private long userCount;
     }
 }

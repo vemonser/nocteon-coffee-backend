@@ -201,6 +201,8 @@ public class UserService {
         long blocked = userRepository.countByEnabledFalse();
         long unverified = 0; // will be addressed in a future phase with emailVerified column
 
+        java.util.List<com.nocteon.nocteon_api.common.dto.Summary.RoleCount> byRole = buildByRole();
+
         // Build the page response with summary
         PageResponse<UserResponse> pageResponse = PageResponse.of(users.map(this::mapToResponse));
 
@@ -223,6 +225,7 @@ public class UserService {
                 .customers(customers)
                 .blocked(blocked)
                 .unverified(unverified)
+                .byRole(buildByRole())
                 .build();
     }
 
@@ -467,6 +470,19 @@ public class UserService {
     }
 
     // ─── Private helpers ───────────────────────────────────────────
+
+    private java.util.List<com.nocteon.nocteon_api.common.dto.Summary.RoleCount> buildByRole() {
+        java.util.List<com.nocteon.nocteon_api.common.dto.Summary.RoleCount> list = new java.util.ArrayList<>();
+        for (Object[] row : userRepository.countUsersGroupByRole()) {
+            String role = row[0] == null ? null : row[0].toString();
+            long count = row[1] instanceof Number ? ((Number) row[1]).longValue() : 0L;
+            list.add(com.nocteon.nocteon_api.common.dto.Summary.RoleCount.builder()
+                    .role(role)
+                    .userCount(count)
+                    .build());
+        }
+        return list;
+    }
 
     private UserResponse mapToResponse(User user) {
         UserProfile profile = user.getProfile();
