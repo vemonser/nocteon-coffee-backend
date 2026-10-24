@@ -11,6 +11,7 @@ import org.mockito.Mock;
 import com.nocteon.nocteon_api.mail.repository.EmailLogRepository;
 import com.nocteon.nocteon_api.mail.service.TransactionalEmailService;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -38,6 +39,9 @@ class ContactServiceTest {
 
     @Mock
     private EmailLogRepository emailLogRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private ContactService contactService;

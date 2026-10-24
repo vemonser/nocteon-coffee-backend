@@ -92,6 +92,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByUsername(String username);
 
+    java.util.List<User> findByIsActiveTrue();
+
     List<User> findByEnabledFalseAndCreatedAtBefore(Instant cutoff);
 
     long countByRoleAndCreatedAtBetween(String role, Instant start, Instant end);

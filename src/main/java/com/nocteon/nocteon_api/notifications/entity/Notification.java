@@ -1,14 +1,11 @@
 package com.nocteon.nocteon_api.notifications.entity;
 
-
 import com.nocteon.nocteon_api.common.entity.BaseEntity;
-import com.nocteon.nocteon_api.notifications.enums.NotificationType;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -18,27 +15,30 @@ import lombok.experimental.SuperBuilder;
 
 @Entity
 @SuperBuilder
-@Table(name = "notifications")
+@Table(name = "notifications", uniqueConstraints = @UniqueConstraint(
+        name = "uq_notifications_recipient_type_entity",
+        columnNames = {"recipient_user_id", "type", "entity_type", "entity_id"}))
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
 public class Notification extends BaseEntity {
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private NotificationType type;
+    @Column(name = "recipient_user_id", nullable = false)
+    private Long recipientUserId;
 
-    @Column(nullable = false)
-    private String title;
+    @Column(nullable = false, length = 64)
+    private String type;
 
     @Column(columnDefinition = "TEXT")
-    private String message;
+    private String params;
 
-    private String link;
+    @Column(name = "entity_type", length = 64)
+    private String entityType;
 
-    @Column(name = "is_read", nullable = false)
-    @Builder.Default
-    private boolean isRead = false;
+    @Column(name = "entity_id")
+    private Long entityId;
 
+    @Column(name = "read_at")
+    private java.time.Instant readAt;
 }

@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import com.nocteon.nocteon_api.auth.dto.request.LoginRequest;
@@ -45,6 +46,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 public class AuthService {
+    private final ApplicationEventPublisher eventPublisher;
 
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
@@ -93,6 +95,9 @@ public class AuthService {
         userProfileRepository.save(profile);
 
         emailVerificationService.sendVerificationEmail(user);
+
+        String fullName = (request.getFirstName() + " " + request.getLastName()).trim();
+        eventPublisher.publishEvent(new com.nocteon.nocteon_api.notifications.event.UserRegisteredEvent(user.getId(), fullName));
 
         return RegisterResponse.builder()
                 .userId(user.getId())

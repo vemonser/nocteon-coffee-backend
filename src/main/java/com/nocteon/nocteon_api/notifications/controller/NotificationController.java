@@ -1,18 +1,19 @@
 package com.nocteon.nocteon_api.notifications.controller;
 
-import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.validation.annotation.Validated;
 
+import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
-import com.nocteon.nocteon_api.common.dto.PageResponse;
-import com.nocteon.nocteon_api.notifications.dto.NotificationResponse;
+import com.nocteon.nocteon_api.notifications.dto.NotificationCursorResponse;
 import com.nocteon.nocteon_api.notifications.service.NotificationService;
 
 import lombok.RequiredArgsConstructor;
@@ -27,32 +28,47 @@ public class NotificationController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('notification:read')")
-    public ApiResponse<PageResponse<NotificationResponse>> getNotifications(
+    public ApiResponse<NotificationCursorResponse> getNotifications(
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "20") int limit,
             @RequestParam(defaultValue = "false") boolean unreadOnly,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @AuthenticationPrincipal UserPrincipal principal) {
         return ApiResponse.success(
-                notificationService.getNotifications(unreadOnly, PageRequest.of(page, size)),
+                notificationService.getNotifications(principal.getUserId(), cursor, limit, unreadOnly),
                 "Notifications retrieved");
     }
 
     @GetMapping("/unread-count")
     @PreAuthorize("hasAuthority('notification:read')")
-    public ApiResponse<Long> getUnreadCount() {
-        return ApiResponse.success(notificationService.getUnreadCount(), "Unread count retrieved");
+    public ApiResponse<Long> getUnreadCount(@AuthenticationPrincipal UserPrincipal principal) {
+        return ApiResponse.success(notificationService.getUnreadCount(principal.getUserId()), "Unread count retrieved");
     }
 
-    @PatchMapping("/{id}/read")
-    @PreAuthorize("hasAuthority('notification:read')")
-    public ApiResponse<Void> markAsRead(@PathVariable Long id) {
-        notificationService.markAsRead(id);
+    @PostMapping("/{id}/read")
+    @PreAuthorize("hasAuthority('notification:update')")
+    public ApiResponse<Void> markRead(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal principal) {
+        notificationService.markRead(principal.getUserId(), id);
         return ApiResponse.success(null, "Marked as read");
     }
 
-    @PatchMapping("/read-all")
-    @PreAuthorize("hasAuthority('notification:read')")
-    public ApiResponse<Void> markAllAsRead() {
-        notificationService.markAllAsRead();
+    @PostMapping("/{id}/unread")
+    @PreAuthorize("hasAuthority('notification:update')")
+    public ApiResponse<Void> markUnread(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal principal) {
+        notificationService.markUnread(principal.getUserId(), id);
+        return ApiResponse.success(null, "Marked as unread");
+    }
+
+    @PostMapping("/read-all")
+    @PreAuthorize("hasAuthority('notification:update')")
+    public ApiResponse<Void> markAllRead(@AuthenticationPrincipal UserPrincipal principal) {
+        notificationService.markAllRead(principal.getUserId());
         return ApiResponse.success(null, "All marked as read");
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('notification:delete')")
+    public ApiResponse<Void> delete(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal principal) {
+        notificationService.delete(principal.getUserId(), id);
+        return ApiResponse.success(null, "Notification deleted");
     }
 }

@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class ContactService {
+    private final ApplicationEventPublisher eventPublisher;
 
     private final ContactMessageRepository contactMessageRepository;
     private final TransactionalEmailService transactionalEmailService;
@@ -50,6 +52,9 @@ public class ContactService {
 
         ContactMessage saved = contactMessageRepository.save(message);
         log.info("Contact message saved id={} from={} ip={}", saved.getId(), saved.getEmail(), ip);
+
+        eventPublisher.publishEvent(new com.nocteon.nocteon_api.notifications.event.ContactCreatedEvent(
+                saved.getId(), saved.getSubject(), saved.getName()));
 
         return buildResponse(saved);
     }

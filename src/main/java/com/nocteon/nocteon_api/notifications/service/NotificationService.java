@@ -1,21 +1,21 @@
 package com.nocteon.nocteon_api.notifications.service;
 
-import com.nocteon.nocteon_api.common.dto.PageResponse;
+import java.time.Instant;
+import java.util.Map;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nocteon.nocteon_api.common.dto.ApiResponse;
+import com.nocteon.nocteon_api.notifications.dto.NotificationCursorResponse;
 import com.nocteon.nocteon_api.notifications.dto.NotificationResponse;
 import com.nocteon.nocteon_api.notifications.entity.Notification;
-import com.nocteon.nocteon_api.notifications.enums.NotificationType;
-import com.nocteon.nocteon_api.notifications.event.OrderCreatedEvent;
-import com.nocteon.nocteon_api.notifications.event.PaymentSucceededEvent;
-import com.nocteon.nocteon_api.notifications.event.ReviewCreatedEvent;
+import com.nocteon.nocteon_api.notifications.exception.NotificationNotFoundException;
 import com.nocteon.nocteon_api.notifications.repository.NotificationRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Pageable;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -24,88 +24,90 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void onOrderCreated(OrderCreatedEvent event) {
-        log.info("=== onOrderCreated LISTENER FIRED for order {} ===", event.orderId());
-        try {
-            Notification saved = notificationRepository.save(Notification.builder()
-                    .type(NotificationType.ORDER_CREATED)
-                    .title("New order received")
-                    .message("Order #" + event.orderId() + " - " + event.totalAmount() + " EGP")
-                    .link("/dashboard/orders/" + event.orderId())
-                    .build());
-            log.info("=== notification saved successfully with ID: {} ===", saved.getId());
-        } catch (Exception e) {
-            log.error("Failed to create notification for order {}", event.orderId(), e);
+    @Transactional(readOnly = true)
+    public NotificationCursorResponse getNotifications(Long userId, String cursor, int limit, boolean unreadOnly) {
+        Instant cursorCreatedAt = null;
+        Long cursorId = null;
+        if (cursor != null && !cursor.isBlank()) {
+            String[] parts = cursor.split("_", 2);
+            if (parts.length == 2) {
+                cursorCreatedAt = Instant.ofEpochMilli(Long.parseLong(parts[0]));
+                cursorId = Long.parseLong(parts[1]);
+            }
         }
-    }
+        int size = Math.min(Math.max(limit, 1), 100);
+        Page<Notification> page = notificationRepository.findCursor(
+                userId, unreadOnly, cursorCreatedAt, cursorId, PageRequest.of(0, size));
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void onPaymentSucceeded(PaymentSucceededEvent event) {
-        try {
-            notificationRepository.save(Notification.builder()
-                    .type(NotificationType.PAYMENT_SUCCEEDED)
-                    .title("Payment received")
-                    .message("Order #" + event.orderId() + " - " + event.amount() + " EGP paid")
-                    .link("/dashboard/orders/" + event.orderId())
-                    .build());
-        } catch (Exception e) {
-            log.error("Failed to create notification for payment on order {}", event.orderId(), e);
+        var content = page.getContent().stream().map(this::toResponse).toList();
+
+        String nextCursor = null;
+        boolean hasMore = page.hasNext();
+        if (hasMore && !page.getContent().isEmpty()) {
+            Notification last = page.getContent().get(page.getContent().size() - 1);
+            nextCursor = last.getCreatedAt().toEpochMilli() + "_" + last.getId();
         }
+
+        return NotificationCursorResponse.builder()
+                .content(content)
+                .nextCursor(nextCursor)
+                .hasMore(hasMore)
+                .build();
     }
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void onReviewCreated(ReviewCreatedEvent event) {
-        try {
-            notificationRepository.save(Notification.builder()
-                    .type(NotificationType.REVIEW_CREATED)
-                    .title("Review Created")
-                    .message("A new review " + event.reviewId() + " was submitted for product  #" + event.productSlug())
-                    .link("/dashboard/reviews/" + event.reviewId())
-                    .build());
-        } catch (Exception e) {
-            log.error("Failed to create notification for Review on product {}", event.reviewId(), e);
-        }
-    }
-
-    public PageResponse<NotificationResponse> getNotifications(boolean unreadOnly, Pageable pageable) {
-        var page = unreadOnly
-                ? notificationRepository.findByIsReadFalseOrderByCreatedAtDesc(pageable)
-                : notificationRepository.findAllByOrderByCreatedAtDesc(pageable);
-
-        return PageResponse.of(page.map(this::toResponse));
-    }
-
-    public long getUnreadCount() {
-        return notificationRepository.countByIsReadFalse();
+    @Transactional(readOnly = true)
+    public long getUnreadCount(Long userId) {
+        return notificationRepository.countByRecipientUserIdAndReadAtIsNull(userId);
     }
 
     @Transactional
-    public void markAsRead(Long id) {
-        Notification notification = notificationRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Notification not found"));
-        notification.setRead(true);
-        notificationRepository.save(notification);
+    public void markRead(Long userId, Long id) {
+        int updated = notificationRepository.markRead(id, userId, Instant.now());
+        if (updated == 0) {
+            throw new NotificationNotFoundException();
+        }
     }
 
     @Transactional
-    public void markAllAsRead() {
-        notificationRepository.markAllAsRead();
+    public void markUnread(Long userId, Long id) {
+        int updated = notificationRepository.markUnread(id, userId);
+        if (updated == 0) {
+            throw new NotificationNotFoundException();
+        }
+    }
+
+    @Transactional
+    public void markAllRead(Long userId) {
+        notificationRepository.markAllRead(userId, Instant.now());
+    }
+
+    @Transactional
+    public void delete(Long userId, Long id) {
+        int deleted = notificationRepository.deleteByIdAndRecipient(id, userId);
+        if (deleted == 0) {
+            throw new NotificationNotFoundException();
+        }
     }
 
     private NotificationResponse toResponse(Notification n) {
+        Object params = null;
+        if (n.getParams() != null && !n.getParams().isBlank()) {
+            try {
+                params = objectMapper.readValue(n.getParams(), Object.class);
+            } catch (Exception e) {
+                params = n.getParams();
+            }
+        }
         return NotificationResponse.builder()
                 .id(n.getId())
                 .type(n.getType())
-                .title(n.getTitle())
-                .message(n.getMessage())
-                .link(n.getLink())
-                .isRead(n.isRead())
+                .params(params)
+                .entityType(n.getEntityType())
+                .entityId(n.getEntityId())
                 .createdAt(n.getCreatedAt())
+                .readAt(n.getReadAt())
                 .build();
     }
 }

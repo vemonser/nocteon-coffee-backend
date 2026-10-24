@@ -160,7 +160,14 @@ public class PaymentService {
                 order.setPaymentStatus(PaymentStatus.PAID);
                 order.getItems().forEach(item -> {
                     ProductVariant variant = item.getProductVariant();
+                    int oldStock = variantRepository.findStockById(variant.getId());
                     variantRepository.consumeStock(variant.getId(), item.getQuantity());
+                    int newStock = variantRepository.findStockById(variant.getId());
+                    if (oldStock > variant.getReorderThreshold() && newStock <= variant.getReorderThreshold()) {
+                        eventPublisher.publishEvent(new com.nocteon.nocteon_api.notifications.event.StockChangedEvent(
+                                variant.getId(), variant.getProduct().getSlug(), variant.getSku(),
+                                oldStock, newStock, variant.getReorderThreshold()));
+                    }
                 });
                 eventPublisher.publishEvent(new PaymentSucceededEvent(order.getId(), payment.getAmount()));
             }
@@ -184,6 +191,10 @@ public class PaymentService {
                         + "Payment marked FAILED, stock left untouched.",
                         order.getId(), order.getStatus());
             }
+        }
+
+        if (payment.getStatus() == com.nocteon.nocteon_api.payment.enums.PaymentStatus.FAILED) {
+            eventPublisher.publishEvent(new com.nocteon.nocteon_api.notifications.event.PaymentFailedEvent(order.getId(), payment.getAmount()));
         }
 
         paymentRepository.save(payment);

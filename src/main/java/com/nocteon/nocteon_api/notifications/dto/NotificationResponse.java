@@ -5,16 +5,14 @@ import lombok.Getter;
 
 import java.time.Instant;
 
-import com.nocteon.nocteon_api.notifications.enums.NotificationType;
-
 @Getter
 @Builder
 public class NotificationResponse {
     private Long id;
-    private NotificationType type;
-    private String title;
-    private String message;
-    private String link;
-    private boolean isRead;
+    private String type;
+    private Object params;
+    private String entityType;
+    private Long entityId;
     private Instant createdAt;
+    private Instant readAt;
 }

@@ -72,6 +72,8 @@ List<Order> searchOrders(@Param("query") String query, Pageable pageable);
         @Query("SELECT COUNT(o) FROM Order o WHERE o.paymentStatus = :status AND o.createdAt >= :since")
         long countByPaymentStatusAndCreatedAtAfter(@Param("status") PaymentStatus status, @Param("since") Instant since);
 
+    long countByStatusIn(java.util.List<OrderStatus> statuses);
+
 
         /**
          * The newest qualifying order per (product, user) for a set of users.

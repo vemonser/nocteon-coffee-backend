@@ -181,7 +181,14 @@ public class OrderService {
                 if (initialStatus == OrderStatus.CONFIRMED) {
                         for (CartItem cartItem : cart.getItems()) {
                                 ProductVariant variant = cartItem.getProductVariant();
+                                int oldStock = variantRepository.findStockById(variant.getId());
                                 variantRepository.consumeStock(variant.getId(), cartItem.getQuantity());
+                                int newStock = variantRepository.findStockById(variant.getId());
+                                if (oldStock > variant.getReorderThreshold() && newStock <= variant.getReorderThreshold()) {
+                                        eventPublisher.publishEvent(new com.nocteon.nocteon_api.notifications.event.StockChangedEvent(
+                                                        variant.getId(), variant.getProduct().getSlug(), variant.getSku(),
+                                                        oldStock, newStock, variant.getReorderThreshold()));
+                                }
                         }
                 }
 
