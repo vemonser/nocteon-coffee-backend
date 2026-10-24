@@ -86,6 +86,10 @@ public class User extends BaseEntity {
     @Builder.Default
     private int tokenVersion = 0;
 
+    @Column(name = "auth_version", nullable = false)
+    @Builder.Default
+    private int authVersion = 0;
+
     public boolean isLocked() {
         if (lockedUntil == null)
             return false;
@@ -110,4 +114,7 @@ public class User extends BaseEntity {
         this.tokenVersion++;
     }
 
+    public void incrementAuthVersion() {
+        this.authVersion++;
+    }
 }

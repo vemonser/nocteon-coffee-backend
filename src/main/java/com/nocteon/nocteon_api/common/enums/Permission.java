@@ -154,6 +154,10 @@ public enum Permission {
     WISHLIST_MANAGE("wishlist:manage"),
     AUDIT_READ("audit:read"),
 
+    // Role
+    ROLE_READ("role:read"),
+    ROLE_MANAGE("role:manage"),
+
     // AI
     // Rebuilding the vector index re-embeds the whole catalog, so it is not gated behind
     // product:update — only an admin pays that cost.

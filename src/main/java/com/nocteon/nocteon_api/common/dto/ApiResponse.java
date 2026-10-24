@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.common.dto;
 
 import java.time.Instant;
+import com.nocteon.nocteon_api.common.dto.Summary;
 import java.util.List;
 
 import lombok.Builder;
@@ -14,12 +15,23 @@ public class ApiResponse<T> {
     private T data;
     private List<ApiFieldError> errors;
     private Instant timestamp;
+    private Summary summary;
 
     public static <T> ApiResponse<T> success(T data, String message) {
         return ApiResponse.<T>builder()
                 .success(true)
                 .message(message)
                 .data(data)
+                .timestamp(Instant.now())
+                .build();
+    }
+
+    public static <T> ApiResponse<T> success(T data, String message, Summary summary) {
+        return ApiResponse.<T>builder()
+                .success(true)
+                .message(message)
+                .data(data)
+                .summary(summary)
                 .timestamp(Instant.now())
                 .build();
     }
