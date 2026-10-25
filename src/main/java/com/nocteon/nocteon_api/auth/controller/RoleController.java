@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.validation.Valid;
+
 import com.nocteon.nocteon_api.auth.dto.request.CreateRoleRequest;
 import com.nocteon.nocteon_api.auth.dto.request.UpdateRoleRequest;
 import com.nocteon.nocteon_api.auth.dto.response.RoleResponse;
@@ -47,7 +49,7 @@ public class RoleController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('role:manage')")
-    public ResponseEntity<ApiResponse<RoleResponse>> create(@RequestBody CreateRoleRequest request) {
+    public ResponseEntity<ApiResponse<RoleResponse>> create(@RequestBody @Valid CreateRoleRequest request) {
         var role = roleService.create(request.getName(), request.getDescription(), request.getCloneFrom());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(toResponse(role), "Role created successfully"));
@@ -55,7 +57,7 @@ public class RoleController {
 
     @PutMapping("/{name}")
     @PreAuthorize("hasAuthority('role:manage')")
-    public ResponseEntity<ApiResponse<RoleResponse>> update(@PathVariable String name, @RequestBody UpdateRoleRequest request) {
+    public ResponseEntity<ApiResponse<RoleResponse>> update(@PathVariable String name, @RequestBody @Valid UpdateRoleRequest request) {
         var role = roleService.update(name, request.getDescription(), request.getPermissions(), null);
         return ResponseEntity.ok(ApiResponse.success(toResponse(role), "Role updated successfully"));
     }
