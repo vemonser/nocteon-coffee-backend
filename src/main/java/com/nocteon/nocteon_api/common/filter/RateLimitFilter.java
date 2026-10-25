@@ -4,6 +4,7 @@ import java.io.IOException;
 
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.common.ratelimit.RateLimiterService;
+import com.nocteon.nocteon_api.common.util.ClientIpResolver;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -19,6 +20,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private final RateLimiterService rateLimiterService;
+    private final ClientIpResolver clientIpResolver;
 
     private static final String[] EXCLUDED_PATHS = {
             "/api/auth/login",
@@ -61,10 +63,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private String extractClientIp(HttpServletRequest request) {
-        String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isEmpty()) {
-            return realIp.trim();
-        }
-        return request.getRemoteAddr();
+        return clientIpResolver.resolve(request);
     }
 }

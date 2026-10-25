@@ -260,7 +260,11 @@ application:
     lockout:
       max-attempts: 5
       duration-minutes: 30
-
+  # Rate limiting. trusted-proxies is empty by default (trust no proxy) so that
+  # clients cannot spoof X-Real-IP to evade per-IP limits. Only set it to the
+  # IPs/CIDRs of reverse proxies you control, e.g. 127.0.0.1,10.0.0.0/8.
+  # rate-limit:
+  #   trusted-proxies: ""
 management:
   endpoints:
     web:

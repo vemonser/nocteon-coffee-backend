@@ -20,6 +20,7 @@ import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.ratelimit.RateLimiterService;
+import com.nocteon.nocteon_api.common.util.ClientIpResolver;
 import com.nocteon.nocteon_api.order.dto.request.CreateOrderNoteRequest;
 import com.nocteon.nocteon_api.order.dto.request.CreateOrderRequest;
 import com.nocteon.nocteon_api.order.dto.request.CreateRefundRequest;
@@ -66,6 +67,7 @@ public class OrderController {
         private final OrderRefundService orderRefundService;
         private final OrderStatsService orderStatsService;
         private final RateLimiterService rateLimiterService;
+        private final ClientIpResolver clientIpResolver;
 
         @PostMapping("/orders")
         @PreAuthorize("hasAuthority('order:create')")
@@ -107,11 +109,7 @@ public class OrderController {
         }
 
         private String extractClientIp(HttpServletRequest request) {
-                String ip = request.getHeader("X-Real-IP");
-                if (ip != null) {
-                        return ip;
-                }
-                return request.getRemoteAddr();
+                return clientIpResolver.resolve(request);
         }
 
         @GetMapping("/orders/me")

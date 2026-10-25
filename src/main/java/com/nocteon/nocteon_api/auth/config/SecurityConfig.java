@@ -40,6 +40,7 @@ public class SecurityConfig {
         private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
         private final UserActivityTrackingFilter userActivityTrackingFilter;
         private final CookieOAuth2AuthorizationRequestRepository cookieOAuth2AuthorizationRequestRepository;
+        private final com.nocteon.nocteon_api.common.util.ClientIpResolver clientIpResolver;
 
         /**
          * Read-only endpoints a storefront visitor may call without a token.
@@ -83,7 +84,7 @@ public class SecurityConfig {
 
         @Bean
         public RateLimitFilter rateLimitFilter() {
-                return new RateLimitFilter(rateLimiterService);
+                return new RateLimitFilter(rateLimiterService, clientIpResolver);
         }
 
         @Bean
