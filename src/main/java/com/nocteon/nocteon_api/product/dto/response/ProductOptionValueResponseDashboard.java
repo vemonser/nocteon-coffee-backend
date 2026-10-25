@@ -18,4 +18,5 @@ public class ProductOptionValueResponseDashboard {
     private Integer sortOrder;
     private BigDecimal numericValue;
     private List<TranslationResponse> translations;
+    private Integer usedByVariants;
 }

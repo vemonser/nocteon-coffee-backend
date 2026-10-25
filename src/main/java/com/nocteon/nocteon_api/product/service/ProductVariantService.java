@@ -9,12 +9,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.nocteon.nocteon_api.common.exception.notFound.DuplicateVariantCombinationException;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductOptionNotFoundException;
+import com.nocteon.nocteon_api.common.exception.invalid.FieldValidationException;
+import com.nocteon.nocteon_api.common.exception.product.OptionNotApplicableException;
+import com.nocteon.nocteon_api.common.dto.ApiFieldError;
 import com.nocteon.nocteon_api.common.exception.product.DuplicateSkuException;
 
 import com.nocteon.nocteon_api.product.dto.request.ProductVariantRequest;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.entity.ProductOptionValue;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
+import com.nocteon.nocteon_api.product.enums.ProductType;
 import com.nocteon.nocteon_api.product.repository.ProductOptionValueRepository;
 import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
 
@@ -70,7 +74,7 @@ public class ProductVariantService {
     }
 
     private ProductVariant buildVariant(Product product, ProductVariantRequest v) {
-        Set<ProductOptionValue> optionValues = resolveOptionValues(v.getOptionValueIds());
+        Set<ProductOptionValue> optionValues = resolveOptionValues(v.getOptionValueIds(), product);
 
         return ProductVariant.builder()
                 .product(product)
@@ -85,11 +89,19 @@ public class ProductVariantService {
                 .build();
     }
 
-    private Set<ProductOptionValue> resolveOptionValues(List<Long> optionValueIds) {
+    private Set<ProductOptionValue> resolveOptionValues(List<Long> optionValueIds, Product product) {
         List<ProductOptionValue> found = productOptionValueRepository.findAllById(optionValueIds);
 
         if (found.size() != optionValueIds.size()) {
             throw new ProductOptionNotFoundException();
+        }
+
+        ProductType productType = product.getProductType();
+        for (ProductOptionValue ov : found) {
+            Set<ProductType> appliesTo = ov.getOption().getAppliesTo();
+            if (appliesTo != null && !appliesTo.isEmpty() && !appliesTo.contains(productType)) {
+                throw new OptionNotApplicableException();
+            }
         }
 
         return Set.copyOf(found);

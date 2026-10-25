@@ -3,6 +3,8 @@ package com.nocteon.nocteon_api.product.dto.response;
 import java.time.Instant;
 
 import lombok.Builder;
+
+import com.nocteon.nocteon_api.product.enums.ProductType;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -15,4 +17,5 @@ public class ProductOptionResponse {
     private Integer sortOrder;
     private Instant createdAt;
     private String name;
+    private java.util.Set<ProductType> appliesTo;
 }

@@ -79,6 +79,32 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
 
     Optional<ProductVariant> findBySku(String sku);
 
+    @Modifying
+    @Query(value = "DELETE FROM variant_option_values WHERE option_value_id = :valueId", nativeQuery = true)
+    void removeValueFromVariants(@Param("valueId") Long valueId);
+
+    /**
+     * Grouped count of distinct variants linked to each option value id.
+     */
+    @Query("""
+            SELECT ov.id, COUNT(DISTINCT v.id)
+            FROM ProductVariant v JOIN v.optionValues ov
+            WHERE ov.id IN :valueIds
+            GROUP BY ov.id
+            """)
+    List<Object[]> countVariantsByValueIds(@Param("valueIds") List<Long> valueIds);
+
+    /**
+     * Grouped count of distinct variants linked to each option id (via any of its values).
+     */
+    @Query("""
+            SELECT ov.option.id, COUNT(DISTINCT v.id)
+            FROM ProductVariant v JOIN v.optionValues ov
+            WHERE ov.option.id IN :optionIds
+            GROUP BY ov.option.id
+            """)
+    List<Object[]> countVariantsByOptionIds(@Param("optionIds") List<Long> optionIds);
+
     /**
      * Grouped aggregate per product for the catalog list: variant count, total stock,
      * low-stock variant count, and min/max price across enabled (active, non-deleted)

@@ -28,6 +28,11 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
+import com.nocteon.nocteon_api.common.exception.invalid.FieldValidationException;
+import com.nocteon.nocteon_api.common.exception.product.OptionInUseException;
+import com.nocteon.nocteon_api.common.exception.product.OptionValueInUseException;
+import com.nocteon.nocteon_api.common.exception.product.ValueExistsException;
+import com.nocteon.nocteon_api.common.exception.product.OptionNotApplicableException;
 import com.nocteon.nocteon_api.common.dto.ApiFieldError;
 
 import jakarta.validation.ConstraintViolation;
@@ -263,6 +268,60 @@ public class GlobalExceptionHandler {
         }
 
         // ─── Custom API Exceptions ─────────────────────────────────────────────
+
+        @ExceptionHandler(OptionValueInUseException.class)
+        public ResponseEntity<ApiResponse<Object>> handleOptionValueInUse(OptionValueInUseException ex) {
+                ApiResponse<Object> body = ApiResponse.builder()
+                                .success(false)
+                                .code("OPTION_VALUE_IN_USE")
+                                .message("error.option.value.in.use")
+                                .data(java.util.Map.of("variantCount", ex.getVariantCount()))
+                                .timestamp(java.time.Instant.now())
+                                .build();
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+        }
+
+        @ExceptionHandler(OptionInUseException.class)
+        public ResponseEntity<ApiResponse<Object>> handleOptionInUse(OptionInUseException ex) {
+                ApiResponse<Object> body = ApiResponse.builder()
+                                .success(false)
+                                .code("OPTION_IN_USE")
+                                .message("error.option.in.use")
+                                .data(java.util.Map.of("variantCount", ex.getVariantCount()))
+                                .timestamp(java.time.Instant.now())
+                                .build();
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+        }
+
+        @ExceptionHandler(ValueExistsException.class)
+        public ResponseEntity<ApiResponse<Object>> handleValueExists(ValueExistsException ex) {
+                ApiResponse<Object> body = ApiResponse.builder()
+                                .success(false)
+                                .code("VALUE_EXISTS")
+                                .message("error.option.value.exists")
+                                .timestamp(java.time.Instant.now())
+                                .build();
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+        }
+
+        @ExceptionHandler(FieldValidationException.class)
+        public ResponseEntity<ApiResponse<Void>> handleFieldValidation(FieldValidationException ex) {
+                Locale locale = LocaleContextHolder.getLocale();
+                String message = messageSource.getMessage("error.validation.failed", null, locale);
+                return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                                .body(ApiResponse.error(message, ex.getFieldErrors()));
+        }
+
+        @ExceptionHandler(OptionNotApplicableException.class)
+        public ResponseEntity<ApiResponse<Object>> handleOptionNotApplicable(OptionNotApplicableException ex) {
+                ApiResponse<Object> body = ApiResponse.builder()
+                                .success(false)
+                                .code("OPTION_NOT_APPLICABLE")
+                                .message("error.option.not.applicable")
+                                .timestamp(java.time.Instant.now())
+                                .build();
+                return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(body);
+        }
 
         @ExceptionHandler(BaseApiException.class)
         public ResponseEntity<ApiResponse<Void>> handleBaseApiException(BaseApiException ex) {

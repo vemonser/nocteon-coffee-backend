@@ -12,6 +12,7 @@ import lombok.Getter;
 public class ApiResponse<T> {
     private boolean success;
     private String message;
+    private String code;
     private T data;
     private List<ApiFieldError> errors;
     private Instant timestamp;
