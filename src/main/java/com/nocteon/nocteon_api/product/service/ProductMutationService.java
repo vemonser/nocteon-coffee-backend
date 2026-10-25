@@ -17,6 +17,7 @@ import com.nocteon.nocteon_api.common.exception.notFound.FarmNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.transaction.AfterCommit;
 import com.nocteon.nocteon_api.farm.entity.Farm;
 import com.nocteon.nocteon_api.farm.repository.FarmRepository;
 import com.nocteon.nocteon_api.origin.entity.Origin;
@@ -230,11 +231,18 @@ public class ProductMutationService {
         }
         productRepository.delete(product);
         productRepository.flush();
-        for (String url : mediaUrls) {
-            helper.deleteMediaIfExists(url);
-        }
-        log.info("Product permanently deleted: {}", product.getSlug());
-        scheduleIndexRemoval(product.getSlug());
+        String slug = product.getSlug();
+        AfterCommit.run(() -> {
+            for (String url : mediaUrls) {
+                try {
+                    helper.deleteMediaIfExists(url);
+                } catch (Exception e) {
+                    log.warn("Cloudinary delete failed for product {} media ({}): {}", slug, url, e.getMessage());
+                }
+            }
+        });
+        log.info("Product permanently deleted: {}", slug);
+        scheduleIndexRemoval(slug);
     }
 
     /**

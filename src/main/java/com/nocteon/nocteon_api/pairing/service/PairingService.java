@@ -18,6 +18,7 @@ import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationExcept
 import com.nocteon.nocteon_api.common.exception.notFound.PairingNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.transaction.AfterCommit;
 import com.nocteon.nocteon_api.pairing.dto.request.PairingRequest;
 import com.nocteon.nocteon_api.pairing.dto.request.PairingTranslationRequest;
 import com.nocteon.nocteon_api.pairing.dto.response.PairingResponse;
@@ -314,7 +315,15 @@ public class PairingService {
                                 .orElseThrow(PairingNotFoundException::new);
                 pairingRepository.delete(pairing);
                 pairingRepository.flush();
-                helper.deleteMediaIfExists(pairing.getImageUrl());
-                log.info("Pairing permanently deleted: {}", pairing.getSlug());
+                String imageUrl = pairing.getImageUrl();
+                String slug = pairing.getSlug();
+                AfterCommit.run(() -> {
+                    try {
+                        helper.deleteMediaIfExists(imageUrl);
+                    } catch (Exception e) {
+                        log.warn("Cloudinary delete failed for pairing {} ({}): {}", slug, imageUrl, e.getMessage());
+                    }
+                });
+                log.info("Pairing permanently deleted: {}", slug);
         }
 }

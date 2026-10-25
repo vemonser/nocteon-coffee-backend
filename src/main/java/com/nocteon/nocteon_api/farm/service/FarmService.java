@@ -20,6 +20,7 @@ import com.nocteon.nocteon_api.common.exception.notFound.FarmNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.transaction.AfterCommit;
 import com.nocteon.nocteon_api.farm.dto.request.FarmFilterRequest;
 import com.nocteon.nocteon_api.farm.dto.request.FarmRequest;
 import com.nocteon.nocteon_api.farm.dto.request.FarmTranslationRequest;
@@ -363,7 +364,15 @@ public class FarmService {
                                 .orElseThrow(FarmNotFoundException::new);
                 farmRepository.delete(farm);
                 farmRepository.flush();
-                helper.deleteMediaIfExists(farm.getImageUrl());
-                log.info("Farm permanently deleted: {}", farm.getSlug());
+                String imageUrl = farm.getImageUrl();
+                String slug = farm.getSlug();
+                AfterCommit.run(() -> {
+                    try {
+                        helper.deleteMediaIfExists(imageUrl);
+                    } catch (Exception e) {
+                        log.warn("Cloudinary delete failed for farm {} ({}): {}", slug, imageUrl, e.getMessage());
+                    }
+                });
+                log.info("Farm permanently deleted: {}", slug);
         }
 }

@@ -20,6 +20,7 @@ import com.nocteon.nocteon_api.common.exception.invalid.EntityInUseException;
 import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.transaction.AfterCommit;
 import com.nocteon.nocteon_api.origin.dto.request.OriginRequest;
 import com.nocteon.nocteon_api.origin.dto.request.OriginTranslationRequest;
 import com.nocteon.nocteon_api.origin.dto.response.DashboardOriginResponse;
@@ -371,7 +372,15 @@ public class OriginService {
                                 .orElseThrow(OriginNotFoundException::new);
                 originRepository.delete(origin);
                 originRepository.flush();
-                helper.deleteMediaIfExists(origin.getImageUrl());
-                log.info("Origin permanently deleted: {}", origin.getSlug());
+                String imageUrl = origin.getImageUrl();
+                String slug = origin.getSlug();
+                AfterCommit.run(() -> {
+                    try {
+                        helper.deleteMediaIfExists(imageUrl);
+                    } catch (Exception e) {
+                        log.warn("Cloudinary delete failed for origin {} ({}): {}", slug, imageUrl, e.getMessage());
+                    }
+                });
+                log.info("Origin permanently deleted: {}", slug);
         }
 }

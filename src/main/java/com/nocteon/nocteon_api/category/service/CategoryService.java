@@ -30,6 +30,7 @@ import com.nocteon.nocteon_api.common.exception.invalid.EntityInUseException;
 import com.nocteon.nocteon_api.common.exception.product.DuplicateTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.CategoryNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
+import com.nocteon.nocteon_api.common.transaction.AfterCommit;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
@@ -406,7 +407,15 @@ public class CategoryService {
                                 .orElseThrow(CategoryNotFoundException::new);
                 categoryRepository.delete(category);
                 categoryRepository.flush();
-                helper.deleteMediaIfExists(category.getImageUrl());
-                log.info("Category permanently deleted: {}", category.getSlug());
+                String imageUrl = category.getImageUrl();
+                String slug = category.getSlug();
+                AfterCommit.run(() -> {
+                    try {
+                        helper.deleteMediaIfExists(imageUrl);
+                    } catch (Exception e) {
+                        log.warn("Cloudinary delete failed for category {} ({}): {}", slug, imageUrl, e.getMessage());
+                    }
+                });
+                log.info("Category permanently deleted: {}", slug);
         }
 }

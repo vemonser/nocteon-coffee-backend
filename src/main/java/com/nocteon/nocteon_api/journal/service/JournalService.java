@@ -22,6 +22,7 @@ import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationExcept
 import com.nocteon.nocteon_api.common.exception.notFound.JournalCategoryNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.JournalPostNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.transaction.AfterCommit;
 import com.nocteon.nocteon_api.journal.dto.request.JournalFilterRequest;
 import com.nocteon.nocteon_api.journal.dto.request.JournalPostRequest;
 import com.nocteon.nocteon_api.journal.dto.request.JournalPostTranslationRequest;
@@ -531,8 +532,16 @@ public class JournalService {
                                 .orElseThrow(JournalPostNotFoundException::new);
                 postRepository.delete(post);
                 postRepository.flush();
-                helper.deleteMediaIfExists(post.getCoverImageUrl());
-                log.info("Journal post permanently deleted: {}", post.getSlug());
+                String imageUrl = post.getCoverImageUrl();
+                String slug = post.getSlug();
+                AfterCommit.run(() -> {
+                    try {
+                        helper.deleteMediaIfExists(imageUrl);
+                    } catch (Exception e) {
+                        log.warn("Cloudinary delete failed for journal post {} ({}): {}", slug, imageUrl, e.getMessage());
+                    }
+                });
+                log.info("Journal post permanently deleted: {}", slug);
         }
 
         /**
