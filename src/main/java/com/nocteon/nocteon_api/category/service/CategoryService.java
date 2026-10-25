@@ -31,6 +31,7 @@ import com.nocteon.nocteon_api.common.exception.product.DuplicateTranslationExce
 import com.nocteon.nocteon_api.common.exception.notFound.CategoryNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.enums.MediaType;
 import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
@@ -169,6 +170,13 @@ public class CategoryService {
                                 .map(CreateCategoryTranslationRequest::getName)
                                 .orElseThrow(InvalidTranslationException::new);
 
+                // Serialize slug generation for names that slugify to the same base (e.g. "Foo" and
+                // "Foo!"), so concurrent creates cannot both pass existsBySlugIncludingDeleted and
+                // then collide on categories.slug (unique constraint). Lock is transaction-scoped.
+                String baseSlug = SlugUtils.toSlug(englishName);
+                helper.acquireNameLock("category-slug", "slug", baseSlug);
+                // With the lock held, generateUniqueSlug safely suffixes when the base slug is
+                // already taken (live or deleted), preserving the existing suffix convention.
                 String slug = helper.generateUniqueSlug(englishName, categoryRepository::existsBySlugIncludingDeleted);
                 String imageUrl = helper.uploadMedia(image, "categories", MediaType.IMAGE);
 

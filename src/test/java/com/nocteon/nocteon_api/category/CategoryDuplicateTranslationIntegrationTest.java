@@ -282,6 +282,50 @@ class CategoryDuplicateTranslationIntegrationTest {
     }
 
     @Test
+    void concurrentCreatesWithSlugCollisionProduceDistinctSlugs() throws Exception {
+        String en1 = "ZZ SlugFoo";
+        String en2 = "ZZ SlugFoo!"; // slugifies to the same base slug as en1
+        String ar = "zz slug";
+        hardDeleteByName(en1);
+        hardDeleteByName(en2);
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch start = new CountDownLatch(1);
+        Callable<Object> task1 = () -> {
+            start.await();
+            return categoryService.create(buildRequest(en1, ar), null);
+        };
+        Callable<Object> task2 = () -> {
+            start.await();
+            return categoryService.create(buildRequest(en2, ar + "2"), null);
+        };
+        try {
+            Future<Object> f1 = pool.submit(task1);
+            Future<Object> f2 = pool.submit(task2);
+            start.countDown();
+            DashboardCategoryResponse r1 = (DashboardCategoryResponse) f1.get(30, TimeUnit.SECONDS);
+            DashboardCategoryResponse r2 = (DashboardCategoryResponse) f2.get(30, TimeUnit.SECONDS);
+
+            assertThat(r1.getSlug()).isNotEqualTo(r2.getSlug());
+            // one base slug, one suffixed
+            assertThat(java.util.Set.of(r1.getSlug(), r2.getSlug()))
+                    .contains("zz-slugfoo");
+            // verify exactly two rows exist for the two distinct slugs
+            long count = jdbcTemplate.queryForObject(
+                    "select count(*) from categories where slug in (?, ?)",
+                    Long.class, r1.getSlug(), r2.getSlug());
+            assertThat(count).isEqualTo(2L);
+
+            hardDeleteById(r1.getId());
+            hardDeleteById(r2.getId());
+        } finally {
+            pool.shutdownNow();
+            hardDeleteByName(en1);
+            hardDeleteByName(en2);
+        }
+    }
+
+    @Test
     void tabNewlineWhitespaceDuplicateReturns409() {
         String en = "ZZ TabNl Base";
         String ar = "zz تبويب";
