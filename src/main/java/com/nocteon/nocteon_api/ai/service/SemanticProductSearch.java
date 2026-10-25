@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.ai.service;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -17,6 +18,7 @@ import com.nocteon.nocteon_api.product.dto.request.ProductFilterRequest;
 import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
+import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
 import com.nocteon.nocteon_api.product.repository.ProductOptionValueRepository;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import com.nocteon.nocteon_api.product.repository.specification.ProductSpecifications;
@@ -66,6 +68,7 @@ public class SemanticProductSearch {
     private final ProductRepository productRepository;
     private final ProductOptionValueRepository productOptionValueRepository;
     private final ProductResponseMapper productResponseMapper;
+    private final ProductVariantRepository productVariantRepository;
 
     /**
      * Whether this request asked for semantic search and the backend can answer it.
@@ -123,9 +126,12 @@ public class SemanticProductSearch {
 
         List<Product> pageContent = slice(ranked, filter.getPage(), filter.getSize());
 
+        Map<Long, Object[]> aggregates = aggregateMap(pageContent.stream().map(Product::getId).toList());
+
         return PageResponse.<ProductCardResponse>builder()
                 .content(pageContent.stream()
-                        .map(p -> productResponseMapper.buildListResponse(p, language))
+                        .map(p -> productResponseMapper.buildListResponse(
+                                p, language, toAggregate(aggregates.get(p.getId()))))
                         .toList())
                 .page(filter.getPage())
                 .size(filter.getSize())
@@ -206,6 +212,33 @@ public class SemanticProductSearch {
         }
         return productOptionValueRepository
                 .countDistinctOptionsByValueIds(filter.getOptionValueIds());
+    }
+
+    private Map<Long, Object[]> aggregateMap(List<Long> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Object[]> map = new HashMap<>();
+        List<Object[]> rows = productVariantRepository.findAggregatesByProductIds(productIds);
+        if (rows != null) {
+            for (Object[] row : rows) {
+            map.put(((Number) row[0]).longValue(), row);
+            }
+        }
+        return map;
+    }
+
+    private ProductResponseMapper.VariantAggregate toAggregate(Object[] row) {
+        if (row == null) {
+            return null;
+        }
+        int variantCount = ((Number) row[1]).intValue();
+        int totalStock = ((Number) row[2]).intValue();
+        int lowStockVariantCount = ((Number) row[3]).intValue();
+        java.math.BigDecimal minPrice = row[4] == null ? null : new java.math.BigDecimal(row[4].toString());
+        java.math.BigDecimal maxPrice = row[5] == null ? null : new java.math.BigDecimal(row[5].toString());
+        return new ProductResponseMapper.VariantAggregate(
+                variantCount, totalStock, lowStockVariantCount, minPrice, maxPrice);
     }
 
     /** The requested window of an already-ranked list, clamped to what it actually holds. */

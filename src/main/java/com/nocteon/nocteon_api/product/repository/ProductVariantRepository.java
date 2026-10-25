@@ -79,6 +79,25 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
 
     Optional<ProductVariant> findBySku(String sku);
 
+    /**
+     * Grouped aggregate per product for the catalog list: variant count, total stock,
+     * low-stock variant count, and min/max price across enabled (active, non-deleted)
+     * variants. One query for a whole page of products — no N+1.
+     */
+    @Query("""
+            SELECT v.product.id,
+                   COUNT(v),
+                   COALESCE(SUM(v.stockQuantity), 0),
+                   SUM(CASE WHEN v.stockQuantity <= v.reorderThreshold THEN 1 ELSE 0 END),
+                   MIN(v.price),
+                   MAX(v.price)
+            FROM ProductVariant v
+            WHERE v.product.id IN :productIds
+              AND v.isActive = true
+            GROUP BY v.product.id
+            """)
+    List<Object[]> findAggregatesByProductIds(@Param("productIds") List<Long> productIds);
+
     boolean existsBySku(String sku);
 
     void deleteByProductId(Long productId);

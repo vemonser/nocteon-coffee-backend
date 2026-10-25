@@ -1,8 +1,10 @@
 package com.nocteon.nocteon_api.product.service;
 
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -101,8 +103,12 @@ public class ProductService {
 
         Page<Product> page = productRepository.findAll(spec, pageable);
 
+        Map<Long, Object[]> aggregates = aggregateMap(
+                page.getContent().stream().map(Product::getId).toList());
+
         return PageResponse.of(
-                page.map(p -> productResponseMapper.buildListResponse(p, language)));
+                page.map(p -> productResponseMapper.buildListResponse(
+                        p, language, toAggregate(aggregates.get(p.getId())))));
     }
 
     /**
@@ -215,8 +221,12 @@ public class ProductService {
 
         Page<Product> page = findDashboardPage(filter);
 
+        Map<Long, Object[]> aggregates = aggregateMap(
+                page.getContent().stream().map(Product::getId).toList());
+
         return PageResponse.of(
-                page.map(p -> productResponseMapper.buildListResponse(p, language)));
+                page.map(p -> productResponseMapper.buildListResponse(
+                        p, language, toAggregate(aggregates.get(p.getId())))));
     }
 
     public long getActiveCount() {
@@ -273,6 +283,33 @@ public class ProductService {
 
     public void permanentDelete(Long id) {
         productMutationService.permanentDelete(id);
+    }
+
+    private Map<Long, Object[]> aggregateMap(List<Long> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Object[]> map = new HashMap<>();
+        List<Object[]> rows = productVariantRepository.findAggregatesByProductIds(productIds);
+        if (rows != null) {
+            for (Object[] row : rows) {
+            map.put(((Number) row[0]).longValue(), row);
+            }
+        }
+        return map;
+    }
+
+    private ProductResponseMapper.VariantAggregate toAggregate(Object[] row) {
+        if (row == null) {
+            return null;
+        }
+        int variantCount = ((Number) row[1]).intValue();
+        int totalStock = ((Number) row[2]).intValue();
+        int lowStockVariantCount = ((Number) row[3]).intValue();
+        BigDecimal minPrice = row[4] == null ? null : new BigDecimal(row[4].toString());
+        BigDecimal maxPrice = row[5] == null ? null : new BigDecimal(row[5].toString());
+        return new ProductResponseMapper.VariantAggregate(
+                variantCount, totalStock, lowStockVariantCount, minPrice, maxPrice);
     }
 
     private Page<Product> findDashboardPage(ProductFilterRequest filter) {

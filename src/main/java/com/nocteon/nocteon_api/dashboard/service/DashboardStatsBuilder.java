@@ -249,7 +249,7 @@ public class DashboardStatsBuilder {
             List<LowStockProductDto> result = new ArrayList<>();
             for (Product p : products) {
                     p.getVariants().stream()
-                                    .filter(v -> v.isActive() && v.getAvailableStock() <= v.getReorderThreshold())
+                                    .filter(ProductVariant::isLowStock)
                                     .findFirst()
                                     .ifPresent(v -> {
                                             String name = p.getTranslations().stream()

@@ -89,6 +89,15 @@ public class ProductVariant extends SoftDeletableEntity {
         return Math.max(0, this.stockQuantity - this.reservedQuantity);
     }
 
+    /**
+     * Shared low-stock rule: an enabled variant whose stock is at or below its
+     * reorder threshold. Reused by the dashboard Low stock card and the
+     * products list aggregate.
+     */
+    public boolean isLowStock() {
+        return this.isActive && this.stockQuantity <= this.reorderThreshold;
+    }
+
     public void reserve(int quantity) {
         if (getAvailableStock() < quantity) {
             throw new IllegalArgumentException("Insufficient stock");

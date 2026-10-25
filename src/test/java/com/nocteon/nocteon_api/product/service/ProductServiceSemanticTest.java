@@ -109,7 +109,8 @@ class ProductServiceSemanticTest {
                         hybridRanker,
                         productRepository,
                         productOptionValueRepository,
-                        productResponseMapper));
+                        productResponseMapper,
+                        productVariantRepository));
     }
 
     /**
@@ -117,7 +118,7 @@ class ProductServiceSemanticTest {
      * because the tests that never reach the mapper would otherwise fail on an unused stub.
      */
     private void stubCardMapping() {
-        lenient().when(productResponseMapper.buildListResponse(any(Product.class), anyString()))
+        lenient().when(productResponseMapper.buildListResponse(any(Product.class), anyString(), any()))
                 .thenAnswer(invocation -> ProductCardResponse.builder()
                         .id(((Product) invocation.getArgument(0)).getId())
                         .build());
@@ -489,7 +490,7 @@ class ProductServiceSemanticTest {
         PageResponse<ProductCardResponse> page = service.getAll(filter);
 
         ArgumentCaptor<Product> mapped = ArgumentCaptor.forClass(Product.class);
-        verify(productResponseMapper, times(2)).buildListResponse(mapped.capture(), anyString());
+        verify(productResponseMapper, times(2)).buildListResponse(mapped.capture(), anyString(), any());
         assertThat(mapped.getAllValues()).extracting(Product::getId).containsExactly(1L, 2L);
         assertThat(page.getContent()).hasSize(2);
     }

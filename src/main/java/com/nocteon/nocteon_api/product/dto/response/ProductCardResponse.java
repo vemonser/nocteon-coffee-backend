@@ -35,4 +35,8 @@ public class ProductCardResponse {
     private BigDecimal maxPrice;
     private Integer discountPercentage;
 
+    private Integer variantCount;
+    private Integer totalStock;
+    private Integer lowStockVariantCount;
+
 }

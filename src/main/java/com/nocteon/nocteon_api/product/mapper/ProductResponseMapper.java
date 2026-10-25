@@ -63,7 +63,15 @@ public class ProductResponseMapper {
         private final LookupResponseMapper lookupResponseMapper;
         private final LookupResponseImageMapper lookupResponseImageMapper;
 
+        public record VariantAggregate(int variantCount, int totalStock, int lowStockVariantCount,
+                        BigDecimal minPrice, BigDecimal maxPrice) {
+        }
+
         public ProductCardResponse buildListResponse(Product product, String language) {
+                return buildListResponse(product, language, null);
+        }
+
+        public ProductCardResponse buildListResponse(Product product, String language, VariantAggregate aggregate) {
                 Set<ProductTranslation> translations = product.getTranslations();
 
                 ProductTranslation translation = translations.stream()
@@ -77,20 +85,36 @@ public class ProductResponseMapper {
                                 .orElse(product.getMedia().isEmpty() ? null
                                                 : product.getMedia().stream().findFirst().orElse(null));
 
-                ProductVariant lowestPriceVariant = product.getVariants().stream()
+                List<ProductVariant> activeVariants = product.getVariants().stream()
                                 .filter(ProductVariant::isActive)
+                                .toList();
+
+                ProductVariant lowestPriceVariant = activeVariants.stream()
                                 .min(Comparator.comparing(ProductVariant::getPrice))
                                 .orElse(null);
 
-                BigDecimal minPrice = lowestPriceVariant != null
-                                ? lowestPriceVariant.getPrice()
-                                : null;
+                BigDecimal minPrice;
+                BigDecimal maxPrice;
+                Integer variantCount;
+                Integer totalStock;
+                Integer lowStockVariantCount;
 
-                BigDecimal maxPrice = product.getVariants().stream()
-                                .filter(ProductVariant::isActive)
-                                .map(ProductVariant::getPrice)
-                                .max(BigDecimal::compareTo)
-                                .orElse(null);
+                if (aggregate != null) {
+                        minPrice = aggregate.minPrice();
+                        maxPrice = aggregate.maxPrice();
+                        variantCount = aggregate.variantCount();
+                        totalStock = aggregate.totalStock();
+                        lowStockVariantCount = aggregate.lowStockVariantCount();
+                } else {
+                        minPrice = lowestPriceVariant != null ? lowestPriceVariant.getPrice() : null;
+                        maxPrice = activeVariants.stream()
+                                        .map(ProductVariant::getPrice)
+                                        .max(BigDecimal::compareTo)
+                                        .orElse(null);
+                        variantCount = activeVariants.size();
+                        totalStock = activeVariants.stream().mapToInt(ProductVariant::getStockQuantity).sum();
+                        lowStockVariantCount = (int) activeVariants.stream().filter(ProductVariant::isLowStock).count();
+                }
 
                 Integer discountPercentage = lowestPriceVariant != null
                                 ? DiscountCalculator.calculate(
@@ -111,6 +135,9 @@ public class ProductResponseMapper {
                                 .minPrice(minPrice)
                                 .maxPrice(maxPrice)
                                 .discountPercentage(discountPercentage)
+                                .variantCount(variantCount)
+                                .totalStock(totalStock)
+                                .lowStockVariantCount(lowStockVariantCount)
                                 .build();
         }
 
