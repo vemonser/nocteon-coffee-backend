@@ -27,6 +27,7 @@ import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.dto.TranslationResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.invalid.EntityInUseException;
+import com.nocteon.nocteon_api.common.exception.product.DuplicateTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.CategoryNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
@@ -67,13 +68,21 @@ public class CategoryService {
                 if (request.getIsActive() != null)
                         category.setIsActive(request.getIsActive());
 
-                if (image != null && !image.isEmpty()) {
-                        helper.deleteMediaIfExists(category.getImageUrl());
-                        category.setImageUrl(helper.uploadMedia(image, "categories", MediaType.IMAGE));
-                }
-
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
                         helper.validateTranslations(request.getTranslations());
+
+                        request.getTranslations().stream()
+                                        .sorted(java.util.Comparator.comparing(
+                                                        com.nocteon.nocteon_api.category.dto.request.CreateCategoryTranslationRequest::getLanguage))
+                                        .forEach(t -> {
+                                                String normalized = helper.normalizeName(t.getName());
+                                                helper.acquireNameLock("category", t.getLanguage(), normalized);
+                                                if (categoryTranslationRepository.existsLiveTranslationName(
+                                                                t.getLanguage(), t.getName(), category.getId())) {
+                                                        throw new DuplicateTranslationException();
+                                                }
+                                        });
+
                         request.getTranslations().forEach(t -> categoryTranslationRepository
                                         .findByCategoryIdAndLanguage(category.getId(), t.getLanguage())
                                         .ifPresentOrElse(
@@ -89,6 +98,11 @@ public class CategoryService {
                                                                                         .name(t.getName())
                                                                                         .description(t.getDescription())
                                                                                         .build())));
+                }
+
+                if (image != null && !image.isEmpty()) {
+                        helper.deleteMediaIfExists(category.getImageUrl());
+                        category.setImageUrl(helper.uploadMedia(image, "categories", MediaType.IMAGE));
                 }
 
                 categoryRepository.save(category);
@@ -137,13 +151,25 @@ public class CategoryService {
         public DashboardCategoryResponse create(CategoryRequest request, MultipartFile image) {
                 helper.validateTranslations(request.getTranslations());
 
+                request.getTranslations().stream()
+                                .sorted(java.util.Comparator.comparing(
+                                                com.nocteon.nocteon_api.category.dto.request.CreateCategoryTranslationRequest::getLanguage))
+                                .forEach(t -> {
+                                        String normalized = helper.normalizeName(t.getName());
+                                        helper.acquireNameLock("category", t.getLanguage(), normalized);
+                                        if (categoryTranslationRepository.existsLiveTranslationName(
+                                                        t.getLanguage(), t.getName(), null)) {
+                                                throw new DuplicateTranslationException();
+                                        }
+                                });
+
                 String englishName = request.getTranslations().stream()
                                 .filter(t -> t.getLanguage().equals("en"))
                                 .findFirst()
                                 .map(CreateCategoryTranslationRequest::getName)
                                 .orElseThrow(InvalidTranslationException::new);
 
-                String slug = helper.generateUniqueSlug(englishName, categoryRepository::existsBySlug);
+                String slug = helper.generateUniqueSlug(englishName, categoryRepository::existsBySlugIncludingDeleted);
                 String imageUrl = helper.uploadMedia(image, "categories", MediaType.IMAGE);
 
                 Category category = Category.builder()
@@ -336,6 +362,19 @@ public class CategoryService {
         public void restore(Long id) {
                 Category category = categoryRepository.findDeletedById(id)
                                 .orElseThrow(CategoryNotFoundException::new);
+
+                List<CategoryTranslation> translations = categoryTranslationRepository.findByCategoryId(category.getId());
+                translations.stream()
+                                .sorted(java.util.Comparator.comparing(CategoryTranslation::getLanguage))
+                                .forEach(t -> {
+                                        String normalized = helper.normalizeName(t.getName());
+                                        helper.acquireNameLock("category", t.getLanguage(), normalized);
+                                        if (categoryTranslationRepository.existsLiveTranslationName(
+                                                        t.getLanguage(), t.getName(), category.getId())) {
+                                                throw new DuplicateTranslationException();
+                                        }
+                                });
+
                 category.setDeletedAt(null);
                 categoryRepository.save(category);
                 log.info("Category restored: {}", category.getSlug());

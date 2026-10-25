@@ -3,6 +3,11 @@ package com.nocteon.nocteon_api.common.service;
 import java.util.List;
 import java.util.function.Predicate;
 
+import java.util.Locale;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -18,6 +23,30 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class LookupServiceHelper {
     private final CloudinaryService cloudinaryService;
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    public String normalizeName(String name) {
+        if (name == null) {
+            return "";
+        }
+        // Trim the same whitespace set that the SQL predicate trims (see
+        // CategoryTranslationRepository.existsLiveTranslationName). Java's String.trim()
+        // and PostgreSQL's TRIM()/\s disagree on tabs/newlines, so use an explicit,
+        // identical character class in both places. Comparison-only: stored names are
+        // never rewritten.
+        return name.replaceAll("^[ \\t\\n\\r\\f\\v]+|[ \\t\\n\\r\\f\\v]+$", "")
+                .toLowerCase(Locale.ROOT);
+    }
+
+    public void acquireNameLock(String entityType, String language, String normalizedName) {
+        String key = "dupname:" + entityType + ":" + language + ":" + normalizedName;
+        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtext(:k1), hashtext(:k2))")
+                .setParameter("k1", key)
+                .setParameter("k2", key + ":b")
+                .getSingleResult();
+    }
 
     public String generateUniqueSlug(String englishName, Predicate<String> existsCheck) {
         String baseSlug = SlugUtils.toSlug(englishName);

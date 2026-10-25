@@ -113,6 +113,9 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 
      boolean existsBySlug(String slug);
 
+     @Query(value = "SELECT COUNT(*) > 0 FROM categories WHERE slug = :slug", nativeQuery = true)
+     boolean existsBySlugIncludingDeleted(@Param("slug") String slug);
+
      List<Category> findBySlugIn(List<String> slugs);
 
         @Query(value = """
