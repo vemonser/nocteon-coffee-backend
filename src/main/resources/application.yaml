@@ -265,6 +265,10 @@ application:
   # IPs/CIDRs of reverse proxies you control, e.g. 127.0.0.1,10.0.0.0/8.
   # rate-limit:
   #   trusted-proxies: ""
+  # cloudinary:
+  #   reconcile:
+  #     enabled: false          # set true to run the orphan dry-run once at startup
+  #     grace-period-hours: 24  # only report assets older than this
 management:
   endpoints:
     web:

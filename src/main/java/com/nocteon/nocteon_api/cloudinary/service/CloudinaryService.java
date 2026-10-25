@@ -52,7 +52,7 @@ public class CloudinaryService {
         }
     }
 
-    private String extractPublicId(String imageUrl) {
+    public static String extractPublicId(String imageUrl) {
         if (imageUrl == null || !imageUrl.contains("nocteon/")) {
             return null;
         }
