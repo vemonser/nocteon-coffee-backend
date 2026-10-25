@@ -69,7 +69,10 @@ public class AuditLogService {
     @Transactional(readOnly = true)
     public Page<AuditLog> findAllFiltered(Long userId, AuditAction action, String entityType, Long entityId,
                                           Instant since, Instant until, Pageable pageable) {
-        return auditLogRepository.findAllFiltered(userId, action, entityType, entityId, since, until, pageable);
+        // Avoid PostgreSQL "could not determine data type of parameter" for null Instant bind values.
+        Instant s = (since == null) ? Instant.EPOCH : since;
+        Instant u = (until == null) ? Instant.parse("2100-01-01T00:00:00Z") : until;
+        return auditLogRepository.findAllFiltered(userId, action, entityType, entityId, s, u, pageable);
     }
 
     @Transactional(readOnly = true)

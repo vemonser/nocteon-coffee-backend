@@ -20,8 +20,8 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             AND (:action IS NULL OR a.action = :action)
             AND (:entityType IS NULL OR a.entityType = :entityType)
             AND (:entityId IS NULL OR a.entityId = :entityId)
-            AND (:since IS NULL OR a.createdAt >= :since)
-            AND (:until IS NULL OR a.createdAt <= :until)
+            AND a.createdAt >= :since
+            AND a.createdAt <= :until
             ORDER BY a.createdAt DESC
             """)
     Page<AuditLog> findAllFiltered(
