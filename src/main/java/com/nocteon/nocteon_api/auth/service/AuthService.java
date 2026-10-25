@@ -106,9 +106,9 @@ public class AuthService {
                 .build();
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = InvalidCredentialsException.class)
     public AuthResult login(LoginRequest request, String userAgent) {
-        User user = userRepository.findByEmailOrUsername(request.getIdentifier())
+        User user = userRepository.findByEmailOrUsernameForUpdate(request.getIdentifier())
                 .orElseThrow(InvalidCredentialsException::new);
 
         loginAttemptService.checkAccountNotLocked(user);
@@ -136,7 +136,7 @@ public class AuthService {
         return buildAuthResponse(user);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = InvalidRefreshTokenException.class)
     public AuthResult refreshToken(String rawRefreshToken) {
 
         if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
