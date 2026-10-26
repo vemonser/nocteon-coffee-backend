@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261027-025056",
+    "task": "Repository cleanup + notification completeness",
+    "source": ".quality/runs/20261027-025056/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-01",
+      "statement": "Given a notification owned by another user, when mark-read/mark-unread/delete is called, then it throws NotificationNotFoundException and leaves the row untouched.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-025056/CHANGE-CONTRACT.md",
+        "line": 19
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/notifications/repository/NotificationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/notifications/listener/NotificationEventListener.java",
+        "src/test/java/com/nocteon/nocteon_api/notifications/NotificationOperationsIntegrationTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-025056/artifacts/notification-operations.log",
+          "command": "./mvnw -o -Dtest=NotificationOperationsIntegrationTest#operationsAreScopedToOwner+deletesOwnNotificationOnlyOnce test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T23:52:04.500Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-02",
+      "statement": "Given unread and read notifications, when list/unread-count/mark-read/mark-unread/mark-all-read/page-mode are exercised, then counts and filters match the stored state.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-025056/CHANGE-CONTRACT.md",
+        "line": 20
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/notifications/repository/NotificationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/notifications/listener/NotificationEventListener.java",
+        "src/test/java/com/nocteon/nocteon_api/notifications/NotificationOperationsIntegrationTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-025056/artifacts/notification-operations.log",
+          "command": "./mvnw -o -Dtest=NotificationOperationsIntegrationTest#listsOnlyOwnNotificationsAndFiltersUnread+markReadUnreadAndAllRead+pageModeRespectsUnreadFilterAndPagination+cursorModeNeverReturnsAnotherUsersRows test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T23:52:36.479Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-03",
+      "statement": "Given the same notification key is inserted twice, when the second insert runs, then it is ignored and a subsequent insert for a different key still succeeds in the same transaction.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-025056/CHANGE-CONTRACT.md",
+        "line": 21
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/notifications/repository/NotificationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/notifications/listener/NotificationEventListener.java",
+        "src/test/java/com/nocteon/nocteon_api/notifications/NotificationOperationsIntegrationTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-025056/artifacts/notification-operations.log",
+          "command": "./mvnw -o -Dtest=NotificationOperationsIntegrationTest#idempotentInsertDoesNotDuplicateOrPoisonTheBatch test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T23:53:02.037Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-04",
+      "statement": "The full existing suite still passes.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-025056/CHANGE-CONTRACT.md",
+        "line": 22
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/notifications/repository/NotificationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/notifications/listener/NotificationEventListener.java",
+        "src/test/java/com/nocteon/nocteon_api/notifications/NotificationOperationsIntegrationTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-025056/artifacts/full-suite.log",
+          "command": "./mvnw -o test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T23:55:20.076Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-05",
+      "statement": "The two disposable paths are gone and all documentation/evidence files remain.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-025056/CHANGE-CONTRACT.md",
+        "line": 23
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "readme.md",
+        "CATALOG_API.md",
+        ".quality/runs/20261027-025056/CHANGE-CONTRACT.md"
+      ],
+      "status": "PASS",
+      "notes": "docs placeholder",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261027-025056/artifacts/cleanup-check.log",
+          "command": "bash -c test ! -e src/test/resources/baseline-hygiene-report.md && test ! -e artifacts && test -f readme.md && test -f CATALOG_API.md && echo cleanup-ok",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T23:55:28.546Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

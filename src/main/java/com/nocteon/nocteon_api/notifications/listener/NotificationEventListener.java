@@ -1,6 +1,5 @@
 package com.nocteon.nocteon_api.notifications.listener;
 
-import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -8,14 +7,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.auth.service.RoleService;
-import com.nocteon.nocteon_api.notifications.entity.Notification;
 import com.nocteon.nocteon_api.notifications.event.ContactCreatedEvent;
 import com.nocteon.nocteon_api.notifications.event.OrderCreatedEvent;
 import com.nocteon.nocteon_api.notifications.event.PaymentFailedEvent;
 import com.nocteon.nocteon_api.notifications.event.ReviewCreatedEvent;
 import com.nocteon.nocteon_api.notifications.event.StockChangedEvent;
 import com.nocteon.nocteon_api.notifications.event.UserRegisteredEvent;
-import com.nocteon.nocteon_api.notifications.event.PaymentSucceededEvent;
 import com.nocteon.nocteon_api.notifications.repository.NotificationRepository;
 import com.nocteon.nocteon_api.order.entity.Order;
 import com.nocteon.nocteon_api.order.repository.OrderRepository;
@@ -24,7 +21,6 @@ import com.nocteon.nocteon_api.review.repository.ReviewRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -170,18 +166,8 @@ public class NotificationEventListener {
         for (var user : userRepository.findByIsActiveTrue()) {
             if (actorUserId != null && actorUserId.equals(user.getId())) continue;
             if (!roleService.getPermissions(user.getRole()).contains(permission)) continue;
-            Notification n = Notification.builder()
-                    .recipientUserId(user.getId())
-                    .type(type)
-                    .params(paramsJson)
-                    .entityType(entityType)
-                    .entityId(entityId)
-                    .build();
-            try {
-                notificationRepository.save(n);
-            } catch (DataIntegrityViolationException e) {
-                // idempotent
-            }
+            notificationRepository.insertIgnore(
+                    user.getId(), type, paramsJson, entityType, entityId);
         }
     }
 }

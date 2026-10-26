@@ -36,6 +36,19 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Query("DELETE FROM Notification n WHERE n.id = :id AND n.recipientUserId = :recipientId")
     int deleteByIdAndRecipient(@Param("id") Long id, @Param("recipientId") Long recipientId);
 
+    @Modifying
+    @Query(value = """
+            INSERT INTO notifications
+                (recipient_user_id, type, params, entity_type, entity_id, created_at, updated_at)
+            VALUES (:recipientId, :type, :params, :entityType, :entityId, now(), now())
+            ON CONFLICT (recipient_user_id, type, entity_type, entity_id) DO NOTHING
+            """, nativeQuery = true)
+    int insertIgnore(@Param("recipientId") Long recipientId,
+                     @Param("type") String type,
+                     @Param("params") String params,
+                     @Param("entityType") String entityType,
+                     @Param("entityId") Long entityId);
+
     /**
      * Cursor-keyset query. Both cursor values are required: first-page requests
      * must use {@link #findPage(Long, boolean, Pageable)} instead. There is no
