@@ -1,0 +1,13 @@
+# VCS and local metadata
+.git/
+.gitignore
+.env
+.env.*
+!.env.example
+
+# Build output
+target/
+
+# JWT key material must never enter the image build context
+src/main/resources/keys/
+*.pem

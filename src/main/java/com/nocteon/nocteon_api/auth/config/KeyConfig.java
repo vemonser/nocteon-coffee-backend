@@ -1,18 +1,16 @@
 package com.nocteon.nocteon_api.auth.config;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
 import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.Base64;
-
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class KeyConfig {
@@ -25,35 +23,37 @@ public class KeyConfig {
 
     @Bean
     public PrivateKey jwtPrivateKey() throws Exception {
+        String pem = requireNonBlank(jwtPrivateKeyEnv, "JWT_PRIVATE_KEY");
         return KeyFactory.getInstance("RSA")
                 .generatePrivate(
                         new PKCS8EncodedKeySpec(
                                 Base64.getDecoder()
-                                        .decode(readKey(jwtPrivateKeyEnv, "keys/private_key.pem"))));
+                                        .decode(stripPem(pem, "PRIVATE KEY"))));
     }
 
     @Bean
     public PublicKey jwtPublicKey() throws Exception {
+        String pem = requireNonBlank(jwtPublicKeyEnv, "JWT_PUBLIC_KEY");
         return KeyFactory.getInstance("RSA")
                 .generatePublic(
                         new X509EncodedKeySpec(
                                 Base64.getDecoder()
-                                        .decode(readKey(jwtPublicKeyEnv, "keys/public_key.pem"))));
+                                        .decode(stripPem(pem, "PUBLIC KEY"))));
     }
 
-    private String readKey(String envValue, String classpathPath) throws IOException {
+    private static String requireNonBlank(String value, String propertyName) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException(
+                    propertyName + " must be configured with a non-blank PEM-encoded key; "
+                            + "the classpath fallback is not supported");
+        }
+        return value;
+    }
 
-        String pem = (envValue != null && !envValue.isBlank()) ? envValue : new String(
-                new ClassPathResource(classpathPath)
-                        .getInputStream()
-                        .readAllBytes(),
-                StandardCharsets.UTF_8);
-
+    private static String stripPem(String pem, String label) {
         return pem
-                .replace("-----BEGIN PRIVATE KEY-----", "")
-                .replace("-----END PRIVATE KEY-----", "")
-                .replace("-----BEGIN PUBLIC KEY-----", "")
-                .replace("-----END PUBLIC KEY-----", "")
+                .replace("-----BEGIN " + label + "-----", "")
+                .replace("-----END " + label + "-----", "")
                 .replaceAll("\\s+", "");
     }
 }
