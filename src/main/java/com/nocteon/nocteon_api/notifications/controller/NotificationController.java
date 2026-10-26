@@ -4,6 +4,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -61,6 +62,13 @@ public class NotificationController {
         return ApiResponse.success(null, "Marked as read");
     }
 
+    @PatchMapping("/{id}/read")
+    @PreAuthorize("hasAuthority('notification:update')")
+    public ApiResponse<Void> markReadPatch(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal principal) {
+        notificationService.markRead(principal.getUserId(), id);
+        return ApiResponse.success(null, "Marked as read");
+    }
+
     @PostMapping("/{id}/unread")
     @PreAuthorize("hasAuthority('notification:update')")
     public ApiResponse<Void> markUnread(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal principal) {
@@ -68,9 +76,23 @@ public class NotificationController {
         return ApiResponse.success(null, "Marked as unread");
     }
 
+    @PatchMapping("/{id}/unread")
+    @PreAuthorize("hasAuthority('notification:update')")
+    public ApiResponse<Void> markUnreadPatch(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal principal) {
+        notificationService.markUnread(principal.getUserId(), id);
+        return ApiResponse.success(null, "Marked as unread");
+    }
+
     @PostMapping("/read-all")
     @PreAuthorize("hasAuthority('notification:update')")
     public ApiResponse<Void> markAllRead(@AuthenticationPrincipal UserPrincipal principal) {
+        notificationService.markAllRead(principal.getUserId());
+        return ApiResponse.success(null, "All marked as read");
+    }
+
+    @PatchMapping("/read-all")
+    @PreAuthorize("hasAuthority('notification:update')")
+    public ApiResponse<Void> markAllReadPatch(@AuthenticationPrincipal UserPrincipal principal) {
         notificationService.markAllRead(principal.getUserId());
         return ApiResponse.success(null, "All marked as read");
     }
