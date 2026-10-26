@@ -479,6 +479,7 @@ public class UserService {
             list.add(com.nocteon.nocteon_api.common.dto.Summary.RoleCount.builder()
                     .role(role)
                     .userCount(count)
+                    .count(count)
                     .build());
         }
         return list;

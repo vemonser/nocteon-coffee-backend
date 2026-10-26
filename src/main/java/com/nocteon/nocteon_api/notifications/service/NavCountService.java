@@ -44,7 +44,9 @@ public class NavCountService {
         }
         if (perms.contains("contact:read")) {
             Long unread = contactMessageRepository.countByIsReadFalse();
-            result.put("unreadMessages", unread == null ? 0L : unread);
+            long value = unread == null ? 0L : unread;
+            result.put("contactUnread", value);
+            result.put("unreadMessages", value);
         }
         return result;
     }

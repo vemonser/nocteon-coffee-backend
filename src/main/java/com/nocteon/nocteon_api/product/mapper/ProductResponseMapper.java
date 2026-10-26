@@ -136,6 +136,7 @@ public class ProductResponseMapper {
                                 .maxPrice(maxPrice)
                                 .discountPercentage(discountPercentage)
                                 .variantCount(variantCount)
+                                .variantsCount(variantCount)
                                 .totalStock(totalStock)
                                 .lowStockVariantCount(lowStockVariantCount)
                                 .build();

@@ -36,6 +36,7 @@ public class ProductCardResponse {
     private Integer discountPercentage;
 
     private Integer variantCount;
+    private Integer variantsCount;
     private Integer totalStock;
     private Integer lowStockVariantCount;
 

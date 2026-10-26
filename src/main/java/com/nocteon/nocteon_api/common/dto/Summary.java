@@ -30,5 +30,6 @@ public class Summary {
     public static class RoleCount {
         private String role;
         private long userCount;
+        private long count;
     }
 }
