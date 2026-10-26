@@ -230,6 +230,15 @@ public class ProductOptionService {
         return buildValueDashboardResponse(value);
     }
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public long getValueUsageCount(Long optionId, Long valueId) {
+        valueRepository.findById(valueId)
+                .filter(v -> v.getOption().getId().equals(optionId))
+                .orElseThrow(ProductOptionValueNotFoundException::new);
+        Map<Long, Long> counts = countVariantsByValueIds(List.of(valueId));
+        return counts.getOrDefault(valueId, 0L);
+    }
+
     @Transactional
     public void deleteValue(Long optionId, Long valueId) {
         ProductOptionValue value = valueRepository.findById(valueId)

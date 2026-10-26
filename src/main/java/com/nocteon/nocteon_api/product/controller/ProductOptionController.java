@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
+import java.util.Map;
 
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
@@ -110,6 +111,15 @@ public class ProductOptionController {
             @Valid @RequestBody ProductOptionValuePatchRequest request) {
         return ResponseEntity.ok(
                 ApiResponse.success(productOptionService.patchValue(optionId, valueId, request), "Value updated"));
+    }
+
+    @GetMapping("/dashboard/product-options/{optionId}/values/{valueId}/usage")
+    @PreAuthorize("hasAuthority('product:read')")
+    public ResponseEntity<ApiResponse<Map<String, Long>>> getValueUsage(
+            @PathVariable Long optionId,
+            @PathVariable Long valueId) {
+        long count = productOptionService.getValueUsageCount(optionId, valueId);
+        return ResponseEntity.ok(ApiResponse.success(Map.of("count", count), "Usage retrieved"));
     }
 
     @PutMapping("/dashboard/product-options/{optionId}/values/order")
