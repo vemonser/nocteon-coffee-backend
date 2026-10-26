@@ -48,6 +48,14 @@ public interface RoastLevelRepository extends JpaRepository<RoastLevel, Long> {
 
     boolean existsBySlug(String slug);
 
+    /**
+     * Counts soft-deleted rows too, because the roast_levels.slug column carries a plain UNIQUE
+     * constraint (not a partial index). Without this, reusing a name after a soft delete would
+     * generate the slug still held by the trashed row and fail with a constraint violation.
+     */
+    @Query(value = "SELECT COUNT(*) > 0 FROM roast_levels WHERE slug = :slug", nativeQuery = true)
+    boolean existsBySlugIncludingDeleted(@Param("slug") String slug);
+
     @Query("SELECT r FROM RoastLevel r LEFT JOIN FETCH r.translations")
     List<RoastLevel> findAllWithTranslations();
 

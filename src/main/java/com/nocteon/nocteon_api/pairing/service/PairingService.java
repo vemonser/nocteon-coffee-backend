@@ -18,6 +18,7 @@ import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationExcept
 import com.nocteon.nocteon_api.common.exception.notFound.PairingNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.common.transaction.AfterCommit;
 import com.nocteon.nocteon_api.pairing.dto.request.PairingRequest;
 import com.nocteon.nocteon_api.pairing.dto.request.PairingTranslationRequest;
@@ -47,6 +48,13 @@ public class PairingService {
         @Transactional
         public PairingResponseDashboard create(PairingRequest request, MultipartFile image) {
                 helper.validateTranslations(request.getTranslations());
+                helper.assertNoDuplicateNames(
+                                request.getTranslations(),
+                                PairingTranslationRequest::getLanguage,
+                                PairingTranslationRequest::getName,
+                                "pairing",
+                                null,
+                                translationRepository::existsLiveTranslationName);
 
                 String englishName = request.getTranslations().stream()
                                 .filter(t -> t.getLanguage().equals("en"))
@@ -54,7 +62,14 @@ public class PairingService {
                                 .map(PairingTranslationRequest::getName)
                                 .orElseThrow(InvalidTranslationException::new);
 
-                String slug = helper.generateUniqueSlug(englishName, pairingRepository::existsBySlug);
+                // Serialize slug generation for names that slugify to the same base, and account
+                // for soft-deleted rows: pairing slugs are a plain UNIQUE column, so a
+                // trashed row still owns its slug even though the duplicate-name guard ignores
+                // deleted rows.
+                String baseSlug = SlugUtils.toSlug(englishName);
+                helper.acquireNameLock("pairing-slug", "slug", baseSlug);
+                String slug = helper.generateUniqueSlug(
+                                englishName, pairingRepository::existsBySlugIncludingDeleted);
                 String imageUrl = helper.uploadMedia(image, "pairings", MediaType.IMAGE);
 
                 Pairing pairing = Pairing.builder()
@@ -94,6 +109,13 @@ public class PairingService {
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
                         helper.validateTranslations(request.getTranslations());
+                        helper.assertNoDuplicateNames(
+                                        request.getTranslations(),
+                                        PairingTranslationRequest::getLanguage,
+                                        PairingTranslationRequest::getName,
+                                        "pairing",
+                                        pairing.getId(),
+                                        translationRepository::existsLiveTranslationName);
                         request.getTranslations().forEach(t -> translationRepository
                                         .findByPairingIdAndLanguage(pairing.getId(), t.getLanguage())
                                         .ifPresentOrElse(
@@ -292,6 +314,13 @@ public class PairingService {
         public void restore(Long id) {
                 Pairing pairing = pairingRepository.findDeletedById(id)
                                 .orElseThrow(PairingNotFoundException::new);
+                helper.assertNoDuplicateNames(
+                                translationRepository.findByPairingId(pairing.getId()),
+                                PairingTranslation::getLanguage,
+                                PairingTranslation::getName,
+                                "pairing",
+                                pairing.getId(),
+                                translationRepository::existsLiveTranslationName);
                 pairing.setDeletedAt(null);
                 pairingRepository.save(pairing);
                 log.info("Pairing restored: {}", pairing.getSlug());

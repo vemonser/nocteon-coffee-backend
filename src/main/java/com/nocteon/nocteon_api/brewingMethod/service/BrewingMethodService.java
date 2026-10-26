@@ -29,6 +29,7 @@ import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationExcept
 import com.nocteon.nocteon_api.common.exception.notFound.BrewingMethodNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.product.dto.response.ProductWithScoreResponse;
 import com.nocteon.nocteon_api.product.entity.ProductBrewingMethod;
 import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
@@ -83,6 +84,13 @@ public class BrewingMethodService {
         @Transactional
         public BrewingMethodResponseDashboard create(BrewingMethodRequest request) {
                 helper.validateTranslations(request.getTranslations());
+                helper.assertNoDuplicateNames(
+                                request.getTranslations(),
+                                BrewingMethodTranslationRequest::getLanguage,
+                                BrewingMethodTranslationRequest::getName,
+                                "brewing-method",
+                                null,
+                                translationRepository::existsLiveTranslationName);
 
                 String englishName = request.getTranslations().stream()
                                 .filter(t -> t.getLanguage().equals("en"))
@@ -90,7 +98,14 @@ public class BrewingMethodService {
                                 .map(BrewingMethodTranslationRequest::getName)
                                 .orElseThrow(InvalidTranslationException::new);
 
-                String slug = helper.generateUniqueSlug(englishName, brewingMethodRepository::existsBySlug);
+                // Serialize slug generation for names that slugify to the same base, and account
+                // for soft-deleted rows: brewing-method slugs are a plain UNIQUE column, so a
+                // trashed row still owns its slug even though the duplicate-name guard ignores
+                // deleted rows.
+                String baseSlug = SlugUtils.toSlug(englishName);
+                helper.acquireNameLock("brewing-method-slug", "slug", baseSlug);
+                String slug = helper.generateUniqueSlug(
+                                englishName, brewingMethodRepository::existsBySlugIncludingDeleted);
 
                 BrewingMethod brewingMethod = BrewingMethod.builder()
                                 .slug(slug)
@@ -123,6 +138,13 @@ public class BrewingMethodService {
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
                         helper.validateTranslations(request.getTranslations());
+                        helper.assertNoDuplicateNames(
+                                        request.getTranslations(),
+                                        BrewingMethodTranslationRequest::getLanguage,
+                                        BrewingMethodTranslationRequest::getName,
+                                        "brewing-method",
+                                        brewingMethod.getId(),
+                                        translationRepository::existsLiveTranslationName);
                         request.getTranslations().forEach(t -> translationRepository
                                         .findByBrewingMethodIdAndLanguage(brewingMethod.getId(), t.getLanguage())
                                         .ifPresentOrElse(
@@ -299,6 +321,13 @@ public class BrewingMethodService {
         public void restore(Long id) {
                 BrewingMethod brewingMethod = brewingMethodRepository.findDeletedById(id)
                                 .orElseThrow(BrewingMethodNotFoundException::new);
+                helper.assertNoDuplicateNames(
+                                translationRepository.findByBrewingMethodId(brewingMethod.getId()),
+                                BrewingMethodTranslation::getLanguage,
+                                BrewingMethodTranslation::getName,
+                                "brewing-method",
+                                brewingMethod.getId(),
+                                translationRepository::existsLiveTranslationName);
                 brewingMethod.setDeletedAt(null);
                 brewingMethodRepository.save(brewingMethod);
                 log.info("BrewingMethod restored: {}", brewingMethod.getSlug());

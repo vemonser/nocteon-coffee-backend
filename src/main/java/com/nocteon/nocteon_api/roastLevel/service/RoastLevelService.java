@@ -18,6 +18,7 @@ import com.nocteon.nocteon_api.common.exception.invalid.EntityInUseException;
 import com.nocteon.nocteon_api.common.exception.notFound.RoastLevelNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.roastLevel.dto.request.RoastLevelRequest;
 import com.nocteon.nocteon_api.roastLevel.dto.request.RoastLevelTranslationRequest;
 import com.nocteon.nocteon_api.roastLevel.dto.response.DashboardRoastLevelResponse;
@@ -46,6 +47,13 @@ public class RoastLevelService {
         @Transactional
         public DashboardRoastLevelResponse create(RoastLevelRequest request) {
                 helper.validateTranslations(request.getTranslations());
+                helper.assertNoDuplicateNames(
+                                request.getTranslations(),
+                                RoastLevelTranslationRequest::getLanguage,
+                                RoastLevelTranslationRequest::getName,
+                                "roast-level",
+                                null,
+                                translationRepository::existsLiveTranslationName);
 
                 String englishName = request.getTranslations().stream()
                                 .filter(t -> t.getLanguage().equals("en"))
@@ -53,7 +61,14 @@ public class RoastLevelService {
                                 .map(RoastLevelTranslationRequest::getName)
                                 .orElseThrow(InvalidTranslationException::new);
 
-                String slug = helper.generateUniqueSlug(englishName, roastLevelRepository::existsBySlug);
+                // Serialize slug generation for names that slugify to the same base, and account
+                // for soft-deleted rows: roast-level slugs are a plain UNIQUE column, so a
+                // trashed row still owns its slug even though the duplicate-name guard ignores
+                // deleted rows.
+                String baseSlug = SlugUtils.toSlug(englishName);
+                helper.acquireNameLock("roast-level-slug", "slug", baseSlug);
+                String slug = helper.generateUniqueSlug(
+                                englishName, roastLevelRepository::existsBySlugIncludingDeleted);
 
                 RoastLevel roastLevel = RoastLevel.builder()
                                 .slug(slug)
@@ -89,6 +104,13 @@ public class RoastLevelService {
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
                         helper.validateTranslations(request.getTranslations());
+                        helper.assertNoDuplicateNames(
+                                        request.getTranslations(),
+                                        RoastLevelTranslationRequest::getLanguage,
+                                        RoastLevelTranslationRequest::getName,
+                                        "roast-level",
+                                        roastLevel.getId(),
+                                        translationRepository::existsLiveTranslationName);
                         request.getTranslations().forEach(t -> translationRepository
                                         .findByRoastLevelIdAndLanguage(roastLevel.getId(), t.getLanguage())
                                         .ifPresentOrElse(
@@ -276,6 +298,13 @@ public class RoastLevelService {
         public void restore(Long id) {
                 RoastLevel roastLevel = roastLevelRepository.findDeletedById(id)
                                 .orElseThrow(RoastLevelNotFoundException::new);
+                helper.assertNoDuplicateNames(
+                                translationRepository.findByRoastLevelId(roastLevel.getId()),
+                                RoastLevelTranslation::getLanguage,
+                                RoastLevelTranslation::getName,
+                                "roast-level",
+                                roastLevel.getId(),
+                                translationRepository::existsLiveTranslationName);
                 roastLevel.setDeletedAt(null);
                 roastLevelRepository.save(roastLevel);
                 log.info("RoastLevel restored: {}", roastLevel.getSlug());

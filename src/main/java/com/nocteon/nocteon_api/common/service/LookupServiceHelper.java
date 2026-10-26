@@ -1,6 +1,9 @@
 package com.nocteon.nocteon_api.common.service;
 
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import java.util.Locale;
@@ -14,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.nocteon.nocteon_api.cloudinary.service.CloudinaryService;
 import com.nocteon.nocteon_api.common.dto.TranslationRequest;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
+import com.nocteon.nocteon_api.common.exception.product.DuplicateTranslationException;
 import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.product.enums.MediaType;
 
@@ -94,5 +98,36 @@ public class LookupServiceHelper {
 
         if (distinct != translations.size())
             throw new InvalidTranslationException();
+    }
+
+    /**
+     * Rejects a translation whose normalized name is already used by a live row of the same
+     * entity type and language. Locks are taken in a stable order, matching
+     * {@code CategoryService}, so concurrent creates cannot both pass the check.
+     */
+    public <T> void assertNoDuplicateNames(
+            Collection<T> translations,
+            Function<T, String> languageExtractor,
+            Function<T, String> nameExtractor,
+            String entityType,
+            Long excludeId,
+            NameConflictCheck conflictCheck) {
+        translations.stream()
+                .sorted(Comparator
+                        .comparing(languageExtractor)
+                        .thenComparing(t -> normalizeName(nameExtractor.apply(t))))
+                .forEach(t -> {
+                    String language = languageExtractor.apply(t);
+                    String name = nameExtractor.apply(t);
+                    acquireNameLock(entityType, language, normalizeName(name));
+                    if (conflictCheck.exists(language, name, excludeId)) {
+                        throw new DuplicateTranslationException();
+                    }
+                });
+    }
+
+    @FunctionalInterface
+    public interface NameConflictCheck {
+        boolean exists(String language, String name, Long excludeId);
     }
 }

@@ -1,0 +1,259 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261026-194839",
+    "task": "Duplicate live translation name protection across lookup entities",
+    "source": ".quality/runs/20261026-194839/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-01",
+      "statement": "Given a dashboard create/update where a translation name (case/space-insensitive) is already used by a live entity of the same type in the same language, when the service executes, then it throws DuplicateTranslationException (mapped to HTTP 409, error.duplicate.translation).",
+      "sourceRef": {
+        "path": ".quality/runs/20261026-194839/CHANGE-CONTRACT.md",
+        "line": 20
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/service/LookupServiceHelper.java",
+        "src/main/java/com/nocteon/nocteon_api/origin/service/OriginService.java",
+        "src/main/java/com/nocteon/nocteon_api/farm/service/FarmService.java",
+        "src/main/java/com/nocteon/nocteon_api/brewingMethod/service/BrewingMethodService.java",
+        "src/main/java/com/nocteon/nocteon_api/coffeeVariety/service/CoffeeVarietyService.java",
+        "src/main/java/com/nocteon/nocteon_api/processingMethod/service/ProcessingMethodService.java",
+        "src/main/java/com/nocteon/nocteon_api/roastLevel/service/RoastLevelService.java",
+        "src/main/java/com/nocteon/nocteon_api/tastingNote/service/TastingNoteService.java",
+        "src/main/java/com/nocteon/nocteon_api/pairing/service/PairingService.java",
+        "src/main/java/com/nocteon/nocteon_api/origin/repository/OriginTranslationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/farm/repository/FarmTranslationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/brewingMethod/repository/BrewingMethodTranslationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/coffeeVariety/repository/CoffeeVarietyTranslationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/processingMethod/repository/ProcessingMethodTranslationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/roastLevel/repository/RoastLevelTranslationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/tastingNote/repository/TastingNoteTranslationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/pairing/repository/PairingTranslationRepository.java"
+      ],
+      "status": "PASS",
+      "notes": "Covered for Origin and Farm by direct service assertions; the six remaining entities share the same helper and are covered by LookupSlugReuseAndRestoreIntegrationTest.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261026-194839/artifacts/targeted-tests.log",
+          "command": "./mvnw -o -Dtest=OriginDuplicateTranslationIntegrationTest,FarmDuplicateTranslationIntegrationTest,LookupSlugReuseAndRestoreIntegrationTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T17:44:35.606Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-02",
+      "statement": "Given a trashed entity whose name now conflicts with a live entity, when restore is called, then it throws DuplicateTranslationException (HTTP 409) instead of failing with a 500.",
+      "sourceRef": {
+        "path": ".quality/runs/20261026-194839/CHANGE-CONTRACT.md",
+        "line": 21
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/service/LookupServiceHelper.java",
+        "src/main/java/com/nocteon/nocteon_api/origin/service/OriginService.java",
+        "src/main/java/com/nocteon/nocteon_api/farm/service/FarmService.java",
+        "src/main/java/com/nocteon/nocteon_api/brewingMethod/service/BrewingMethodService.java",
+        "src/main/java/com/nocteon/nocteon_api/coffeeVariety/service/CoffeeVarietyService.java",
+        "src/main/java/com/nocteon/nocteon_api/processingMethod/service/ProcessingMethodService.java",
+        "src/main/java/com/nocteon/nocteon_api/roastLevel/service/RoastLevelService.java",
+        "src/main/java/com/nocteon/nocteon_api/tastingNote/service/TastingNoteService.java",
+        "src/main/java/com/nocteon/nocteon_api/pairing/service/PairingService.java"
+      ],
+      "status": "PASS",
+      "notes": "Restore-collision asserted for Origin, Farm, BrewingMethod, CoffeeVariety, ProcessingMethod, RoastLevel, TastingNote, Pairing.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261026-194839/artifacts/targeted-tests.log",
+          "command": "./mvnw -o -Dtest=OriginDuplicateTranslationIntegrationTest#restoreCollisionReturns409,FarmDuplicateTranslationIntegrationTest#restoreCollisionReturns409,LookupSlugReuseAndRestoreIntegrationTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T17:45:23.434Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-03",
+      "statement": "Existing create/update/restore tests continue to pass (full suite green).",
+      "sourceRef": {
+        "path": ".quality/runs/20261026-194839/CHANGE-CONTRACT.md",
+        "line": 22
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/service/LookupServiceHelper.java",
+        "src/main/java/com/nocteon/nocteon_api/origin/service/OriginService.java",
+        "src/main/java/com/nocteon/nocteon_api/farm/service/FarmService.java",
+        "src/main/java/com/nocteon/nocteon_api/brewingMethod/service/BrewingMethodService.java",
+        "src/main/java/com/nocteon/nocteon_api/coffeeVariety/service/CoffeeVarietyService.java",
+        "src/main/java/com/nocteon/nocteon_api/processingMethod/service/ProcessingMethodService.java",
+        "src/main/java/com/nocteon/nocteon_api/roastLevel/service/RoastLevelService.java",
+        "src/main/java/com/nocteon/nocteon_api/tastingNote/service/TastingNoteService.java",
+        "src/main/java/com/nocteon/nocteon_api/pairing/service/PairingService.java",
+        "src/main/java/com/nocteon/nocteon_api/origin/repository/OriginTranslationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/farm/repository/FarmTranslationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/brewingMethod/repository/BrewingMethodTranslationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/coffeeVariety/repository/CoffeeVarietyTranslationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/processingMethod/repository/ProcessingMethodTranslationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/roastLevel/repository/RoastLevelTranslationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/tastingNote/repository/TastingNoteTranslationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/pairing/repository/PairingTranslationRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/origin/repository/OriginRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/farm/repository/FarmRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/brewingMethod/repository/BrewingMethodRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/coffeeVariety/repository/CoffeeVarietyRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/processingMethod/repository/ProcessingMethodRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/roastLevel/repository/RoastLevelRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/tastingNote/repository/TastingNoteRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/pairing/repository/PairingRepository.java",
+        "src/test/java/com/nocteon/nocteon_api/origin/OriginDuplicateTranslationIntegrationTest.java",
+        "src/test/java/com/nocteon/nocteon_api/farm/FarmDuplicateTranslationIntegrationTest.java",
+        "src/test/java/com/nocteon/nocteon_api/common/LookupSlugReuseAndRestoreIntegrationTest.java",
+        "src/test/resources/application.properties"
+      ],
+      "status": "PASS",
+      "notes": "Full Maven suite: 708 tests, 0 failures.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261026-194839/artifacts/full-suite.log",
+          "command": "./mvnw -o test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T17:49:55.234Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-04",
+      "statement": "New targeted tests for Origin and Farm duplicate-name and restore-conflict behavior pass.",
+      "sourceRef": {
+        "path": ".quality/runs/20261026-194839/CHANGE-CONTRACT.md",
+        "line": 23
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/test/java/com/nocteon/nocteon_api/origin/OriginDuplicateTranslationIntegrationTest.java",
+        "src/test/java/com/nocteon/nocteon_api/farm/FarmDuplicateTranslationIntegrationTest.java"
+      ],
+      "status": "PASS",
+      "notes": "8 tests per entity plus a shared 6-entity reuse/restore class.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261026-194839/artifacts/targeted-tests.log",
+          "command": "./mvnw -o -Dtest=OriginDuplicateTranslationIntegrationTest,FarmDuplicateTranslationIntegrationTest,LookupSlugReuseAndRestoreIntegrationTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T17:46:05.422Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-05",
+      "statement": "Given an entity was soft-deleted, when a new entity reuses its name, then creation succeeds with a suffixed slug (no slug unique-constraint 500).",
+      "sourceRef": {
+        "path": ".quality/runs/20261026-194839/CHANGE-CONTRACT.md",
+        "line": 24
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/origin/service/OriginService.java",
+        "src/main/java/com/nocteon/nocteon_api/farm/service/FarmService.java",
+        "src/main/java/com/nocteon/nocteon_api/brewingMethod/service/BrewingMethodService.java",
+        "src/main/java/com/nocteon/nocteon_api/coffeeVariety/service/CoffeeVarietyService.java",
+        "src/main/java/com/nocteon/nocteon_api/processingMethod/service/ProcessingMethodService.java",
+        "src/main/java/com/nocteon/nocteon_api/roastLevel/service/RoastLevelService.java",
+        "src/main/java/com/nocteon/nocteon_api/tastingNote/service/TastingNoteService.java",
+        "src/main/java/com/nocteon/nocteon_api/pairing/service/PairingService.java",
+        "src/main/java/com/nocteon/nocteon_api/origin/repository/OriginRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/farm/repository/FarmRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/brewingMethod/repository/BrewingMethodRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/coffeeVariety/repository/CoffeeVarietyRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/processingMethod/repository/ProcessingMethodRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/roastLevel/repository/RoastLevelRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/tastingNote/repository/TastingNoteRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/pairing/repository/PairingRepository.java",
+        "src/test/java/com/nocteon/nocteon_api/origin/OriginDuplicateTranslationIntegrationTest.java",
+        "src/test/java/com/nocteon/nocteon_api/farm/FarmDuplicateTranslationIntegrationTest.java",
+        "src/test/java/com/nocteon/nocteon_api/common/LookupSlugReuseAndRestoreIntegrationTest.java",
+        "src/test/resources/application.properties"
+      ],
+      "status": "PASS",
+      "notes": "Reuse asserted for all eight entities; the suffix is asserted for Origin, Farm and the six shared cases.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261026-194839/artifacts/targeted-tests.log",
+          "command": "./mvnw -o -Dtest=OriginDuplicateTranslationIntegrationTest#reuseAfterSoftDelete,FarmDuplicateTranslationIntegrationTest#reuseAfterSoftDelete,LookupSlugReuseAndRestoreIntegrationTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T17:46:46.484Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-06",
+      "statement": "Given two concurrent creates slugify to the same base, then slug generation is serialized and both rows get distinct slugs.",
+      "sourceRef": {
+        "path": ".quality/runs/20261026-194839/CHANGE-CONTRACT.md",
+        "line": 25
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/service/LookupServiceHelper.java",
+        "src/main/java/com/nocteon/nocteon_api/origin/service/OriginService.java",
+        "src/main/java/com/nocteon/nocteon_api/farm/service/FarmService.java",
+        "src/main/java/com/nocteon/nocteon_api/brewingMethod/service/BrewingMethodService.java",
+        "src/main/java/com/nocteon/nocteon_api/coffeeVariety/service/CoffeeVarietyService.java",
+        "src/main/java/com/nocteon/nocteon_api/processingMethod/service/ProcessingMethodService.java",
+        "src/main/java/com/nocteon/nocteon_api/roastLevel/service/RoastLevelService.java",
+        "src/main/java/com/nocteon/nocteon_api/tastingNote/service/TastingNoteService.java",
+        "src/main/java/com/nocteon/nocteon_api/pairing/service/PairingService.java",
+        "src/main/java/com/nocteon/nocteon_api/origin/repository/OriginRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/farm/repository/FarmRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/brewingMethod/repository/BrewingMethodRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/coffeeVariety/repository/CoffeeVarietyRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/processingMethod/repository/ProcessingMethodRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/roastLevel/repository/RoastLevelRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/tastingNote/repository/TastingNoteRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/pairing/repository/PairingRepository.java",
+        "src/test/java/com/nocteon/nocteon_api/origin/OriginDuplicateTranslationIntegrationTest.java",
+        "src/test/java/com/nocteon/nocteon_api/farm/FarmDuplicateTranslationIntegrationTest.java",
+        "src/test/java/com/nocteon/nocteon_api/common/LookupSlugReuseAndRestoreIntegrationTest.java",
+        "src/test/resources/application.properties"
+      ],
+      "status": "PASS",
+      "notes": "Concurrency test runs for Origin and Farm; the six others use the identical advisory-lock + includes-deleted slug code.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261026-194839/artifacts/targeted-tests.log",
+          "command": "./mvnw -o -Dtest=OriginDuplicateTranslationIntegrationTest#concurrentCreatesWithSlugCollisionProduceDistinctSlugs,FarmDuplicateTranslationIntegrationTest#concurrentCreatesWithSlugCollisionProduceDistinctSlugs test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T17:47:18.278Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

@@ -21,6 +21,7 @@ import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.common.transaction.AfterCommit;
+import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.origin.dto.request.OriginRequest;
 import com.nocteon.nocteon_api.origin.dto.request.OriginTranslationRequest;
 import com.nocteon.nocteon_api.origin.dto.response.DashboardOriginResponse;
@@ -64,6 +65,13 @@ public class OriginService {
         @Transactional
         public DashboardOriginResponse create(OriginRequest request, MultipartFile image) {
                 helper.validateTranslations(request.getTranslations());
+                helper.assertNoDuplicateNames(
+                                request.getTranslations(),
+                                OriginTranslationRequest::getLanguage,
+                                OriginTranslationRequest::getName,
+                                "origin",
+                                null,
+                                translationRepository::existsLiveTranslationName);
 
                 String englishName = request.getTranslations().stream()
                                 .filter(t -> t.getLanguage().equals("en"))
@@ -71,7 +79,13 @@ public class OriginService {
                                 .map(OriginTranslationRequest::getName)
                                 .orElseThrow(InvalidTranslationException::new);
 
-                String slug = helper.generateUniqueSlug(englishName, originRepository::existsBySlug);
+                // Serialize slug generation for names that slugify to the same base, and account
+                // for soft-deleted rows: origins.slug is a plain UNIQUE column, so a trashed row
+                // still owns its slug even though the duplicate-name guard ignores deleted rows.
+                String baseSlug = SlugUtils.toSlug(englishName);
+                helper.acquireNameLock("origin-slug", "slug", baseSlug);
+                String slug = helper.generateUniqueSlug(
+                                englishName, originRepository::existsBySlugIncludingDeleted);
                 String imageUrl = helper.uploadMedia(image, "origins", MediaType.IMAGE);
 
                 Origin origin = Origin.builder()
@@ -115,6 +129,13 @@ public class OriginService {
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
                         helper.validateTranslations(request.getTranslations());
+                        helper.assertNoDuplicateNames(
+                                        request.getTranslations(),
+                                        OriginTranslationRequest::getLanguage,
+                                        OriginTranslationRequest::getName,
+                                        "origin",
+                                        origin.getId(),
+                                        translationRepository::existsLiveTranslationName);
                         request.getTranslations().forEach(t -> translationRepository
                                         .findByOriginIdAndLanguage(origin.getId(), t.getLanguage())
                                         .ifPresentOrElse(
@@ -349,6 +370,13 @@ public class OriginService {
         public void restore(Long id) {
                 Origin origin = originRepository.findDeletedById(id)
                                 .orElseThrow(OriginNotFoundException::new);
+                helper.assertNoDuplicateNames(
+                                translationRepository.findByOriginId(origin.getId()),
+                                OriginTranslation::getLanguage,
+                                OriginTranslation::getName,
+                                "origin",
+                                origin.getId(),
+                                translationRepository::existsLiveTranslationName);
                 origin.setDeletedAt(null);
                 originRepository.save(origin);
                 log.info("Origin restored: {}", origin.getSlug());

@@ -61,6 +61,14 @@ public interface OriginRepository extends JpaRepository<Origin, Long> {
 
     boolean existsBySlug(String slug);
 
+    /**
+     * Counts soft-deleted rows too, because {@code origins.slug} carries a plain UNIQUE
+     * constraint (not a partial index). Without this, reusing a name after a soft delete would
+     * generate the slug still held by the trashed row and fail with a constraint violation.
+     */
+    @Query(value = "SELECT COUNT(*) > 0 FROM origins WHERE slug = :slug", nativeQuery = true)
+    boolean existsBySlugIncludingDeleted(@Param("slug") String slug);
+
     @Query("SELECT o FROM Origin o LEFT JOIN FETCH o.translations")
     List<Origin> findAllWithTranslations();
 

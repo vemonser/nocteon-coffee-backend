@@ -21,6 +21,7 @@ import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.common.transaction.AfterCommit;
+import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.farm.dto.request.FarmFilterRequest;
 import com.nocteon.nocteon_api.farm.dto.request.FarmRequest;
 import com.nocteon.nocteon_api.farm.dto.request.FarmTranslationRequest;
@@ -98,6 +99,13 @@ public class FarmService {
         @Transactional
         public DashboardFarmResponse create(FarmRequest request, MultipartFile image) {
                 helper.validateTranslations(request.getTranslations());
+                helper.assertNoDuplicateNames(
+                                request.getTranslations(),
+                                FarmTranslationRequest::getLanguage,
+                                FarmTranslationRequest::getName,
+                                "farm",
+                                null,
+                                farmTranslationRepository::existsLiveTranslationName);
 
                 Origin origin = originRepository.findBySlug(request.getOriginSlug())
                                 .orElseThrow(OriginNotFoundException::new);
@@ -108,7 +116,13 @@ public class FarmService {
                                 .map(FarmTranslationRequest::getName)
                                 .orElseThrow(InvalidTranslationException::new);
 
-                String slug = helper.generateUniqueSlug(englishName, farmRepository::existsBySlug);
+                // Serialize slug generation for names that slugify to the same base, and account
+                // for soft-deleted rows: farms.slug is a plain UNIQUE column, so a trashed row
+                // still owns its slug even though the duplicate-name guard ignores deleted rows.
+                String baseSlug = SlugUtils.toSlug(englishName);
+                helper.acquireNameLock("farm-slug", "slug", baseSlug);
+                String slug = helper.generateUniqueSlug(
+                                englishName, farmRepository::existsBySlugIncludingDeleted);
                 String imageUrl = helper.uploadMedia(image, "farms", MediaType.IMAGE);
 
                 Farm farm = Farm.builder()
@@ -162,6 +176,13 @@ public class FarmService {
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
                         helper.validateTranslations(request.getTranslations());
+                        helper.assertNoDuplicateNames(
+                                        request.getTranslations(),
+                                        FarmTranslationRequest::getLanguage,
+                                        FarmTranslationRequest::getName,
+                                        "farm",
+                                        farm.getId(),
+                                        farmTranslationRepository::existsLiveTranslationName);
                         request.getTranslations().forEach(t -> farmTranslationRepository
                                         .findByFarmIdAndLanguage(farm.getId(), t.getLanguage())
                                         .ifPresentOrElse(
@@ -341,6 +362,13 @@ public class FarmService {
         public void restore(Long id) {
                 Farm farm = farmRepository.findDeletedById(id)
                                 .orElseThrow(FarmNotFoundException::new);
+                helper.assertNoDuplicateNames(
+                                farmTranslationRepository.findByFarmId(farm.getId()),
+                                FarmTranslation::getLanguage,
+                                FarmTranslation::getName,
+                                "farm",
+                                farm.getId(),
+                                farmTranslationRepository::existsLiveTranslationName);
                 farm.setDeletedAt(null);
                 farmRepository.save(farm);
                 log.info("Farm restored: {}", farm.getSlug());

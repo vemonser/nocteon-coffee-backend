@@ -27,6 +27,7 @@ import com.nocteon.nocteon_api.common.exception.invalid.EntityInUseException;
 import com.nocteon.nocteon_api.common.exception.notFound.CoffeeVarietyNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +47,13 @@ public class CoffeeVarietyService {
         @Transactional
         public CoffeeVarietyResponseDashboard create(CoffeeVarietyRequest request) {
                 helper.validateTranslations(request.getTranslations());
+                helper.assertNoDuplicateNames(
+                                request.getTranslations(),
+                                CoffeeVarietyTranslationRequest::getLanguage,
+                                CoffeeVarietyTranslationRequest::getName,
+                                "coffee-variety",
+                                null,
+                                translationRepository::existsLiveTranslationName);
 
                 String englishName = request.getTranslations().stream()
                                 .filter(t -> t.getLanguage().equals("en"))
@@ -53,7 +61,14 @@ public class CoffeeVarietyService {
                                 .map(CoffeeVarietyTranslationRequest::getName)
                                 .orElseThrow(InvalidTranslationException::new);
 
-                String slug = helper.generateUniqueSlug(englishName, coffeeVarietyRepository::existsBySlug);
+                // Serialize slug generation for names that slugify to the same base, and account
+                // for soft-deleted rows: coffee-variety slugs are a plain UNIQUE column, so a
+                // trashed row still owns its slug even though the duplicate-name guard ignores
+                // deleted rows.
+                String baseSlug = SlugUtils.toSlug(englishName);
+                helper.acquireNameLock("coffee-variety-slug", "slug", baseSlug);
+                String slug = helper.generateUniqueSlug(
+                                englishName, coffeeVarietyRepository::existsBySlugIncludingDeleted);
 
                 CoffeeVariety coffeeVariety = CoffeeVariety.builder()
                                 .slug(slug)
@@ -86,6 +101,13 @@ public class CoffeeVarietyService {
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
                         helper.validateTranslations(request.getTranslations());
+                        helper.assertNoDuplicateNames(
+                                        request.getTranslations(),
+                                        CoffeeVarietyTranslationRequest::getLanguage,
+                                        CoffeeVarietyTranslationRequest::getName,
+                                        "coffee-variety",
+                                        coffeeVariety.getId(),
+                                        translationRepository::existsLiveTranslationName);
                         request.getTranslations().forEach(t -> translationRepository
                                         .findByCoffeeVarietyIdAndLanguage(coffeeVariety.getId(), t.getLanguage())
                                         .ifPresentOrElse(
@@ -274,6 +296,13 @@ public class CoffeeVarietyService {
         public void restore(Long id) {
                 CoffeeVariety coffeeVariety = coffeeVarietyRepository.findDeletedById(id)
                                 .orElseThrow(CoffeeVarietyNotFoundException::new);
+                helper.assertNoDuplicateNames(
+                                translationRepository.findByCoffeeVarietyId(coffeeVariety.getId()),
+                                CoffeeVarietyTranslation::getLanguage,
+                                CoffeeVarietyTranslation::getName,
+                                "coffee-variety",
+                                coffeeVariety.getId(),
+                                translationRepository::existsLiveTranslationName);
                 coffeeVariety.setDeletedAt(null);
                 coffeeVarietyRepository.save(coffeeVariety);
                 log.info("CoffeeVariety restored: {}", coffeeVariety.getSlug());

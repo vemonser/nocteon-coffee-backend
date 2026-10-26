@@ -16,6 +16,7 @@ import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationExcept
 import com.nocteon.nocteon_api.common.exception.notFound.TastingNoteNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.tastingNote.dto.request.TastingNoteRequest;
 import com.nocteon.nocteon_api.tastingNote.dto.request.TastingNoteTranslationRequest;
 import com.nocteon.nocteon_api.tastingNote.dto.response.TastingNoteResponse;
@@ -73,6 +74,13 @@ public class TastingNoteService {
         @Transactional
         public TastingNoteResponseDashboard create(TastingNoteRequest request) {
                 helper.validateTranslations(request.getTranslations());
+                helper.assertNoDuplicateNames(
+                                request.getTranslations(),
+                                TastingNoteTranslationRequest::getLanguage,
+                                TastingNoteTranslationRequest::getName,
+                                "tasting-note",
+                                null,
+                                translationRepository::existsLiveTranslationName);
 
                 String englishName = request.getTranslations().stream()
                                 .filter(t -> t.getLanguage().equals("en"))
@@ -80,7 +88,14 @@ public class TastingNoteService {
                                 .map(TastingNoteTranslationRequest::getName)
                                 .orElseThrow(InvalidTranslationException::new);
 
-                String slug = helper.generateUniqueSlug(englishName, tastingNoteRepository::existsBySlug);
+                // Serialize slug generation for names that slugify to the same base, and account
+                // for soft-deleted rows: tasting-note slugs are a plain UNIQUE column, so a
+                // trashed row still owns its slug even though the duplicate-name guard ignores
+                // deleted rows.
+                String baseSlug = SlugUtils.toSlug(englishName);
+                helper.acquireNameLock("tasting-note-slug", "slug", baseSlug);
+                String slug = helper.generateUniqueSlug(
+                                englishName, tastingNoteRepository::existsBySlugIncludingDeleted);
 
                 TastingNote tastingNote = TastingNote.builder()
                                 .slug(slug)
@@ -111,6 +126,13 @@ public class TastingNoteService {
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
                         helper.validateTranslations(request.getTranslations());
+                        helper.assertNoDuplicateNames(
+                                        request.getTranslations(),
+                                        TastingNoteTranslationRequest::getLanguage,
+                                        TastingNoteTranslationRequest::getName,
+                                        "tasting-note",
+                                        tastingNote.getId(),
+                                        translationRepository::existsLiveTranslationName);
                         request.getTranslations().forEach(t -> translationRepository
                                         .findByTastingNoteIdAndLanguage(tastingNote.getId(), t.getLanguage())
                                         .ifPresentOrElse(
@@ -257,6 +279,13 @@ public class TastingNoteService {
         public void restore(Long id) {
                 TastingNote tastingNote = tastingNoteRepository.findDeletedById(id)
                                 .orElseThrow(TastingNoteNotFoundException::new);
+                helper.assertNoDuplicateNames(
+                                translationRepository.findByTastingNoteId(tastingNote.getId()),
+                                TastingNoteTranslation::getLanguage,
+                                TastingNoteTranslation::getName,
+                                "tasting-note",
+                                tastingNote.getId(),
+                                translationRepository::existsLiveTranslationName);
                 tastingNote.setDeletedAt(null);
                 tastingNoteRepository.save(tastingNote);
                 log.info("TastingNote restored: {}", tastingNote.getSlug());

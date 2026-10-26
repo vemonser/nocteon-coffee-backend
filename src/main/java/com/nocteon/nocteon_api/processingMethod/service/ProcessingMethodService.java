@@ -18,6 +18,7 @@ import com.nocteon.nocteon_api.common.exception.invalid.EntityInUseException;
 import com.nocteon.nocteon_api.common.exception.notFound.ProcessingMethodNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.processingMethod.dto.request.ProcessingMethodRequest;
 import com.nocteon.nocteon_api.processingMethod.dto.request.ProcessingMethodTranslationRequest;
 import com.nocteon.nocteon_api.processingMethod.dto.response.ProcessingMethodResponse;
@@ -79,6 +80,13 @@ public class ProcessingMethodService {
         @Transactional
         public ProcessingMethodResponseDashboard create(ProcessingMethodRequest request) {
                 helper.validateTranslations(request.getTranslations());
+                helper.assertNoDuplicateNames(
+                                request.getTranslations(),
+                                ProcessingMethodTranslationRequest::getLanguage,
+                                ProcessingMethodTranslationRequest::getName,
+                                "processing-method",
+                                null,
+                                translationRepository::existsLiveTranslationName);
 
                 String englishName = request.getTranslations().stream()
                                 .filter(t -> t.getLanguage().equals("en"))
@@ -86,8 +94,14 @@ public class ProcessingMethodService {
                                 .map(ProcessingMethodTranslationRequest::getName)
                                 .orElseThrow(InvalidTranslationException::new);
 
+                // Serialize slug generation for names that slugify to the same base, and account
+                // for soft-deleted rows: processing-method slugs are a plain UNIQUE column, so a
+                // trashed row still owns its slug even though the duplicate-name guard ignores
+                // deleted rows.
+                String baseSlug = SlugUtils.toSlug(englishName);
+                helper.acquireNameLock("processing-method-slug", "slug", baseSlug);
                 String slug = helper.generateUniqueSlug(
-                                englishName, processingMethodRepository::existsBySlug);
+                                englishName, processingMethodRepository::existsBySlugIncludingDeleted);
 
                 ProcessingMethod processingMethod = ProcessingMethod.builder()
                                 .slug(slug)
@@ -120,6 +134,13 @@ public class ProcessingMethodService {
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
                         helper.validateTranslations(request.getTranslations());
+                        helper.assertNoDuplicateNames(
+                                        request.getTranslations(),
+                                        ProcessingMethodTranslationRequest::getLanguage,
+                                        ProcessingMethodTranslationRequest::getName,
+                                        "processing-method",
+                                        processingMethod.getId(),
+                                        translationRepository::existsLiveTranslationName);
                         request.getTranslations().forEach(t -> translationRepository
                                         .findByProcessingMethodIdAndLanguage(processingMethod.getId(), t.getLanguage())
                                         .ifPresentOrElse(
@@ -276,6 +297,13 @@ public class ProcessingMethodService {
         public void restore(Long id) {
                 ProcessingMethod processingMethod = processingMethodRepository.findDeletedById(id)
                                 .orElseThrow(ProcessingMethodNotFoundException::new);
+                helper.assertNoDuplicateNames(
+                                translationRepository.findByProcessingMethodId(processingMethod.getId()),
+                                ProcessingMethodTranslation::getLanguage,
+                                ProcessingMethodTranslation::getName,
+                                "processing-method",
+                                processingMethod.getId(),
+                                translationRepository::existsLiveTranslationName);
                 processingMethod.setDeletedAt(null);
                 processingMethodRepository.save(processingMethod);
                 log.info("ProcessingMethod restored: {}", processingMethod.getSlug());

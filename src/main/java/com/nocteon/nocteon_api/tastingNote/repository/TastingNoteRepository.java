@@ -58,6 +58,14 @@ public interface TastingNoteRepository extends JpaRepository<TastingNote, Long> 
 
     boolean existsBySlug(String slug);
 
+    /**
+     * Counts soft-deleted rows too, because the tasting_notes.slug column carries a plain UNIQUE
+     * constraint (not a partial index). Without this, reusing a name after a soft delete would
+     * generate the slug still held by the trashed row and fail with a constraint violation.
+     */
+    @Query(value = "SELECT COUNT(*) > 0 FROM tasting_notes WHERE slug = :slug", nativeQuery = true)
+    boolean existsBySlugIncludingDeleted(@Param("slug") String slug);
+
         @Query(value = """
                 SELECT e.id, e.slug, e.created_at, et.language, et.name
                 FROM tasting_notes e
