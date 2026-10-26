@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261026-221121",
+    "task": "Reject null/blank translation names in validateTranslations",
+    "source": ".quality/runs/20261026-221121/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-01",
+      "statement": "Given a translation with a null, empty, or whitespace-only name, when validateTranslations runs, then it throws InvalidTranslationException (HTTP 400) before any duplicate or persistence work.",
+      "sourceRef": {
+        "path": ".quality/runs/20261026-221121/CHANGE-CONTRACT.md",
+        "line": 19
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/service/LookupServiceHelper.java",
+        "src/test/java/com/nocteon/nocteon_api/common/service/LookupServiceHelperTest.java"
+      ],
+      "status": "PASS",
+      "notes": "Unit test first failed for null/empty/whitespace names, then passed after the guard.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": ".quality/runs/20261026-221121/artifacts/targeted-tests.log",
+          "command": "./mvnw -o -Dtest=LookupServiceHelperTest#rejectsNullName+rejectsEmptyName+rejectsWhitespaceOnlyName test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T19:13:20.365Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-02",
+      "statement": "Given a list containing a valid en and ar translation with non-blank names, when validateTranslations runs, then it returns normally.",
+      "sourceRef": {
+        "path": ".quality/runs/20261026-221121/CHANGE-CONTRACT.md",
+        "line": 20
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/service/LookupServiceHelper.java",
+        "src/test/java/com/nocteon/nocteon_api/common/service/LookupServiceHelperTest.java"
+      ],
+      "status": "PASS",
+      "notes": "Valid en+ar pair accepted; missing-language and duplicate-language behavior unchanged.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": ".quality/runs/20261026-221121/artifacts/targeted-tests.log",
+          "command": "./mvnw -o -Dtest=LookupServiceHelperTest#acceptsValidTranslations test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T19:13:34.026Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-03",
+      "statement": "Existing service tests continue to pass (full suite green).",
+      "sourceRef": {
+        "path": ".quality/runs/20261026-221121/CHANGE-CONTRACT.md",
+        "line": 21
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/service/LookupServiceHelper.java",
+        "src/test/java/com/nocteon/nocteon_api/common/service/LookupServiceHelperTest.java"
+      ],
+      "status": "PASS",
+      "notes": "Full Maven suite required; recorded below.",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261026-221121/artifacts/full-suite.log",
+          "command": "./mvnw -o test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T19:15:58.559Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

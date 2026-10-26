@@ -98,6 +98,15 @@ public class LookupServiceHelper {
 
         if (distinct != translations.size())
             throw new InvalidTranslationException();
+
+        // A null name would slip past existsLiveTranslationName (SQL NULL never equals NULL)
+        // and then fail on the NOT NULL column as a 500. Reject it here as a 400 instead.
+        boolean hasBlankName = translations.stream()
+                .map(TranslationRequest::getName)
+                .anyMatch(name -> name == null || name.isBlank());
+
+        if (hasBlankName)
+            throw new InvalidTranslationException();
     }
 
     /**
