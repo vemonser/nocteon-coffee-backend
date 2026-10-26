@@ -9,9 +9,12 @@
 
 ### GET /api/dashboard/notifications
 - **Authority**: `notification:read`
-- **Query params**: `cursor` (optional, format `epochMs_id`), `limit` (default 20), `unreadOnly` (default false)
-- **Pagination**: cursor pagination (createdAt, id), newest first
-- **Response**: `ApiResponse<NotificationCursorResponse>` where
+- **Query params**: `page` (optional, offset pagination), `size` (optional; page size in page mode and cursor-mode override when positive, otherwise defaults to 20), `cursor` (optional, format ISO-8601 `Instant_id`; legacy `epochMs_id` is also accepted), `limit` (default 20, used for cursor pagination when `size` is absent or non-positive), `unreadOnly` (default false)
+- **Pagination**: cursor pagination (createdAt, id), newest first. Page mode and cursor mode are mutually selected by the presence of `page`.
+- **Cursor format**: `<ISO-8601 Instant>_<notification id>` (for example `2026-01-01T00:00:00.000001Z_42`), where the id is a positive decimal integer. Legacy `epochMs_id` cursors are still accepted; the millisecond timestamp is used only to locate the referenced notification, and the exact stored `createdAt` is used for the keyset comparison, so sub-millisecond precision is preserved.
+- **Errors**: 400 when `cursor` is malformed (missing id, non-ASCII or non-numeric id, numeric overflow, or an unparseable timestamp).
+- **Size precedence**: in cursor mode a positive `size` overrides `limit`; otherwise `limit` is used. In page mode `size` is the page size and defaults to 20. Cursor mode leaves `size` unset in favor of `limit` for backward compatibility. Effective page size is clamped to 1..100 and `page` to >= 0.
+- **Response (cursor mode)**: `ApiResponse<NotificationCursorResponse>` where
 ```json
 {
   "content": [
@@ -19,6 +22,18 @@
   ],
   "nextCursor": "...",
   "hasMore": true
+}
+```
+- **Response (page mode, `page` present)**: `ApiResponse<PageResponse<NotificationResponse>>` where
+```json
+{
+  "content": [ { "id": 1, "...": "..." } ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 10,
+  "totalPages": 1,
+  "first": true,
+  "last": true
 }
 ```
 

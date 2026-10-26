@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -35,19 +36,35 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Query("DELETE FROM Notification n WHERE n.id = :id AND n.recipientUserId = :recipientId")
     int deleteByIdAndRecipient(@Param("id") Long id, @Param("recipientId") Long recipientId);
 
+    /**
+     * Cursor-keyset query. Both cursor values are required: first-page requests
+     * must use {@link #findPage(Long, boolean, Pageable)} instead. There is no
+     * nullable convenience wrapper, so a missing cursor cannot be mistaken for a
+     * valid keyset and no nullable SQL parameter is bound.
+     */
     @Query("""
             SELECT n FROM Notification n
             WHERE n.recipientUserId = :recipientId
               AND (:unreadOnly = false OR n.readAt IS NULL)
-              AND (:cursorCreatedAt IS NULL OR n.createdAt < :cursorCreatedAt
+              AND (n.createdAt < :cursorCreatedAt
                     OR (n.createdAt = :cursorCreatedAt AND n.id < :cursorId))
             ORDER BY n.createdAt DESC, n.id DESC
             """)
-    Page<Notification> findCursor(@Param("recipientId") Long recipientId,
-                                 @Param("unreadOnly") boolean unreadOnly,
-                                 @Param("cursorCreatedAt") Instant cursorCreatedAt,
-                                 @Param("cursorId") Long cursorId,
-                                 Pageable pageable);
+    Slice<Notification> findCursorByKeyset(@Param("recipientId") Long recipientId,
+                                          @Param("unreadOnly") boolean unreadOnly,
+                                          @Param("cursorCreatedAt") Instant cursorCreatedAt,
+                                          @Param("cursorId") Long cursorId,
+                                          Pageable pageable);
+
+    @Query("""
+            SELECT n FROM Notification n
+            WHERE n.recipientUserId = :recipientId
+              AND (:unreadOnly = false OR n.readAt IS NULL)
+            ORDER BY n.createdAt DESC, n.id DESC
+            """)
+    Page<Notification> findPage(@Param("recipientId") Long recipientId,
+                               @Param("unreadOnly") boolean unreadOnly,
+                               Pageable pageable);
 
     List<Notification> findByRecipientUserIdAndReadAtIsNull(Long recipientUserId);
 

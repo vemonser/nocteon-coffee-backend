@@ -13,7 +13,6 @@ import org.springframework.validation.annotation.Validated;
 
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
-import com.nocteon.nocteon_api.notifications.dto.NotificationCursorResponse;
 import com.nocteon.nocteon_api.notifications.service.NotificationService;
 
 import lombok.RequiredArgsConstructor;
@@ -28,13 +27,24 @@ public class NotificationController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('notification:read')")
-    public ApiResponse<NotificationCursorResponse> getNotifications(
+    public ApiResponse<?> getNotifications(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "20") int limit,
             @RequestParam(defaultValue = "false") boolean unreadOnly,
             @AuthenticationPrincipal UserPrincipal principal) {
+        if (page != null) {
+            int s = (size != null && size > 0) ? size : 20;
+            return ApiResponse.success(
+                    notificationService.getNotificationsPage(principal.getUserId(), page, s, unreadOnly),
+                    "Notifications retrieved");
+        }
+        // Keep `limit` as the historical cursor-page parameter while also
+        // honoring `size` when a caller uses the page-mode name.
+        int cursorLimit = (size != null && size > 0) ? size : limit;
         return ApiResponse.success(
-                notificationService.getNotifications(principal.getUserId(), cursor, limit, unreadOnly),
+                notificationService.getNotifications(principal.getUserId(), cursor, cursorLimit, unreadOnly),
                 "Notifications retrieved");
     }
 
