@@ -1,10 +1,9 @@
 package com.nocteon.nocteon_api.notifications.service;
 
 import java.time.Instant;
-import java.util.Map;
+import java.util.List;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.notifications.dto.NotificationCursorResponse;
 import com.nocteon.nocteon_api.notifications.dto.NotificationResponse;
@@ -53,21 +52,25 @@ public class NotificationService {
             cursorCreatedAt = parseCursorTimestamp(parts[0], cursorId, userId);
         }
         int size = Math.min(Math.max(limit, 1), 100);
+        // Fetch one extra row so a terminal page that is exactly full can be
+        // distinguished from a page followed by more data (Slice.hasNext() alone
+        // cannot tell them apart when the fetch size equals the page size).
         Slice<Notification> page;
         if (!hasCursor) {
             page = notificationRepository.findPage(
-                    userId, unreadOnly, PageRequest.of(0, size));
+                    userId, unreadOnly, PageRequest.of(0, size + 1));
         } else {
             page = notificationRepository.findCursorByKeyset(
-                    userId, unreadOnly, cursorCreatedAt, cursorId, PageRequest.of(0, size));
+                    userId, unreadOnly, cursorCreatedAt, cursorId, PageRequest.of(0, size + 1));
         }
 
-        var content = page.getContent().stream().map(this::toResponse).toList();
+        List<Notification> pageRows = page.getContent().stream().limit(size).toList();
+        var content = pageRows.stream().map(this::toResponse).toList();
 
+        boolean hasMore = page.getContent().size() > size;
         String nextCursor = null;
-        boolean hasMore = page.hasNext();
-        if (hasMore && !page.getContent().isEmpty()) {
-            Notification last = page.getContent().get(page.getContent().size() - 1);
+        if (hasMore && !pageRows.isEmpty()) {
+            Notification last = pageRows.get(pageRows.size() - 1);
             nextCursor = last.getCreatedAt().toString() + "_" + last.getId();
         }
 

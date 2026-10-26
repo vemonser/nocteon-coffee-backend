@@ -474,6 +474,30 @@ class NotificationPaginationIntegrationTest {
     }
 
     @Test
+    void cursorExactMultipleTerminalPageReportsExhaustion() throws Exception {
+        // 10 pilot rows with limit 5 is an exact multiple; the last full page
+        // must report hasMore=false and nextCursor=null without an extra empty page.
+        MvcResult first = mockMvc.perform(get("/api/dashboard/notifications")
+                        .param("limit", "5")
+                        .with(user(principal)))
+                .andExpect(status().isOk())
+                .andReturn();
+        String cursor = (String) JsonPath.read(first.getResponse().getContentAsString(), "$.data.nextCursor");
+        assertThat(cursor).isNotBlank();
+        assertThat((Boolean) JsonPath.read(first.getResponse().getContentAsString(), "$.data.hasMore")).isTrue();
+
+        MvcResult second = mockMvc.perform(get("/api/dashboard/notifications")
+                        .param("limit", "5")
+                        .param("cursor", cursor)
+                        .with(user(principal)))
+                .andExpect(status().isOk())
+                .andReturn();
+        String secondBody = second.getResponse().getContentAsString();
+        org.junit.jupiter.api.Assertions.assertTrue(secondBody.contains("\"hasMore\":false"));
+        org.junit.jupiter.api.Assertions.assertTrue(secondBody.contains("\"nextCursor\":null"));
+    }
+
+    @Test
     void zeroSizeUsesControllerDefault() throws Exception {
         mockMvc.perform(get("/api/dashboard/notifications")
                         .param("page", "0")
