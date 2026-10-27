@@ -100,7 +100,7 @@ services:
       #
       # It also claimed Render managed Postgres cannot provide pgvector.
       # That was wrong: Render supports pgvector on PostgreSQL 13 and later
-      # (https://render.com/docs/postgresql-extensions), and V103 enables
+      # (https://render.com/docs/postgresql-extensions), and V1__extensions.sql enables
       # it on startup.
       #
       # Turning search on with no index used to be a silent trap — every
@@ -150,6 +150,12 @@ services:
       - key: MAIL_SCHEDULING_ENABLED
         value: "true"
 
+      # Production loads schema + operational reference data only. The demo
+      # catalog/orders/users/notifications live in classpath:db/seed and must
+      # not be inserted into the production database.
+      - key: SPRING_FLYWAY_LOCATIONS
+        value: classpath:db/migration
+
       - key: FRONTEND_URL
         value: https://nocteon-coffee.onrender.com
       - key: CORS_ALLOWED_ORIGINS
@@ -163,11 +169,11 @@ services:
 # without pgvector, and that AI_SEARCH_ENABLED had to stay false
 # because there was "no vector extension to search". Both statements
 # were wrong: Render supports pgvector on PostgreSQL 13 and later
-# (https://render.com/docs/postgresql-extensions) and V103 creates the
+# (https://render.com/docs/postgresql-extensions) and V1__extensions.sql creates the
 # extension on startup.
 #
 # Keep this block on PostgreSQL 13 or later — that is the floor for the
-# pgvector extension. If you pin an older version, V103 warns instead of
+# pgvector extension. If you pin an older version, V1 warns instead of
 # failing, and the deployment loses vector search but still boots.
 #
 # If pgvector is ever missing, provision a pgvector-capable database

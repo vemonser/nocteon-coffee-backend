@@ -1,0 +1,161 @@
+--- terminating the open sessions ---
+ pg_terminate_backend 
+----------------------
+(0 rows)
+
+--- dropping and recreating nocteon_flyway_script_check ---
+DROP DATABASE
+CREATE DATABASE
+--- applying the migrations + dev seeds ---
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.nocteon:nocteon-api >-----------------------
+[INFO] Building  0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- flyway:12.4.0:migrate (default-cli) @ nocteon-api ---
+[INFO] Database: jdbc:postgresql://localhost:5432/nocteon_flyway_script_check (PostgreSQL 16.15)
+[INFO] Schema history table "public"."flyway_schema_history" does not exist yet
+[INFO] Successfully validated 29 migrations (execution time 00:00.061s)
+[INFO] Creating Schema History table "public"."flyway_schema_history" ...
+[INFO] Current version of schema "public": << Empty Schema >>
+[INFO] Migrating schema "public" to version "1 - extensions"
+[INFO] Migrating schema "public" to version "2 - auth tables"
+[INFO] Migrating schema "public" to version "3 - catalog tables"
+[INFO] Migrating schema "public" to version "4 - commerce tables"
+[INFO] Migrating schema "public" to version "5 - journal tables"
+[INFO] Migrating schema "public" to version "6 - notification tables"
+[INFO] Migrating schema "public" to version "7 - broadcast contact tables"
+[INFO] Migrating schema "public" to version "8 - shipping settings tables"
+[INFO] Migrating schema "public" to version "9 - audit tables"
+[INFO] Migrating schema "public" to version "10 - foreign keys"
+[INFO] Migrating schema "public" to version "11 - reference data"
+[INFO] +--------+
+| setval |
++--------+
+| 5      |
++--------+
+
+[INFO] +--------+
+| setval |
++--------+
+| 1      |
++--------+
+
+[INFO] Migrating schema "public" to version "100 - seed lookups"
+[INFO] Migrating schema "public" to version "101 - seed users"
+[INFO] Migrating schema "public" to version "102 - seed products"
+[INFO] Migrating schema "public" to version "103 - seed catalog content"
+[INFO] Migrating schema "public" to version "104 - seed catalog pricing imagery"
+[INFO] Migrating schema "public" to version "105 - seed dashboard data"
+[INFO] Migrating schema "public" to version "106 - seed orders reviews contacts"
+[INFO] Migrating schema "public" to version "107 - seed login activity"
+[INFO] Migrating schema "public" to version "108 - seed order history refunds"
+[INFO] Migrating schema "public" to version "109 - seed review media fixes"
+[INFO] Migrating schema "public" to version "110 - seed cart activity"
+[INFO] Migrating schema "public" to version "111 - seed newsletter"
+[INFO] Migrating schema "public" to version "112 - seed order dates"
+[INFO] DB: Seed check passed: 17 orders verified
+[INFO] DB: Seed items check passed: 17 orders verified (>=1 line, total=subtotal+shipping)
+[INFO] Migrating schema "public" to version "113 - seed orders 75 days"
+[INFO] Migrating schema "public" to version "114 - seed order timestamps"
+[INFO] DB: Seed check passed: 42 orders verified
+[INFO] Migrating schema "public" to version "115 - seed notifications"
+[INFO] Migrating schema "public" to version "116 - seed option applies to"
+[INFO] Migrating schema "public" to version "117 - reset sequences"
+[INFO] +--------+
+| setval |
++--------+
+| 42     |
++--------+
+
+[INFO] Successfully applied 29 migrations to schema "public", now at version v117 (execution time 00:01.378s)
+[INFO] Database: jdbc:postgresql://localhost:5432/nocteon_flyway_script_check (PostgreSQL 16.15)
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  5.542 s
+[INFO] Finished at: 2026-10-27T03:35:53+03:00
+[INFO] ------------------------------------------------------------------------
+--- the applied versions ---
+ version |         description          | success 
+---------+------------------------------+---------
+ 1       | extensions                   | t
+ 2       | auth tables                  | t
+ 3       | catalog tables               | t
+ 4       | commerce tables              | t
+ 5       | journal tables               | t
+ 6       | notification tables          | t
+ 7       | broadcast contact tables     | t
+ 8       | shipping settings tables     | t
+ 9       | audit tables                 | t
+ 10      | foreign keys                 | t
+ 11      | reference data               | t
+ 100     | seed lookups                 | t
+ 101     | seed users                   | t
+ 102     | seed products                | t
+ 103     | seed catalog content         | t
+ 104     | seed catalog pricing imagery | t
+ 105     | seed dashboard data          | t
+ 106     | seed orders reviews contacts | t
+ 107     | seed login activity          | t
+ 108     | seed order history refunds   | t
+ 109     | seed review media fixes      | t
+ 110     | seed cart activity           | t
+ 111     | seed newsletter              | t
+ 112     | seed order dates             | t
+ 113     | seed orders 75 days          | t
+ 114     | seed order timestamps        | t
+ 115     | seed notifications           | t
+ 116     | seed option applies to       | t
+ 117     | reset sequences              | t
+(29 rows)
+
+--- the seeded orders ---
+  order_number   |   status   | payment_status |  payment_method  | total_amount 
+-----------------+------------+----------------+------------------+--------------
+ ORD-2026-000002 | DELIVERED  | PAID           | ONLINE           |      1825.00
+ ORD-2026-000007 | DELIVERED  | PAID           | ONLINE           |      1889.00
+ ORD-2026-000012 | DELIVERED  | PAID           | ONLINE           |      2278.00
+ ORD-2026-000017 | DELIVERED  | PAID           | ONLINE           |      1749.00
+ ORD-2026-000023 | DELIVERED  | PAID           | ONLINE           |      3657.00
+ ORD-2026-000028 | CANCELLED  | NOT_COLLECTED  | CASH_ON_DELIVERY |       689.00
+ ORD-2026-000032 | CANCELLED  | FAILED         | ONLINE           |      2756.00
+ ORD-2026-000033 | SHIPPED    | PAID           | ONLINE           |      1604.00
+ ORD-2026-000034 | DELIVERED  | REFUNDED       | ONLINE           |      1289.00
+ ORD-2026-000035 | CANCELLED  | NOT_COLLECTED  | CASH_ON_DELIVERY |      1300.00
+ ORD-2026-000036 | DELIVERED  | PAID           | ONLINE           |      2004.00
+ ORD-2026-000037 | CANCELLED  | REFUNDED       | ONLINE           |      1368.00
+ ORD-2026-000038 | PROCESSING | PAID           | ONLINE           |      1236.00
+ ORD-2026-000039 | PENDING    | PENDING        | ONLINE           |      1669.50
+ ORD-2026-000040 | CONFIRMED  | PENDING        | CASH_ON_DELIVERY |       650.00
+ ORD-2026-000041 | DELIVERED  | PAID           | ONLINE           |      1934.50
+ ORD-2026-000042 | DELIVERED  | PAID           | ONLINE           |      2650.00
+ ORD-2026-000001 | DELIVERED  | PAID           | CASH_ON_DELIVERY |       550.00
+ ORD-2026-000003 | DELIVERED  | PAID           | ONLINE           |       550.00
+ ORD-2026-000004 | PENDING    | PENDING        | CASH_ON_DELIVERY |       550.00
+ ORD-2026-000005 | CANCELLED  | FAILED         | ONLINE           |       550.00
+ ORD-2026-000006 | DELIVERED  | PAID           | CASH_ON_DELIVERY |       550.00
+ ORD-2026-000008 | PENDING    | PENDING        | ONLINE           |       550.00
+ ORD-2026-000009 | SHIPPED    | PAID           | CASH_ON_DELIVERY |       550.00
+ ORD-2026-000010 | CANCELLED  | FAILED         | ONLINE           |       550.00
+ ORD-2026-000011 | PENDING    | PENDING        | CASH_ON_DELIVERY |       550.00
+ ORD-2026-000013 | PROCESSING | REFUNDED       | ONLINE           |       550.00
+ ORD-2026-000014 | DELIVERED  | PAID           | CASH_ON_DELIVERY |       550.00
+ ORD-2026-000015 | CANCELLED  | FAILED         | ONLINE           |       550.00
+ ORD-2026-000016 | DELIVERED  | PAID           | CASH_ON_DELIVERY |       550.00
+ ORD-2026-000018 | SHIPPED    | PAID           | ONLINE           |       550.00
+ ORD-2026-000019 | PENDING    | PENDING        | CASH_ON_DELIVERY |       550.00
+ ORD-2026-000020 | CANCELLED  | FAILED         | ONLINE           |       550.00
+ ORD-2026-000021 | DELIVERED  | PAID           | CASH_ON_DELIVERY |       550.00
+ ORD-2026-000022 | PENDING    | PENDING        | ONLINE           |       550.00
+ ORD-2026-000024 | DELIVERED  | PAID           | CASH_ON_DELIVERY |       550.00
+ ORD-2026-000025 | PROCESSING | FAILED         | ONLINE           |       550.00
+ ORD-2026-000026 | SHIPPED    | PENDING        | CASH_ON_DELIVERY |       550.00
+ ORD-2026-000027 | DELIVERED  | PAID           | ONLINE           |       550.00
+ ORD-2026-000029 | DELIVERED  | PAID           | CASH_ON_DELIVERY |       550.00
+ ORD-2026-000030 | CANCELLED  | FAILED         | ONLINE           |       550.00
+ ORD-2026-000031 | DELIVERED  | PAID           | CASH_ON_DELIVERY |       550.00
+(42 rows)
+

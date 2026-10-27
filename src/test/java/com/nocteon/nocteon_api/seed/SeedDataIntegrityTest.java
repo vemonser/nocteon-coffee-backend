@@ -90,6 +90,20 @@ class SeedDataIntegrityTest {
         assertThat(rejected).isZero();
     }
 
+    @Test
+    void seededSequencesAreAheadOfTheirRows() {
+        Long maxOrder = jdbcTemplate.queryForObject(
+                "select max(split_part(order_number, '-', 3)::bigint) from orders", Long.class);
+        Long orderSequence = jdbcTemplate.queryForObject(
+                "select last_value from order_number_seq", Long.class);
+        assertThat(orderSequence).isGreaterThanOrEqualTo(maxOrder);
+
+        Long maxProduct = jdbcTemplate.queryForObject("select max(id) from products", Long.class);
+        Long productSequence = jdbcTemplate.queryForObject(
+                "select last_value from products_id_seq", Long.class);
+        assertThat(productSequence).isGreaterThanOrEqualTo(maxProduct);
+    }
+
     /**
      * A verified review points at an order. The dashboard shows a check mark
      * next to the reviewer's name and links it to that order, so a review

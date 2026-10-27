@@ -1,0 +1,237 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261027-032114",
+    "task": "Flyway per-domain baseline + dev seed split",
+    "source": ".quality/runs/20261027-032114/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-01",
+      "statement": "Given an empty PostgreSQL database, when Flyway runs with schema + seeds, then 29 migrations apply and the full test suite (728 tests) passes.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-032114/CHANGE-CONTRACT.md",
+        "line": 34
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/resources/db/migration/V1__extensions.sql",
+        "src/main/resources/db/migration/V2__auth_tables.sql",
+        "src/main/resources/db/migration/V3__catalog_tables.sql",
+        "src/main/resources/db/migration/V4__commerce_tables.sql",
+        "src/main/resources/db/migration/V5__journal_tables.sql",
+        "src/main/resources/db/migration/V6__notification_tables.sql",
+        "src/main/resources/db/migration/V7__broadcast_contact_tables.sql",
+        "src/main/resources/db/migration/V8__shipping_settings_tables.sql",
+        "src/main/resources/db/migration/V9__audit_tables.sql",
+        "src/main/resources/db/migration/V10__foreign_keys.sql",
+        "src/main/resources/db/migration/V11__reference_data.sql",
+        "src/main/resources/db/seed/V100__seed_lookups.sql",
+        "src/main/resources/db/seed/V101__seed_users.sql",
+        "src/main/resources/db/seed/V102__seed_products.sql",
+        "src/main/resources/db/seed/V103__seed_catalog_content.sql",
+        "src/main/resources/db/seed/V104__seed_catalog_pricing_imagery.sql",
+        "src/main/resources/db/seed/V105__seed_dashboard_data.sql",
+        "src/main/resources/db/seed/V106__seed_orders_reviews_contacts.sql",
+        "src/main/resources/db/seed/V107__seed_login_activity.sql",
+        "src/main/resources/db/seed/V108__seed_order_history_refunds.sql",
+        "src/main/resources/db/seed/V109__seed_review_media_fixes.sql",
+        "src/main/resources/db/seed/V110__seed_cart_activity.sql",
+        "src/main/resources/db/seed/V111__seed_newsletter.sql",
+        "src/main/resources/db/seed/V112__seed_order_dates.sql",
+        "src/main/resources/db/seed/V113__seed_orders_75_days.sql",
+        "src/main/resources/db/seed/V114__seed_order_timestamps.sql",
+        "src/main/resources/db/seed/V115__seed_notifications.sql",
+        "src/main/resources/db/seed/V116__seed_option_applies_to.sql",
+        "src/main/resources/db/seed/V117__reset_sequences.sql",
+        "src/main/resources/application.yaml",
+        "render.yaml",
+        "scripts/rebuild-database.sh",
+        "src/main/resources/db/README.md",
+        "src/test/java/com/nocteon/nocteon_api/db/FlywayMigrationLayoutTest.java",
+        "src/test/java/com/nocteon/nocteon_api/seed/SeedDataIntegrityTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-032114/artifacts/full-suite.log",
+          "command": "env SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nocteon_flyway_check ./mvnw -o clean test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T00:34:22.062Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-02",
+      "statement": "Given an empty PostgreSQL database, when Flyway runs with schema only (production locations), then 11 migrations apply, the context boots with Hibernate ddl-auto=validate, and demo tables are empty while roles/permissions/settings/shipping reference data is present.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-032114/CHANGE-CONTRACT.md",
+        "line": 35
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/resources/db/migration/V1__extensions.sql",
+        "src/main/resources/db/migration/V2__auth_tables.sql",
+        "src/main/resources/db/migration/V3__catalog_tables.sql",
+        "src/main/resources/db/migration/V4__commerce_tables.sql",
+        "src/main/resources/db/migration/V5__journal_tables.sql",
+        "src/main/resources/db/migration/V6__notification_tables.sql",
+        "src/main/resources/db/migration/V7__broadcast_contact_tables.sql",
+        "src/main/resources/db/migration/V8__shipping_settings_tables.sql",
+        "src/main/resources/db/migration/V9__audit_tables.sql",
+        "src/main/resources/db/migration/V10__foreign_keys.sql",
+        "src/main/resources/db/migration/V11__reference_data.sql",
+        "src/main/resources/application.yaml",
+        "render.yaml",
+        "scripts/rebuild-database.sh",
+        "src/main/resources/db/README.md"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-032114/artifacts/prod-boot.log",
+          "command": "env SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nocteon_flyway_prod_check SPRING_FLYWAY_LOCATIONS=classpath:db/migration ./mvnw -o -Dtest=NocteonApiApplicationTests test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T00:34:58.958Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-03",
+      "statement": "The schema-only dump of the freshly migrated database is identical to the previous database schema, ignoring the pg_dump \\restrict token and the runtime-managed vector_store table.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-032114/CHANGE-CONTRACT.md",
+        "line": 36
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/resources/db/migration/V1__extensions.sql",
+        "src/main/resources/db/migration/V2__auth_tables.sql",
+        "src/main/resources/db/migration/V3__catalog_tables.sql",
+        "src/main/resources/db/migration/V4__commerce_tables.sql",
+        "src/main/resources/db/migration/V5__journal_tables.sql",
+        "src/main/resources/db/migration/V6__notification_tables.sql",
+        "src/main/resources/db/migration/V7__broadcast_contact_tables.sql",
+        "src/main/resources/db/migration/V8__shipping_settings_tables.sql",
+        "src/main/resources/db/migration/V9__audit_tables.sql",
+        "src/main/resources/db/migration/V10__foreign_keys.sql",
+        "src/main/resources/db/migration/V11__reference_data.sql",
+        "src/main/resources/application.yaml",
+        "render.yaml",
+        "scripts/rebuild-database.sh",
+        "src/main/resources/db/README.md"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261027-032114/artifacts/schema-diff.log",
+          "command": "bash .quality/runs/20261027-032114/artifacts/check-schema-diff.sh",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T00:35:21.375Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-04",
+      "statement": "roles and role_permissions are created in V2 and seeded in V11; the layout test fails on duplicate versions, overlapping ranges, empty files, or missing role tables.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-032114/CHANGE-CONTRACT.md",
+        "line": 37
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/resources/db/migration/V2__auth_tables.sql",
+        "src/main/resources/db/migration/V11__reference_data.sql",
+        "src/main/resources/db/seed/V117__reset_sequences.sql",
+        "src/test/java/com/nocteon/nocteon_api/db/FlywayMigrationLayoutTest.java",
+        "src/test/java/com/nocteon/nocteon_api/seed/SeedDataIntegrityTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": ".quality/runs/20261027-032114/artifacts/layout-test.log",
+          "command": "./mvnw -o -Dtest=FlywayMigrationLayoutTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T00:35:39.351Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-05",
+      "statement": "The documented rebuild path (scripts/rebuild-database.sh) applies the new layout end-to-end on a disposable database.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-032114/CHANGE-CONTRACT.md",
+        "line": 38
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "scripts/rebuild-database.sh",
+        "src/main/resources/db/README.md",
+        "src/main/resources/db/migration/V1__extensions.sql",
+        "src/main/resources/db/migration/V2__auth_tables.sql",
+        "src/main/resources/db/migration/V3__catalog_tables.sql",
+        "src/main/resources/db/migration/V4__commerce_tables.sql",
+        "src/main/resources/db/migration/V5__journal_tables.sql",
+        "src/main/resources/db/migration/V6__notification_tables.sql",
+        "src/main/resources/db/migration/V7__broadcast_contact_tables.sql",
+        "src/main/resources/db/migration/V8__shipping_settings_tables.sql",
+        "src/main/resources/db/migration/V9__audit_tables.sql",
+        "src/main/resources/db/migration/V10__foreign_keys.sql",
+        "src/main/resources/db/migration/V11__reference_data.sql",
+        "src/main/resources/db/seed/V100__seed_lookups.sql",
+        "src/main/resources/db/seed/V101__seed_users.sql",
+        "src/main/resources/db/seed/V102__seed_products.sql",
+        "src/main/resources/db/seed/V103__seed_catalog_content.sql",
+        "src/main/resources/db/seed/V104__seed_catalog_pricing_imagery.sql",
+        "src/main/resources/db/seed/V105__seed_dashboard_data.sql",
+        "src/main/resources/db/seed/V106__seed_orders_reviews_contacts.sql",
+        "src/main/resources/db/seed/V107__seed_login_activity.sql",
+        "src/main/resources/db/seed/V108__seed_order_history_refunds.sql",
+        "src/main/resources/db/seed/V109__seed_review_media_fixes.sql",
+        "src/main/resources/db/seed/V110__seed_cart_activity.sql",
+        "src/main/resources/db/seed/V111__seed_newsletter.sql",
+        "src/main/resources/db/seed/V112__seed_order_dates.sql",
+        "src/main/resources/db/seed/V113__seed_orders_75_days.sql",
+        "src/main/resources/db/seed/V114__seed_order_timestamps.sql",
+        "src/main/resources/db/seed/V115__seed_notifications.sql",
+        "src/main/resources/db/seed/V116__seed_option_applies_to.sql",
+        "src/main/resources/db/seed/V117__reset_sequences.sql"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-032114/artifacts/rebuild-script.log",
+          "command": "env DB_NAME=nocteon_flyway_script_check ./scripts/rebuild-database.sh",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T00:35:53.532Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}
