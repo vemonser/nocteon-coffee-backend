@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261027-035149",
+    "task": "Java 25 LTS migration",
+    "source": ".quality/runs/20261027-035149/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-01",
+      "statement": "With JDK 25, ./mvnw clean test compiles and passes all 730 tests on a freshly migrated database.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-035149/CHANGE-CONTRACT.md",
+        "line": 21
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "pom.xml",
+        ".mise.toml",
+        ".github/workflows/ci.yml",
+        "Dockerfile",
+        "render.yaml"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-035149/artifacts/java25-full-suite.log",
+          "command": "env SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nocteon_flyway_check mise exec java@25 -- ./mvnw -o clean test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T01:08:41.992Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-02",
+      "statement": "The rebuilt Docker image reports Java 25, reaches PostgreSQL and Redis, becomes healthy, and GET /api/settings returns 200.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-035149/CHANGE-CONTRACT.md",
+        "line": 22
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "pom.xml",
+        ".mise.toml",
+        ".github/workflows/ci.yml",
+        "Dockerfile",
+        "render.yaml",
+        "docker-compose.yml",
+        "src/main/java/com/nocteon/nocteon_api/auth/config/SecurityConfig.java",
+        "src/main/resources/application.yaml",
+        "src/test/java/com/nocteon/nocteon_api/actuator/ActuatorHealthSecurityTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "e2e",
+          "path": ".quality/runs/20261027-035149/artifacts/docker-smoke.log",
+          "command": "bash .quality/runs/20261027-035149/artifacts/check-java25-stack.sh",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T01:08:48.488Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-03",
+      "statement": "Every build/deploy touchpoint targets 25: pom.xml, .mise.toml, CI and the Dockerfile; Render uses that same Temurin 25 Docker image; no Java 21/Lombok 1.18.36 reference remains.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-035149/CHANGE-CONTRACT.md",
+        "line": 23
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "pom.xml",
+        ".mise.toml",
+        ".github/workflows/ci.yml",
+        "Dockerfile",
+        "render.yaml",
+        "docker-compose.yml",
+        "readme.md"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261027-035149/artifacts/java25-touchpoints.log",
+          "command": "bash .quality/runs/20261027-035149/artifacts/check-java25-touchpoints.sh",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T01:08:48.546Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

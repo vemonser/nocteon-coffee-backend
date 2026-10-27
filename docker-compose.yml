@@ -64,8 +64,9 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-      # JVM options
-      JAVA_OPTS: "-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+      # JVM options. JAVA_TOOL_OPTIONS is read by the JVM itself; JAVA_OPTS
+      # would be ignored by the exec-form ENTRYPOINT.
+      JAVA_TOOL_OPTIONS: "-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
     depends_on:
       db:
         condition: service_healthy

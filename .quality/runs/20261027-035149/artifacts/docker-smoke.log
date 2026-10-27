@@ -1,0 +1,8 @@
+openjdk version "25.0.4.1" 2026-08-18 LTS
+app-health=healthy
+image=sha256:6b0b4f8bfbacabbc8e61694d196e734a8390c54d38db1ba91632601b988940b6
+user=10001
+settings=200
+readiness=200
+redis=PONG
+startup=ok

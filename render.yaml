@@ -1,13 +1,13 @@
 services:
   - type: web
     name: nocteon-api
-    runtime: java
+    runtime: docker
     plan: free
     region: oregon
     rootDir: .
-    buildCommand: ./mvnw clean package -DskipTests
-    startCommand: java -jar target/nocteon-api-*.jar
-    healthCheckPath: /actuator/health
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /actuator/health/readiness
     envVars:
       - key: DATABASE_HOST
         fromDatabase:
@@ -160,7 +160,7 @@ services:
         value: https://nocteon-coffee.onrender.com
       - key: CORS_ALLOWED_ORIGINS
         value: https://nocteon-coffee.onrender.com
-      - key: JAVA_OPTS
+      - key: JAVA_TOOL_OPTIONS
         value: -Xmx384m -Xms256m
 
 # ── Database ───────────────────────────────────────────────────
