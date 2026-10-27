@@ -13,6 +13,7 @@ public enum Role {
     MODERATOR(Set.of(
             Permission.DASHBOARD_READ,
             Permission.ORDER_READ,
+            Permission.ORDER_UPDATE,
             Permission.CART_READ_ALL,
             Permission.REVIEW_READ,
             Permission.REVIEW_MODERATE,

@@ -57,7 +57,7 @@ class ModeratorPermissionsIntegrationTest {
 
         // The surfaces a moderator works in.
         org.assertj.core.api.Assertions.assertThat(perms).contains(
-                "dashboard:read", "order:read", "review:moderate",
+                "dashboard:read", "order:read", "order:update", "review:moderate",
                 "contact:read", "contact:update",
                 "notification:read", "notification:update");
 
@@ -65,7 +65,7 @@ class ModeratorPermissionsIntegrationTest {
         // catalogue writes, money operations and settings.
         org.assertj.core.api.Assertions.assertThat(perms).doesNotContain(
                 "user:update", "user:change_role", "user:delete",
-                "product:update", "category:update", "order:update",
+                "product:update", "category:update",
                 "cart:notify", "settings:update", "promo:update",
                 "broadcast:create", "newsletter:update");
     }
