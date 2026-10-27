@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.auth.service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Locale;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -41,7 +42,7 @@ public class PasswordResetService {
 
     @Transactional
     public void forgotPassword(ForgotPasswordRequest request) {
-        userRepository.findByEmail(request.getEmail())
+        userRepository.findByEmail(normalizeEmail(request.getEmail()))
                 .ifPresent(this::sendPasswordResetCode);
     }
 
@@ -54,7 +55,7 @@ public class PasswordResetService {
 
         passwordValidator.validate(request.getNewPassword());
 
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmail(normalizeEmail(request.getEmail()))
                 .orElseThrow(InvalidVerificationException::new);
 
         VerificationCode code = verificationCodeRepository
@@ -70,7 +71,20 @@ public class PasswordResetService {
             throw new InvalidVerificationException();
         }
 
+        if (!user.isEnabled()) {
+            throw new com.nocteon.nocteon_api.common.exception.account.AccountNotVerifiedException();
+        }
+        if (!user.isActive()) {
+            throw new com.nocteon.nocteon_api.auth.exception.AccountDisabledException();
+        }
+        if (user.isLocked()) {
+            throw new com.nocteon.nocteon_api.auth.exception.AccountLockedException();
+        }
+
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        // A password reset is an account-recovery action: invalidate every
+        // session, including outstanding access tokens via tokenVersion.
+        user.incrementTokenVersion();
         userRepository.save(user);
 
         verificationCodeRepository.delete(code);
@@ -97,4 +111,7 @@ public class PasswordResetService {
         emailService.sendPasswordResetEmail(user.getEmail(), otp);
     }
 
+    private String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
+    }
 }

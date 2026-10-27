@@ -1,0 +1,220 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261027-142646",
+    "task": "P1.2 authentication completion",
+    "source": ".quality/runs/20261027-142646/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-01",
+      "statement": "Changing or resetting a password increments token_version, deletes refresh tokens, and makes the old refresh token unusable.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-142646/CHANGE-CONTRACT.md",
+        "line": 23
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/auth/service/UserService.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/service/PasswordResetService.java",
+        "src/test/java/com/nocteon/nocteon_api/auth/PasswordLifecycleIntegrationTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-142646/artifacts/password-lifecycle.log",
+          "command": "env SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nocteon_flyway_check mise exec java@25 -- ./mvnw -o -Dtest=PasswordLifecycleIntegrationTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T11:57:16.873Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-02",
+      "statement": "Emails are stored/looked up case-insensitively; registration stores the normalized email and leaves the account unverified; resend-verification does not reveal unknown emails.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-142646/CHANGE-CONTRACT.md",
+        "line": 24
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/auth/repository/UserRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/service/AuthService.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/service/UserService.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/service/EmailVerificationService.java",
+        "src/test/java/com/nocteon/nocteon_api/auth/PasswordLifecycleIntegrationTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-142646/artifacts/password-lifecycle.log",
+          "command": "env SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nocteon_flyway_check mise exec java@25 -- ./mvnw -o -Dtest=PasswordLifecycleIntegrationTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T11:57:49.422Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-03",
+      "statement": "OAuth2 account linking/creation only uses a provider-verified email; Google requires email_verified; GitHub uses /user/emails verified addresses and fails closed on provider errors.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-142646/CHANGE-CONTRACT.md",
+        "line": 25
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/auth/oauth2/CustomOAuth2UserService.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/oauth2/GithubEmailVerifier.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/oauth2/GoogleOAuth2UserInfo.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/oauth2/OAuth2UserInfo.java",
+        "src/test/java/com/nocteon/nocteon_api/auth/oauth2/GithubEmailVerifierTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": ".quality/runs/20261027-142646/artifacts/github-verifier.log",
+          "command": "mise exec java@25 -- ./mvnw -o -Dtest=GithubEmailVerifierTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T11:57:57.015Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-04",
+      "statement": "OAuth2 redirects with a one-time UUID code, never the access token; the exchange endpoint returns an access token and the code is single-use.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-142646/CHANGE-CONTRACT.md",
+        "line": 26
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/auth/oauth2/OAuth2SuccessHandler.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/oauth2/OAuth2CodeService.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/controller/AuthController.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/service/AuthService.java",
+        "src/test/java/com/nocteon/nocteon_api/auth/oauth2/OAuth2CodeServiceTest.java",
+        "src/test/java/com/nocteon/nocteon_api/auth/oauth2/OAuth2SuccessHandlerTest.java",
+        "src/test/java/com/nocteon/nocteon_api/auth/OAuth2ExchangeIntegrationTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-142646/artifacts/oauth2-code-tests.log",
+          "command": "env SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nocteon_flyway_check mise exec java@25 -- ./mvnw -o -Dtest=OAuth2CodeServiceTest,OAuth2SuccessHandlerTest,OAuth2ExchangeIntegrationTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T11:58:30.307Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-05",
+      "statement": "Login lockout honours the configured threshold and duration.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-142646/CHANGE-CONTRACT.md",
+        "line": 27
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/auth/entity/User.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/service/LoginAttemptService.java",
+        "src/test/java/com/nocteon/nocteon_api/auth/UserLockoutTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": ".quality/runs/20261027-142646/artifacts/lockout-test.log",
+          "command": "mise exec java@25 -- ./mvnw -o -Dtest=UserLockoutTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T11:58:36.529Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-06",
+      "statement": "The full JDK 25 suite passes (765 tests); the Docker stack is healthy with settings/readiness 200; the exchange endpoint is present.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-142646/CHANGE-CONTRACT.md",
+        "line": 28
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/auth/controller/AuthController.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/oauth2/OAuth2SuccessHandler.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-142646/artifacts/full-suite.log",
+          "command": "env SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nocteon_flyway_check mise exec java@25 -- ./mvnw -o clean test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T12:02:33.654Z"
+        },
+        {
+          "type": "e2e",
+          "path": ".quality/runs/20261027-142646/artifacts/auth-stack.log",
+          "command": "bash .quality/runs/20261027-142646/artifacts/check-auth-stack.sh",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T12:02:34.277Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-07",
+      "statement": "The success handler contains no access-token query parameter.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-142646/CHANGE-CONTRACT.md",
+        "line": 29
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/auth/oauth2/OAuth2SuccessHandler.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/controller/AuthController.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261027-142646/artifacts/oauth2-static.log",
+          "command": "bash .quality/runs/20261027-142646/artifacts/check-oauth2-code.sh",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T11:58:36.599Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

@@ -8,7 +8,7 @@ db/
 
 ## Rules
 
-1. `db/migration/V1..V11` is the **one-time baseline** of the current schema.
+1. `db/migration/V1..V11` is the **one-time baseline** of the current schema; `V12` adds the auth integrity indexes.
    Every table's final definition lives in its domain file:
    - `V2__auth_tables.sql` — users, tokens, profiles, roles, permissions
    - `V3__catalog_tables.sql` — categories, lookups, products and product graph
@@ -20,6 +20,7 @@ db/
    - `V9__audit_tables.sql` — audit log + updated-at trigger
    - `V10__foreign_keys.sql` — all foreign keys, after every table exists
    - `V11__reference_data.sql` — roles/permissions, store settings, shipping zones
+   - `V12__auth_integrity.sql` — case-insensitive email and provider-identity uniqueness
 2. **Do not edit an applied version.** After this baseline is deployed, every
    schema change must be a new `V12+` migration, even when a table belongs to an
    older domain file. Flyway validates checksums; editing an applied file blocks

@@ -47,4 +47,11 @@ public class GithubOAuth2UserInfo implements OAuth2UserInfo {
     public String getAvatarUrl() {
         return (String) attributes.get("avatar_url");
     }
+
+    @Override
+    public boolean isEmailVerified() {
+        // GitHub's /user payload does not prove email ownership; the service
+        // verifies it through /user/emails before linking/creating an account.
+        return false;
+    }
 }

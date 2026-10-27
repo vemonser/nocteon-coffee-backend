@@ -33,6 +33,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final AuthService authService;
     private final UserRepository userRepository;
     private final LoginActivityService loginActivityService;
+    private final OAuth2CodeService oauth2CodeService;
 
     @Value("${application.frontend-url}")
     private String frontendUrl;
@@ -70,7 +71,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
         String locale = resolveLocale(request);
-        String redirectUrl = frontendUrl + "/" + locale + "/oauth2/callback?token=" + result.getAuthResponse().getAccessToken();
+        String code = oauth2CodeService.issue(user.getId());
+        String redirectUrl = frontendUrl + "/" + locale + "/oauth2/callback?code=" + code;
         getRedirectStrategy().sendRedirect(request, response, redirectUrl);
     }
 

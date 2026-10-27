@@ -7,4 +7,10 @@ public interface OAuth2UserInfo {
     String getFirstName();
     String getLastName();
     String getAvatarUrl();
+
+    /**
+     * Whether the provider has verified ownership of the email address. Account
+     * linking by email must never trust an unverified address.
+     */
+    boolean isEmailVerified();
 }

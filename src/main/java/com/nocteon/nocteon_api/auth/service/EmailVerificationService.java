@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.auth.service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Locale;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -62,18 +63,15 @@ public class EmailVerificationService {
 
     @Transactional
     public void resendVerificationEmail(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(UserNotFoundException::new);
-
-        if (user.isEnabled()) {
-            throw new InvalidVerificationException();
-        }
-
-        sendVerificationEmail(user);
+        // Deliberately silent for unknown/already-verified emails: this endpoint
+        // must not become an account-existence oracle.
+        userRepository.findByEmail(normalizeEmail(email))
+                .filter(user -> !user.isEnabled())
+                .ifPresent(this::sendVerificationEmail);
     }
 
     public EmailStatusResponse checkEmailStatus(String email) {
-        return userRepository.findByEmail(email)
+        return userRepository.findByEmail(normalizeEmail(email))
                 .map(user -> EmailStatusResponse.builder()
                         .exists(true)
                         .verified(user.isEnabled())
@@ -86,7 +84,7 @@ public class EmailVerificationService {
 
     @Transactional
     public void verifyEmail(VerifyEmailRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmail(normalizeEmail(request.getEmail()))
                 .orElseThrow(UserNotFoundException::new);
 
         VerificationCode code = verificationCodeRepository
@@ -110,4 +108,7 @@ public class EmailVerificationService {
         log.info("Email verified successfully for {}", user.getEmail());
     }
 
+    private String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
+    }
 }

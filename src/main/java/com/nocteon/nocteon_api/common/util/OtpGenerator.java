@@ -7,7 +7,7 @@ public class OtpGenerator {
     }
 
     public static String generate() {
-        return String.format("%06d", new SecureRandom().nextInt(999999));
+        return String.format("%06d", new SecureRandom().nextInt(1_000_000));
     }
 
 }

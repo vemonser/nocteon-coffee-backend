@@ -1,11 +1,13 @@
 package com.nocteon.nocteon_api.auth.oauth2;
 
 import java.security.SecureRandom;
+import java.util.Locale;
 import java.util.Optional;
 
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
@@ -14,7 +16,6 @@ import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.auth.entity.UserLinkedAccount;
 import com.nocteon.nocteon_api.auth.entity.UserProfile;
 import com.nocteon.nocteon_api.auth.enums.Provider;
-import com.nocteon.nocteon_api.auth.enums.Role;
 import com.nocteon.nocteon_api.auth.repository.UserLinkedAccountRepository;
 import com.nocteon.nocteon_api.auth.repository.UserProfileRepository;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
@@ -30,6 +31,7 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
     private final UserLinkedAccountRepository userLinkedAccountRepository;
+    private final GithubEmailVerifier githubEmailVerifier;
 
     @Override
     @Transactional
@@ -40,53 +42,94 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
 
         String registrationId = userRequest.getClientRegistration().getRegistrationId();
         Provider provider = Provider.valueOf(registrationId.toUpperCase());
+        OAuth2UserInfo userInfo = OAuth2UserInfoFactory.getOAuth2UserInfo(
+                provider, oAuth2User.getAttributes());
 
-        OAuth2UserInfo userInfo = OAuth2UserInfoFactory.getOAuth2UserInfo(provider, oAuth2User.getAttributes());
+        Optional<UserLinkedAccount> linked =
+                userLinkedAccountRepository.findByProviderAndProviderId(provider, userInfo.getId());
 
-        User user = processOAuth2User(provider, userInfo);
+        User user;
+        if (linked.isPresent()) {
+            // An already-linked provider id is trusted; no email API call is needed
+            // on every login (and a provider outage cannot lock the user out).
+            user = linked.get().getUser();
+        } else {
+            String email = resolveVerifiedEmail(provider, userInfo,
+                    userRequest.getAccessToken().getTokenValue());
+            user = linkOrCreate(provider, userInfo, email);
+        }
+
+        if (!user.isEnabled() || !user.isActive() || user.isLocked()) {
+            throw new OAuth2AuthenticationException("account_disabled");
+        }
 
         return UserPrincipal.create(user, oAuth2User.getAttributes());
     }
 
-    private User processOAuth2User(Provider provider, OAuth2UserInfo userInfo) {
-
-        // هل فيه حساب مربوط بنفس الـ provider_id ده؟
-        return userLinkedAccountRepository
-                .findByProviderAndProviderId(provider, userInfo.getId())
-                .map(UserLinkedAccount::getUser)
-                .orElseGet(() -> handleNewOAuth2User(provider, userInfo));
+    /**
+     * Never link or create an account from an email the provider has not
+     * verified. Google exposes email_verified; GitHub needs /user/emails.
+     */
+    private String resolveVerifiedEmail(Provider provider, OAuth2UserInfo userInfo, String accessToken) {
+        String email;
+        if (provider == Provider.GITHUB) {
+            email = githubEmailVerifier.verifiedEmail(accessToken)
+                    .orElseThrow(() -> new OAuth2AuthenticationException("email_not_verified"));
+        } else {
+            if (!userInfo.isEmailVerified() || userInfo.getEmail() == null
+                    || userInfo.getEmail().isBlank()) {
+                throw new OAuth2AuthenticationException("email_not_verified");
+            }
+            email = userInfo.getEmail();
+        }
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 
-    private User handleNewOAuth2User(Provider provider, OAuth2UserInfo userInfo) {
-
-        // هل فيه يوزر بنفس الإيميل (سجّل LOCAL قبل كده)؟
-        Optional<User> existingUser = userRepository.findByEmail(userInfo.getEmail());
-
-        if (existingUser.isPresent()) {
-            // Account Linking — ربط الـ provider الجديد بالحساب الموجود
-            return linkProviderToExistingUser(existingUser.get(), provider, userInfo);
-        }
-
-        // يوزر جديد تماماً — أنشئ حساب جديد
-        return createNewOAuth2User(provider, userInfo);
+    private User linkOrCreate(Provider provider, OAuth2UserInfo userInfo, String email) {
+        return userRepository.findByEmail(email)
+                .map(existing -> linkProviderToExistingUser(existing, provider, userInfo))
+                .orElseGet(() -> {
+                    try {
+                        return createNewOAuth2User(provider, userInfo, email);
+                    } catch (DataIntegrityViolationException e) {
+                        // A concurrent callback created the user/link after our read;
+                        // resolve the winner instead of returning a 500.
+                        return userLinkedAccountRepository
+                                .findByProviderAndProviderId(provider, userInfo.getId())
+                                .map(UserLinkedAccount::getUser)
+                                .orElseGet(() -> userRepository.findByEmail(email)
+                                        .map(existing -> linkProviderToExistingUser(
+                                                existing, provider, userInfo))
+                                        .orElseThrow(() -> new OAuth2AuthenticationException(
+                                                "account_conflict")));
+                    }
+                });
     }
 
     private User linkProviderToExistingUser(User user, Provider provider, OAuth2UserInfo userInfo) {
+        if (userLinkedAccountRepository.existsByUserIdAndProvider(user.getId(), provider)) {
+            throw new OAuth2AuthenticationException("provider_already_linked");
+        }
         UserLinkedAccount linkedAccount = UserLinkedAccount.builder()
                 .user(user)
                 .provider(provider)
                 .providerId(userInfo.getId())
                 .build();
-
-        userLinkedAccountRepository.save(linkedAccount);
+        try {
+            userLinkedAccountRepository.save(linkedAccount);
+        } catch (DataIntegrityViolationException e) {
+            return userLinkedAccountRepository.findByProviderAndProviderId(provider, userInfo.getId())
+                    .map(UserLinkedAccount::getUser)
+                    .orElseThrow(() -> new OAuth2AuthenticationException("account_conflict"));
+        }
         return user;
     }
 
-    private User createNewOAuth2User(Provider provider, OAuth2UserInfo userInfo) {
+    private User createNewOAuth2User(Provider provider, OAuth2UserInfo userInfo, String email) {
         String username = generateUsername(userInfo.getName());
 
         User user = User.builder()
-                .email(userInfo.getEmail())
+                .email(email)
                 .username(username)
                 .provider(provider)
                 .providerId(userInfo.getId())
@@ -109,10 +152,13 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
     }
 
     private String generateUsername(String name) {
-        String base = name.toLowerCase()
+        String base = name == null ? "user" : name.toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9]", "_")
                 .replaceAll("_+", "_")
                 .replaceAll("^_|_$", "");
+        if (base.isBlank()) {
+            base = "user";
+        }
 
         if (!userRepository.existsByUsername(base)) {
             return base;

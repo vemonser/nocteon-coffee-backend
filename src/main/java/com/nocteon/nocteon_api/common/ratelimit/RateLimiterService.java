@@ -35,6 +35,20 @@ public class RateLimiterService {
         return bucket.tryConsume(1);
     }
 
+    public boolean tryConsumeVerifyEmail(String ip) {
+        Bucket bucket = proxyManager.builder().build("rate:verify-email:ip:" + ip, this::verifyEmailBucketConfig);
+        return bucket.tryConsume(1);
+    }
+
+    private BucketConfiguration verifyEmailBucketConfig() {
+        return BucketConfiguration.builder()
+                .addLimit(Bandwidth.builder()
+                        .capacity(5)
+                        .refillIntervally(5, Duration.ofHours(1))
+                        .build())
+                .build();
+    }
+
     public boolean tryConsumeEmailStatus(String ip) {
         Bucket bucket = proxyManager.builder().build("rate:email-status:ip:" + ip, this::emailStatusBucketConfig);
         return bucket.tryConsume(1);

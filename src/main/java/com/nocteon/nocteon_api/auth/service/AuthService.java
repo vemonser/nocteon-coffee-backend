@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.auth.service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.beans.factory.annotation.Value;
 
@@ -26,6 +27,7 @@ import com.nocteon.nocteon_api.auth.repository.RefreshTokenRepository;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.auth.repository.UserProfileRepository;
 import com.nocteon.nocteon_api.auth.security.JwtService;
+import com.nocteon.nocteon_api.auth.oauth2.OAuth2CodeService;
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.common.enums.Permission;
 import com.nocteon.nocteon_api.common.exception.UnauthorizedException;
@@ -33,6 +35,7 @@ import com.nocteon.nocteon_api.common.exception.account.AccountNotVerifiedExcept
 import com.nocteon.nocteon_api.common.exception.email.EmailAlreadyExistsException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidCredentialsException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidRefreshTokenException;
+import com.nocteon.nocteon_api.common.exception.invalid.InvalidVerificationException;
 import com.nocteon.nocteon_api.common.exception.user.UsernameAlreadyExistsException;
 import com.nocteon.nocteon_api.common.redis.TokenBlacklistService;
 import com.nocteon.nocteon_api.common.util.PasswordValidator;
@@ -58,6 +61,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final PasswordValidator passwordValidator;
     private final LoginActivityService loginActivityService;
+    private final OAuth2CodeService oauth2CodeService;
 
     @Value("${application.security.jwt.access-token-expiration}")
     private long accessTokenExpiration;
@@ -67,18 +71,20 @@ public class AuthService {
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
+        String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
+        String username = request.getUsername().trim();
+        if (userRepository.existsByEmail(email)) {
             throw new EmailAlreadyExistsException();
         }
-        if (userRepository.existsByUsername(request.getUsername())) {
+        if (userRepository.existsByUsername(username)) {
             throw new UsernameAlreadyExistsException();
         }
 
         passwordValidator.validate(request.getPassword());
 
         User user = User.builder()
-                .username(request.getUsername())
-                .email(request.getEmail())
+                .username(username)
+                .email(email)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .provider(Provider.LOCAL)
                 .role("CUSTOMER")
@@ -108,7 +114,8 @@ public class AuthService {
 
     @Transactional(noRollbackFor = InvalidCredentialsException.class)
     public AuthResult login(LoginRequest request, String userAgent) {
-        User user = userRepository.findByEmailOrUsernameForUpdate(request.getIdentifier())
+        String identifier = request.getIdentifier().trim();
+        User user = userRepository.findByEmailOrUsernameForUpdate(identifier)
                 .orElseThrow(InvalidCredentialsException::new);
 
         loginAttemptService.checkAccountNotLocked(user);
@@ -203,17 +210,30 @@ public class AuthService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public AuthResponse exchangeOAuth2Code(String code) {
+        Long userId = oauth2CodeService.consume(code);
+        User user = userRepository.findByIdWithProfile(userId)
+                .orElseThrow(InvalidVerificationException::new);
+        if (!user.isEnabled()) {
+            throw new AccountNotVerifiedException();
+        }
+        if (!user.isActive()) {
+            throw new AccountDisabledException();
+        }
+        if (user.isLocked()) {
+            throw new AccountLockedException();
+        }
+        return buildAccessResponse(user);
+    }
+
     private AuthResult buildAuthResponse(User user) {
         User userWithProfile = userRepository.findByIdWithProfile(user.getId())
                 .orElse(user);
-        UserProfile profile = userWithProfile.getProfile();
-
-        UserPrincipal principal = UserPrincipal.create(userWithProfile);
-        String accessToken = jwtService.generateAccessToken(principal);
+        AuthResponse accessResponse = buildAccessResponse(userWithProfile);
 
         String rawRefreshToken = jwtService.generateRawRefreshToken();
         String tokenHash = jwtService.hashToken(rawRefreshToken);
-
         RefreshToken refreshToken = RefreshToken.builder()
                 .tokenHash(tokenHash)
                 .user(userWithProfile)
@@ -222,34 +242,46 @@ public class AuthService {
                 .build();
         refreshTokenRepository.save(refreshToken);
 
+        return AuthResult.builder()
+                .authResponse(accessResponse)
+                .rawRefreshToken(rawRefreshToken)
+                .build();
+    }
+
+    private AuthResponse buildAccessResponse(User user) {
+        User userWithProfile = user.getProfile() != null
+                ? user
+                : userRepository.findByIdWithProfile(user.getId()).orElse(user);
+        UserProfile profile = userWithProfile.getProfile();
+        UserPrincipal principal = UserPrincipal.create(userWithProfile);
+        String accessToken = jwtService.generateAccessToken(principal);
+
         List<String> permissions;
-        com.nocteon.nocteon_api.auth.service.RoleService rs = com.nocteon.nocteon_api.auth.service.RoleService.getInstance();
+        com.nocteon.nocteon_api.auth.service.RoleService rs =
+                com.nocteon.nocteon_api.auth.service.RoleService.getInstance();
         if (rs != null) {
             permissions = new java.util.ArrayList<>(rs.getPermissions(userWithProfile.getRole()));
         } else {
             permissions = java.util.List.of();
         }
 
-        return AuthResult.builder()
-                .authResponse(AuthResponse.builder()
-                        .accessToken(accessToken)
-                        .expiresIn(accessTokenExpiration / 1000)
-                        .user(UserResponse.builder()
-                                .id(userWithProfile.getId())
-                                .email(userWithProfile.getEmail())
-                                .username(userWithProfile.getUsername())
-                                .role(userWithProfile.getRole())
-                                .enabled(userWithProfile.isEnabled())
-                                .isActive(userWithProfile.isActive())
-                                .firstName(profile != null ? profile.getFirstName() : null)
-                                .lastName(profile != null ? profile.getLastName() : null)
-                                .avatarUrl(profile != null ? profile.getAvatarUrl() : null)
-                                .createdAt(userWithProfile.getCreatedAt())
-                                .lastActiveAt(userWithProfile.getLastActiveAt())
-                                .permissions(permissions)
-                                .build())
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .expiresIn(accessTokenExpiration / 1000)
+                .user(UserResponse.builder()
+                        .id(userWithProfile.getId())
+                        .email(userWithProfile.getEmail())
+                        .username(userWithProfile.getUsername())
+                        .role(userWithProfile.getRole())
+                        .enabled(userWithProfile.isEnabled())
+                        .isActive(userWithProfile.isActive())
+                        .firstName(profile != null ? profile.getFirstName() : null)
+                        .lastName(profile != null ? profile.getLastName() : null)
+                        .avatarUrl(profile != null ? profile.getAvatarUrl() : null)
+                        .createdAt(userWithProfile.getCreatedAt())
+                        .lastActiveAt(userWithProfile.getLastActiveAt())
+                        .permissions(permissions)
                         .build())
-                .rawRefreshToken(rawRefreshToken)
                 .build();
     }
 

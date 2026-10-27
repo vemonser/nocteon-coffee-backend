@@ -19,6 +19,7 @@ import org.springframework.validation.annotation.Validated;
 
 import com.nocteon.nocteon_api.auth.dto.request.ForgotPasswordRequest;
 import com.nocteon.nocteon_api.auth.dto.request.LoginRequest;
+import com.nocteon.nocteon_api.auth.dto.request.OAuth2ExchangeRequest;
 import com.nocteon.nocteon_api.auth.dto.request.RegisterRequest;
 import com.nocteon.nocteon_api.auth.dto.request.ResetPasswordRequest;
 import com.nocteon.nocteon_api.auth.dto.request.VerifyEmailRequest;
@@ -137,9 +138,26 @@ public class AuthController {
                 .body(ApiResponse.success(null, "Logged out from all devices"));
     }
 
+    @PostMapping("/oauth2/exchange")
+    public ResponseEntity<ApiResponse<AuthResponse>> exchangeOAuth2Code(
+            @Valid @RequestBody OAuth2ExchangeRequest request,
+            HttpServletRequest httpRequest) {
+        String ip = clientIpResolver.resolve(httpRequest);
+        if (!rateLimiterService.tryConsumeGeneral("oauth2-exchange:" + ip)) {
+            throw new RateLimitExceededException();
+        }
+        AuthResponse response = authService.exchangeOAuth2Code(request.getCode());
+        return ResponseEntity.ok(ApiResponse.success(response, "Token exchanged"));
+    }
+
     @PostMapping("/verify-email")
     public ResponseEntity<ApiResponse<Void>> verifyEmail(
-            @Valid @RequestBody VerifyEmailRequest request) {
+            @Valid @RequestBody VerifyEmailRequest request,
+            HttpServletRequest httpRequest) {
+        String ip = clientIpResolver.resolve(httpRequest);
+        if (!rateLimiterService.tryConsumeVerifyEmail(ip)) {
+            throw new RateLimitExceededException();
+        }
         emailVerificationService.verifyEmail(request);
         return ResponseEntity.ok(ApiResponse.success(null, "Email verified successfully"));
     }

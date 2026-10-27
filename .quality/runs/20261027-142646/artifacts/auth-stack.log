@@ -1,0 +1,8 @@
+openjdk version "25.0.4.1" 2026-08-18 LTS
+app-health=healthy
+user=10001
+settings=200
+readiness=200
+exchange_invalid_code=400
+redis=PONG
+auth-stack-ok

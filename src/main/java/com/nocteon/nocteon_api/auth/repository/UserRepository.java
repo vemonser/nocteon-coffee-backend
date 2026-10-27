@@ -79,20 +79,22 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.profile WHERE u.id = :id")
     Optional<User> findByIdWithProfile(@Param("id") Long id);
 
-    Optional<User> findByEmail(String email);
+    @Query("SELECT u FROM User u WHERE lower(u.email) = lower(:email)")
+    Optional<User> findByEmail(@Param("email") String email);
 
     Optional<User> findByUsername(String username);
 
-    @Query("SELECT u FROM User u WHERE u.email = :identifier OR u.username = :identifier")
+    @Query("SELECT u FROM User u WHERE lower(u.email) = lower(:identifier) OR u.username = :identifier")
     Optional<User> findByEmailOrUsername(@Param("identifier") String identifier);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT u FROM User u WHERE u.email = :identifier OR u.username = :identifier")
+    @Query("SELECT u FROM User u WHERE lower(u.email) = lower(:identifier) OR u.username = :identifier")
     Optional<User> findByEmailOrUsernameForUpdate(@Param("identifier") String identifier);
 
     Optional<User> findByProviderAndProviderId(Provider provider, String providerId);
 
-    boolean existsByEmail(String email);
+    @Query("SELECT count(u) > 0 FROM User u WHERE lower(u.email) = lower(:email)")
+    boolean existsByEmail(@Param("email") String email);
 
     boolean existsByUsername(String username);
 

@@ -39,4 +39,9 @@ public class GoogleOAuth2UserInfo implements OAuth2UserInfo {
     public String getAvatarUrl() {
         return (String) attributes.get("picture");
     }
+
+    @Override
+    public boolean isEmailVerified() {
+        return Boolean.TRUE.equals(attributes.get("email_verified"));
+    }
 }

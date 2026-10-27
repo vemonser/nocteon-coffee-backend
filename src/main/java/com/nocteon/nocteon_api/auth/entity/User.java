@@ -1,5 +1,6 @@
 package com.nocteon.nocteon_api.auth.entity;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -95,11 +96,11 @@ public class User extends BaseEntity {
         return Instant.now().isBefore(lockedUntil);
     }
 
-    public void incrementFailedLogin() {
+    public void incrementFailedLogin(int maxAttempts, Duration lockoutDuration) {
         this.failedLoginAttempts++;
         this.lastFailedLogin = Instant.now();
-        if (this.failedLoginAttempts >= 5) {
-            this.lockedUntil = Instant.now().plus(30, ChronoUnit.MINUTES);
+        if (this.failedLoginAttempts >= maxAttempts) {
+            this.lockedUntil = Instant.now().plus(lockoutDuration);
         }
     }
 

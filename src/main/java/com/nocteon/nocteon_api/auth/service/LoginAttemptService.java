@@ -23,8 +23,11 @@ public class LoginAttemptService {
     @Value("${application.security.lockout.max-attempts:5}")
     private int maxFailedAttempts;
 
+    @Value("${application.security.lockout.duration-minutes:30}")
+    private long lockoutMinutes;
+
     public void handleFailedLogin(User user) {
-        user.incrementFailedLogin();
+        user.incrementFailedLogin(maxFailedAttempts, Duration.ofMinutes(lockoutMinutes));
         userRepository.save(user);
 
         if (user.isLocked()) {

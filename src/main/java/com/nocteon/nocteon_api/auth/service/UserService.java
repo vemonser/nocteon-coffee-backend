@@ -30,6 +30,7 @@ import com.nocteon.nocteon_api.audit.service.AuditLogService;
 import com.nocteon.nocteon_api.audit.enums.AuditAction;
 import com.nocteon.nocteon_api.order.repository.OrderRepository;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
+import com.nocteon.nocteon_api.auth.repository.RefreshTokenRepository;
 import com.nocteon.nocteon_api.auth.exception.RoleChangeForbiddenException;
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.cloudinary.service.CloudinaryService;
@@ -44,6 +45,7 @@ import com.nocteon.nocteon_api.common.exception.user.PasswordMismatchException;
 import com.nocteon.nocteon_api.common.exception.user.UsernameAlreadyExistsException;
 import com.nocteon.nocteon_api.common.util.PasswordValidator;
 import java.util.List;
+import java.util.Locale;
 import com.nocteon.nocteon_api.dashboard.dto.UserGrowthDto;
 import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
@@ -61,6 +63,7 @@ public class UserService {
     private final OrderRepository orderRepository;
     private final UserProfileRepository userProfileRepository;
     private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final CloudinaryService cloudinaryService;
     private final PasswordValidator passwordValidator;
     private final java.util.List<String> sensitivePermissions;
@@ -144,6 +147,10 @@ public class UserService {
         }
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        // Changing the password invalidates existing refresh tokens and every
+        // access token via the tokenVersion claim.
+        user.incrementTokenVersion();
+        refreshTokenRepository.deleteByUserId(user.getId());
         userRepository.save(user);
 
         log.info("Password changed for user: {}", user.getEmail());
@@ -260,11 +267,14 @@ public class UserService {
             user.setUsername(request.getUsername());
         }
 
-        if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
-            if (userRepository.existsByEmail(request.getEmail())) {
-                throw new EmailAlreadyExistsException();
+        if (request.getEmail() != null) {
+            String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
+            if (!email.equalsIgnoreCase(user.getEmail())) {
+                if (userRepository.existsByEmail(email)) {
+                    throw new EmailAlreadyExistsException();
+                }
+                user.setEmail(email);
             }
-            user.setEmail(request.getEmail());
         }
 
         if (request.getRole() != null && request.getRole() != user.getRole()) {
@@ -312,7 +322,8 @@ public class UserService {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new UsernameAlreadyExistsException();
         }
-        if (userRepository.existsByEmail(request.getEmail())) {
+        String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
+        if (userRepository.existsByEmail(email)) {
             throw new EmailAlreadyExistsException();
         }
 
@@ -320,7 +331,7 @@ public class UserService {
 
         User user = User.builder()
                 .username(request.getUsername())
-                .email(request.getEmail())
+                .email(email)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(request.getRole())
                 .enabled(true)
