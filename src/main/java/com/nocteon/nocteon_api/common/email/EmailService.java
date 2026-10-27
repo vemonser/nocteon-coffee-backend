@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
@@ -66,7 +67,11 @@ public class EmailService {
 
             log.info("Email sent successfully type={} to={}", type, to);
 
-        } catch (MessagingException e) {
+        } catch (MessagingException | MailException e) {
+            // MailAuthenticationException is a MailException, not a
+            // MessagingException: catching only the latter let an SMTP auth
+            // failure disappear inside the async executor, with no log row
+            // for the retry job.
             log.error("Failed to send email type={} to={}: {}", type, to, e.getMessage());
             saveFailedEmail(idempotencyKey, type, to, relatedEntityType, relatedEntityId, e.getMessage());
         }

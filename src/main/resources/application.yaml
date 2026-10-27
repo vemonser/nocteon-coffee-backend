@@ -294,6 +294,13 @@ management:
     web:
       exposure:
         include: health,info,metrics
+  health:
+    # SMTP credentials and reachability are an OPS alert, not a platform
+    # health check: a bad mail password once turned /actuator/health into 503
+    # while the app served every request. Readiness covers db + redis below;
+    # mail failures are recorded in email_logs and surfaced by the retry job.
+    mail:
+      enabled: false
   endpoint:
     health:
       show-details: when_authorized
