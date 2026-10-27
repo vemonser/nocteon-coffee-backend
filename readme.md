@@ -60,6 +60,15 @@ The backend is built using **Spring Boot** following modern software engineering
 - Account Lock Protection
 - Rate Limiting
 
+### OAuth2 callback contract
+
+A successful Google/GitHub login redirects to
+`/{locale}/oauth2/callback?code=<one-time-code>` and sets the HttpOnly refresh
+cookie. The frontend must POST `{"code":"..."}` to
+`/api/auth/oauth2/exchange` and use `data.accessToken` from the response.
+The code is a UUID with a two-minute TTL and is single-use; the access token is
+never placed in the URL, browser history, or server access logs.
+
 ---
 
 ## 👤 User Management
