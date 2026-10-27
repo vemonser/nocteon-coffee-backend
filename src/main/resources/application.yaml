@@ -45,6 +45,9 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      # Startup PING / command timeout for the Bucket4j Lettuce client.
+      timeout: ${REDIS_TIMEOUT:5s}
       ssl:
         enabled: ${REDIS_SSL:false}
   security:

@@ -261,6 +261,12 @@ DB_PASSWORD=
 REDIS_HOST=
 REDIS_PORT=
 REDIS_PASSWORD=
+REDIS_SSL=false
+REDIS_TIMEOUT=5s
+
+# Optional: a full redis:// or rediss:// URL. It drives both Spring Data and
+# the Bucket4j client; host/port/ssl above are used when it is blank.
+REDIS_URL=
 
 JWT_ACCESS_EXPIRATION=
 JWT_REFRESH_EXPIRATION=
@@ -275,6 +281,10 @@ CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
 ```
+
+> Redis is a hard startup dependency: the application opens a Lettuce connection and sends
+> `PING` while creating its beans. If the target is unreachable it fails fast with a clear
+> `Redis is unreachable` message instead of failing on the first login/rate-limited request.
 
 ---
 

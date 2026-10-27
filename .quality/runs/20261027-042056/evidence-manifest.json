@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261027-042056",
+    "task": "Redis startup hardening",
+    "source": ".quality/runs/20261027-042056/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-01",
+      "statement": "Given a reachable Redis, when the context starts, then the startup PING succeeds and both the Spring Data connection and the Bucket4j shared connection work.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-042056/CHANGE-CONTRACT.md",
+        "line": 21
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/redis/RedisConfig.java",
+        "src/main/java/com/nocteon/nocteon_api/common/ratelimit/RateLimiterService.java",
+        "src/main/resources/application.yaml",
+        "src/test/java/com/nocteon/nocteon_api/common/redis/RedisConnectivityIntegrationTest.java",
+        "readme.md",
+        "src/test/java/com/nocteon/nocteon_api/common/redis/RedisConfigTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-042056/artifacts/redis-tests.log",
+          "command": "env SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nocteon_flyway_check mise exec java@25 -- ./mvnw -o -Dtest=RedisConnectivityIntegrationTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T01:36:06.116Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-02",
+      "statement": "The Bucket4j client honours spring.data.redis.url, REDIS_URL, password, SSL, database and timeout instead of a hand-rolled host/port-only URI.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-042056/CHANGE-CONTRACT.md",
+        "line": 22
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/redis/RedisConfig.java",
+        "src/main/java/com/nocteon/nocteon_api/common/ratelimit/RateLimiterService.java",
+        "src/main/resources/application.yaml",
+        "src/test/java/com/nocteon/nocteon_api/common/redis/RedisConnectivityIntegrationTest.java",
+        "readme.md",
+        "src/test/java/com/nocteon/nocteon_api/common/redis/RedisConfigTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": ".quality/runs/20261027-042056/artifacts/redis-config-tests.log",
+          "command": "mise exec java@25 -- ./mvnw -o -Dtest=RedisConfigTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T01:36:10.231Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-03",
+      "statement": "Given an unreachable Redis, when the context starts, then it fails with a clear Redis is unreachable message and does not start serving requests.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-042056/CHANGE-CONTRACT.md",
+        "line": 23
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/redis/RedisConfig.java",
+        "src/main/java/com/nocteon/nocteon_api/common/ratelimit/RateLimiterService.java",
+        "src/main/resources/application.yaml",
+        "src/test/java/com/nocteon/nocteon_api/common/redis/RedisConnectivityIntegrationTest.java",
+        "readme.md"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-042056/artifacts/redis-failfast.log",
+          "command": "bash .quality/runs/20261027-042056/artifacts/check-redis-failfast.sh",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T01:36:25.320Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-04",
+      "statement": "The Docker stack remains healthy, /actuator/health/readiness returns 200, and /api/settings returns 200 with Redis connected.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-042056/CHANGE-CONTRACT.md",
+        "line": 24
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/redis/RedisConfig.java",
+        "src/main/java/com/nocteon/nocteon_api/common/ratelimit/RateLimiterService.java",
+        "src/main/resources/application.yaml",
+        "src/test/java/com/nocteon/nocteon_api/common/redis/RedisConnectivityIntegrationTest.java",
+        "readme.md",
+        "Dockerfile",
+        "docker-compose.yml",
+        "render.yaml"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "e2e",
+          "path": ".quality/runs/20261027-042056/artifacts/redis-stack.log",
+          "command": "bash .quality/runs/20261027-042056/artifacts/check-redis-stack.sh",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T01:36:25.658Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-05",
+      "statement": "The full JDK 25 suite still passes (736 tests).",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-042056/CHANGE-CONTRACT.md",
+        "line": 25
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/redis/RedisConfig.java",
+        "src/main/java/com/nocteon/nocteon_api/common/ratelimit/RateLimiterService.java",
+        "src/main/resources/application.yaml",
+        "src/test/java/com/nocteon/nocteon_api/common/redis/RedisConnectivityIntegrationTest.java",
+        "readme.md"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-042056/artifacts/full-suite.log",
+          "command": "env SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nocteon_flyway_check mise exec java@25 -- ./mvnw -o clean test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T01:38:30.198Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

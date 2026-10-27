@@ -10,26 +10,14 @@ import io.github.bucket4j.BucketConfiguration;
 
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import io.github.bucket4j.redis.lettuce.cas.LettuceBasedProxyManager;
-import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
-import io.lettuce.core.codec.ByteArrayCodec;
-import io.lettuce.core.codec.RedisCodec;
-import io.lettuce.core.codec.StringCodec;
-import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 
 @Service
-@RequiredArgsConstructor
 public class RateLimiterService {
 
-    private final RedisClient redisClient;
-    private ProxyManager<String> proxyManager;
+    private final ProxyManager<String> proxyManager;
 
-    @PostConstruct
-    public void init() {
-        StatefulRedisConnection<String, byte[]> connection = redisClient
-                .connect(RedisCodec.of(StringCodec.UTF8, ByteArrayCodec.INSTANCE));
-
+    public RateLimiterService(StatefulRedisConnection<String, byte[]> connection) {
         this.proxyManager = LettuceBasedProxyManager
                 .builderFor(connection)
                 .build();
