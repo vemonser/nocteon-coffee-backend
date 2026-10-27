@@ -22,6 +22,9 @@ import com.nocteon.nocteon_api.NocteonApiApplication;
 import com.nocteon.nocteon_api.auth.dto.request.LoginRequest;
 import com.nocteon.nocteon_api.auth.dto.response.AuthResult;
 import com.nocteon.nocteon_api.auth.service.AuthService;
+import com.nocteon.nocteon_api.auth.exception.AccountDisabledException;
+import com.nocteon.nocteon_api.auth.exception.AccountLockedException;
+import com.nocteon.nocteon_api.common.exception.account.AccountNotVerifiedException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidRefreshTokenException;
 import com.nocteon.nocteon_api.common.util.HashUtil;
 import com.nocteon.nocteon_api.support.TestJwtKeys;
@@ -95,6 +98,60 @@ class RefreshTokenRotationIntegrationTest {
     }
 
     @Test
+    void disabledUserCannotRefresh() {
+        String username = testUsername();
+        createTestUser(username, "testpass123");
+        try {
+            LoginRequest login = new LoginRequest();
+            login.setIdentifier(username);
+            login.setPassword("testpass123");
+            String rawRefresh = authService.login(login, "test-agent").getRawRefreshToken();
+            jdbcTemplate.update("update users set is_active = false where username = ?", username);
+
+            assertThatThrownBy(() -> authService.refreshToken(rawRefresh))
+                    .isInstanceOf(AccountDisabledException.class);
+        } finally {
+            deleteTestUser(username);
+        }
+    }
+
+    @Test
+    void lockedUserCannotRefresh() {
+        String username = testUsername();
+        createTestUser(username, "testpass123");
+        try {
+            LoginRequest login = new LoginRequest();
+            login.setIdentifier(username);
+            login.setPassword("testpass123");
+            String rawRefresh = authService.login(login, "test-agent").getRawRefreshToken();
+            jdbcTemplate.update("update users set locked_until = now() + interval '1 hour' where username = ?", username);
+
+            assertThatThrownBy(() -> authService.refreshToken(rawRefresh))
+                    .isInstanceOf(AccountLockedException.class);
+        } finally {
+            deleteTestUser(username);
+        }
+    }
+
+    @Test
+    void unverifiedUserCannotRefresh() {
+        String username = testUsername();
+        createTestUser(username, "testpass123");
+        try {
+            LoginRequest login = new LoginRequest();
+            login.setIdentifier(username);
+            login.setPassword("testpass123");
+            String rawRefresh = authService.login(login, "test-agent").getRawRefreshToken();
+            jdbcTemplate.update("update users set enabled = false where username = ?", username);
+
+            assertThatThrownBy(() -> authService.refreshToken(rawRefresh))
+                    .isInstanceOf(AccountNotVerifiedException.class);
+        } finally {
+            deleteTestUser(username);
+        }
+    }
+
+    @Test
     void concurrentRefreshProducesOneSuccessAndReuseDetection() throws Exception {
         String username = testUsername();
         createTestUser(username, "testpass123");
@@ -138,6 +195,10 @@ class RefreshTokenRotationIntegrationTest {
                 Integer remaining = jdbcTemplate.queryForObject(
                         "select count(*) from refresh_tokens where user_id = ?", Integer.class, userId);
                 assertThat(remaining).isEqualTo(0);
+
+                Integer tokenVersion = jdbcTemplate.queryForObject(
+                        "select token_version from users where id = ?", Integer.class, userId);
+                assertThat(tokenVersion).isGreaterThanOrEqualTo(1);
             } finally {
                 pool.shutdownNow();
             }

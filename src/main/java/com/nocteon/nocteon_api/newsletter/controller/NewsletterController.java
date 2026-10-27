@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.exception.RateLimitExceededException;
 import com.nocteon.nocteon_api.common.ratelimit.RateLimiterService;
+import com.nocteon.nocteon_api.common.util.ClientIpResolver;
 import com.nocteon.nocteon_api.newsletter.dto.SubscribeRequest;
 import com.nocteon.nocteon_api.newsletter.enums.SubscriptionResult;
 import com.nocteon.nocteon_api.newsletter.service.NewsletterService;
@@ -27,12 +28,13 @@ public class NewsletterController {
 
     private final NewsletterService newsletterService;
     private final RateLimiterService rateLimiterService;
+    private final ClientIpResolver clientIpResolver;
 
     @PostMapping("/subscribe")
     public ResponseEntity<ApiResponse<Void>> subscribe(
             @Valid @RequestBody SubscribeRequest request,
             HttpServletRequest httpRequest) {
-        String ip = httpRequest.getRemoteAddr();
+        String ip = clientIpResolver.resolve(httpRequest);
         if (!rateLimiterService.tryConsumeNewsletterSubscribe(ip)) {
             throw new RateLimitExceededException();
         }

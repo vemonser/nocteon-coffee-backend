@@ -33,6 +33,7 @@ import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.exception.RateLimitExceededException;
 import com.nocteon.nocteon_api.common.ratelimit.RateLimiterService;
+import com.nocteon.nocteon_api.common.util.ClientIpResolver;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -48,6 +49,7 @@ public class AuthController {
     private final EmailVerificationService emailVerificationService;
     private final PasswordResetService passwordResetService;
     private final RateLimiterService rateLimiterService;
+    private final ClientIpResolver clientIpResolver;
 
     @Value("${application.security.jwt.refresh-token-expiration}")
     private long refreshTokenExpiration;
@@ -56,7 +58,7 @@ public class AuthController {
     public ResponseEntity<ApiResponse<RegisterResponse>> register(
             @Valid @RequestBody RegisterRequest request,
             HttpServletRequest httpRequest) {
-        String ip = httpRequest.getRemoteAddr();
+        String ip = clientIpResolver.resolve(httpRequest);
         if (!rateLimiterService.tryConsumeRegister(ip)) {
             throw new RateLimitExceededException();
         }
@@ -68,7 +70,7 @@ public class AuthController {
     public ResponseEntity<ApiResponse<AuthResponse>> login(
             @Valid @RequestBody LoginRequest request,
             @RequestHeader(value = "User-Agent", required = false) String userAgent, HttpServletRequest httpRequest) {
-        String ip = httpRequest.getRemoteAddr();
+        String ip = clientIpResolver.resolve(httpRequest);
 
         if (!rateLimiterService.tryConsumeLogin(ip, request.getIdentifier())) {
             throw new RateLimitExceededException();
@@ -146,7 +148,7 @@ public class AuthController {
     public ResponseEntity<ApiResponse<EmailStatusResponse>> checkEmailStatus(
             @RequestParam String email,
             HttpServletRequest httpRequest) {
-        String ip = httpRequest.getRemoteAddr();
+        String ip = clientIpResolver.resolve(httpRequest);
 
         if (!rateLimiterService.tryConsumeEmailStatus(ip)) {
             throw new RateLimitExceededException();
@@ -160,7 +162,7 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> resendVerification(
             @RequestParam String email,
             HttpServletRequest httpRequest) {
-        String ip = httpRequest.getRemoteAddr();
+        String ip = clientIpResolver.resolve(httpRequest);
         if (!rateLimiterService.tryConsumeResendVerification(ip)) {
             throw new RateLimitExceededException();
         }
@@ -172,7 +174,7 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest request,
             HttpServletRequest httpRequest) {
-        String ip = httpRequest.getRemoteAddr();
+        String ip = clientIpResolver.resolve(httpRequest);
         if (!rateLimiterService.tryConsumeForgotPassword(ip)) {
             throw new RateLimitExceededException();
         }
@@ -185,7 +187,7 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> resetPassword(
             @Valid @RequestBody ResetPasswordRequest request,
             HttpServletRequest httpRequest) {
-        String ip = httpRequest.getRemoteAddr();
+        String ip = clientIpResolver.resolve(httpRequest);
         if (!rateLimiterService.tryConsumeResetPassword(ip)) {
             throw new RateLimitExceededException();
         }

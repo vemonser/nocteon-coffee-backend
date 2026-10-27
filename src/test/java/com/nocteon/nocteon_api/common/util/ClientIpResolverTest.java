@@ -67,6 +67,27 @@ class ClientIpResolverTest {
     }
 
     @Test
+    void trustedProxyUsesFirstValidXForwardedForEntry() {
+        String result = ClientIpResolver.resolve("127.0.0.1", null,
+                "203.0.113.9, 10.0.0.5", proxies("127.0.0.1"));
+        assertThat(result).isEqualTo("203.0.113.9");
+    }
+
+    @Test
+    void unTrustedSourceCannotSpoofXForwardedFor() {
+        String result = ClientIpResolver.resolve("203.0.113.9", null,
+                "198.51.100.1", proxies("127.0.0.1"));
+        assertThat(result).isEqualTo("203.0.113.9");
+    }
+
+    @Test
+    void xRealIpWinsOverXForwardedFor() {
+        String result = ClientIpResolver.resolve("127.0.0.1", "198.51.100.7",
+                "198.51.100.1, 10.0.0.5", proxies("127.0.0.1"));
+        assertThat(result).isEqualTo("198.51.100.7");
+    }
+
+    @Test
     void untrustedRemoteWithIpv6Proxy() {
         String result = ClientIpResolver.resolve("2001:db8::1", "203.0.113.9", proxies("127.0.0.1"));
         assertThat(result).isEqualTo("2001:db8::1");

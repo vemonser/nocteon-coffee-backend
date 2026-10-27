@@ -149,7 +149,12 @@ public class AuthService {
                 .orElseThrow(InvalidRefreshTokenException::new);
 
         if (storedToken.isRevoked()) {
-            refreshTokenRepository.deleteByUserId(storedToken.getUser().getId());
+            // Reuse of a rotated token: treat it as theft and invalidate every
+            // access token for the account as well, not just refresh tokens.
+            User compromised = storedToken.getUser();
+            compromised.incrementTokenVersion();
+            userRepository.save(compromised);
+            refreshTokenRepository.deleteByUserId(compromised.getId());
             throw new InvalidRefreshTokenException();
         }
 
@@ -159,6 +164,15 @@ public class AuthService {
         }
 
         User user = storedToken.getUser();
+        if (!user.isEnabled()) {
+            throw new AccountNotVerifiedException();
+        }
+        if (!user.isActive()) {
+            throw new AccountDisabledException();
+        }
+        if (user.isLocked()) {
+            throw new AccountLockedException();
+        }
 
         storedToken.setRevoked(true);
         refreshTokenRepository.save(storedToken);

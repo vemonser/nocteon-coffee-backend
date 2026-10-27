@@ -42,6 +42,15 @@ class ProductionProfileConfigTest {
     }
 
     @Test
+    void forwardedHeadersUseTomcatTrustedProxies() {
+        assertThat(environment.getProperty("server.forward-headers-strategy")).isEqualTo("native");
+        assertThat(environment.getProperty("server.tomcat.remoteip.remote-ip-header"))
+                .isEqualTo("X-Forwarded-For");
+        assertThat(environment.getProperty("server.tomcat.remoteip.protocol-header"))
+                .isEqualTo("X-Forwarded-Proto");
+    }
+
+    @Test
     void springdocIsDisabledInProduction() {
         assertThat(environment.getProperty("springdoc.api-docs.enabled", Boolean.class)).isFalse();
         assertThat(environment.getProperty("springdoc.swagger-ui.enabled", Boolean.class)).isFalse();

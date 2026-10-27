@@ -33,18 +33,37 @@ public class ClientIpResolver {
     }
 
     public String resolve(HttpServletRequest request) {
-        return resolve(request.getRemoteAddr(), request.getHeader("X-Real-IP"), trustedProxies);
+        return resolve(request.getRemoteAddr(), request.getHeader("X-Real-IP"),
+                request.getHeader("X-Forwarded-For"), trustedProxies);
     }
 
-    /** Testable core logic. */
+    /** Testable core logic for X-Real-IP only. */
     static String resolve(String remoteAddr, String forwarded, List<TrustedProxy> trusted) {
+        return resolve(remoteAddr, forwarded, null, trusted);
+    }
+
+    /**
+     * Testable core logic. X-Real-IP wins when valid; otherwise the first valid
+     * entry of X-Forwarded-For is used. Both headers are honored only when the
+     * immediate peer is a configured trusted proxy.
+     */
+    static String resolve(String remoteAddr, String realIp, String forwardedFor,
+            List<TrustedProxy> trusted) {
         if (remoteAddr == null || remoteAddr.isBlank()) {
             return remoteAddr;
         }
-        if (forwarded != null && !forwarded.isBlank() && isTrustedProxy(remoteAddr, trusted)) {
-            String candidate = forwarded.trim();
-            if (isValidIp(candidate)) {
-                return candidate;
+        if (!isTrustedProxy(remoteAddr, trusted)) {
+            return remoteAddr.trim();
+        }
+        if (realIp != null && !realIp.isBlank() && isValidIp(realIp.trim())) {
+            return realIp.trim();
+        }
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            for (String part : forwardedFor.split(",")) {
+                String candidate = part.trim();
+                if (isValidIp(candidate)) {
+                    return candidate;
+                }
             }
         }
         return remoteAddr.trim();

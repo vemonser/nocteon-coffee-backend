@@ -1,3 +1,15 @@
+server:
+  # Render terminates TLS and forwards X-Forwarded-*. Use Tomcat's RemoteIpValve
+  # (native) with its trusted internal-proxies list, not Spring's
+  # ForwardedHeaderFilter (framework), which would trust such headers from any
+  # direct client and defeat the rate-limit IP checks.
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      remote-ip-header: X-Forwarded-For
+      protocol-header: X-Forwarded-Proto
+      protocol-header-https-value: https
+
 spring:
   servlet:
     multipart:

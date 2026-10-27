@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261027-131405",
+    "task": "P1.1 auth security",
+    "source": ".quality/runs/20261027-131405/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-01",
+      "statement": "The OAuth2 cookie contains only an opaque UUID; the request round-trips through Redis JSON; a tampered cookie returns null without Java deserialization; single-use removal deletes both cookie and Redis key.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-131405/CHANGE-CONTRACT.md",
+        "line": 21
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/auth/oauth2/CookieOAuth2AuthorizationRequestRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/service/AuthService.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/controller/AuthController.java",
+        "src/main/java/com/nocteon/nocteon_api/common/util/ClientIpResolver.java",
+        "src/main/resources/application.yaml",
+        "src/test/java/com/nocteon/nocteon_api/auth/oauth2/CookieOAuth2AuthorizationRequestRepositoryTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-131405/artifacts/oauth2-repo-tests.log",
+          "command": "env SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nocteon_flyway_check mise exec java@25 -- ./mvnw -o -Dtest=CookieOAuth2AuthorizationRequestRepositoryTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T10:33:29.303Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-02",
+      "statement": "Reusing a rotated refresh token increments token_version and deletes all refresh tokens; disabled/locked/unverified users cannot refresh.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-131405/CHANGE-CONTRACT.md",
+        "line": 22
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/auth/service/AuthService.java",
+        "src/test/java/com/nocteon/nocteon_api/auth/RefreshTokenRotationIntegrationTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-131405/artifacts/refresh-tests.log",
+          "command": "env SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nocteon_flyway_check mise exec java@25 -- ./mvnw -o -Dtest=RefreshTokenRotationIntegrationTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T10:33:52.477Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-03",
+      "statement": "Behind a trusted proxy, the first valid X-Forwarded-For IP is used; untrusted peers cannot spoof either header; X-Real-IP wins.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-131405/CHANGE-CONTRACT.md",
+        "line": 23
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/common/util/ClientIpResolver.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/controller/AuthController.java",
+        "src/test/java/com/nocteon/nocteon_api/common/util/ClientIpResolverTest.java",
+        "src/main/java/com/nocteon/nocteon_api/newsletter/controller/NewsletterController.java",
+        "src/main/java/com/nocteon/nocteon_api/contact/controller/ContactController.java",
+        "src/test/java/com/nocteon/nocteon_api/config/ProductionProfileConfigTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": ".quality/runs/20261027-131405/artifacts/ip-tests.log",
+          "command": "mise exec java@25 -- ./mvnw -o -Dtest=ClientIpResolverTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T10:33:57.178Z"
+        },
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-131405/artifacts/forward-header-config.log",
+          "command": "env SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nocteon_flyway_check mise exec java@25 -- ./mvnw -o -Dtest=ProductionProfileConfigTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T10:34:14.521Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-04",
+      "statement": "The full JDK 25 suite passes (749 tests) and the Docker stack remains healthy with readiness/settings 200.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-131405/CHANGE-CONTRACT.md",
+        "line": 24
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/auth/oauth2/CookieOAuth2AuthorizationRequestRepository.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/service/AuthService.java",
+        "src/main/java/com/nocteon/nocteon_api/auth/controller/AuthController.java",
+        "src/main/java/com/nocteon/nocteon_api/common/util/ClientIpResolver.java",
+        "src/main/resources/application.yaml",
+        "src/test/java/com/nocteon/nocteon_api/auth/oauth2/CookieOAuth2AuthorizationRequestRepositoryTest.java",
+        "src/test/java/com/nocteon/nocteon_api/auth/RefreshTokenRotationIntegrationTest.java",
+        "src/test/java/com/nocteon/nocteon_api/common/util/ClientIpResolverTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-131405/artifacts/full-suite.log",
+          "command": "env SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nocteon_flyway_check mise exec java@25 -- ./mvnw -o clean test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T10:36:32.799Z"
+        },
+        {
+          "type": "e2e",
+          "path": ".quality/runs/20261027-131405/artifacts/stack-smoke.log",
+          "command": "bash .quality/runs/20261027-131405/artifacts/check-p1-stack.sh",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T10:36:33.079Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-05",
+      "statement": "No ObjectInputStream/readObject remains in the OAuth2 repository.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-131405/CHANGE-CONTRACT.md",
+        "line": 25
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/auth/oauth2/CookieOAuth2AuthorizationRequestRepository.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261027-131405/artifacts/no-deserialization.log",
+          "command": "bash .quality/runs/20261027-131405/artifacts/check-no-deserialization.sh",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T10:34:14.566Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

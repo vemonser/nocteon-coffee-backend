@@ -2,54 +2,78 @@ package com.nocteon.nocteon_api.auth.oauth2;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.net.URI;
-import java.util.Base64;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
-import jakarta.servlet.http.Cookie;
+import com.nocteon.nocteon_api.NocteonApiApplication;
+import com.nocteon.nocteon_api.support.TestJwtKeys;
 
+/**
+ * The authorization request is attacker-visible on the way back from the
+ * provider. It must be an opaque id backed by Redis, never a Java-serialized
+ * blob that the server deserializes from a cookie.
+ */
+@SpringBootTest(classes = NocteonApiApplication.class, webEnvironment = SpringBootTest.WebEnvironment.NONE)
 class CookieOAuth2AuthorizationRequestRepositoryTest {
 
+    private static final String COOKIE = "oauth2_auth_request";
+
+    @Autowired
     private CookieOAuth2AuthorizationRequestRepository repository;
+
     private MockHttpServletRequest request;
     private MockHttpServletResponse response;
 
+    @DynamicPropertySource
+    static void jwtKeys(DynamicPropertyRegistry registry) {
+        TestJwtKeys.register(registry);
+    }
+
     @BeforeEach
     void setUp() {
-        repository = new CookieOAuth2AuthorizationRequestRepository();
         request = new MockHttpServletRequest();
+        request.setSecure(true);
         response = new MockHttpServletResponse();
+    }
+
+    private OAuth2AuthorizationRequest sample() {
+        return OAuth2AuthorizationRequest.authorizationCode()
+                .authorizationUri("https://accounts.google.com/o/oauth2/v2/auth")
+                .clientId("test-client-id")
+                .redirectUri("http://localhost:8080/login/oauth2/code/google")
+                .scopes(Set.of("email", "profile"))
+                .state("test-state")
+                .additionalParameters(Map.<String, Object>of(
+                        "code_challenge", "b1fsT5zKirEtHwiG9C8OkLRdnqBrAVu9qhwQGt2CvuM",
+                        "code_challenge_method", "S256",
+                        "code_verifier", "verifier-123",
+                        "nonce", "nonce-123"))
+                .attributes(Map.<String, Object>of("registration_id", "google"))
+                .build();
     }
 
     @Test
     void saveAndLoadAuthorizationRequest() {
-        OAuth2AuthorizationRequest authRequest = OAuth2AuthorizationRequest.authorizationCode()
-                .authorizationUri("https://accounts.google.com/o/oauth2/v2/auth")
-                .clientId("test-client-id")
-                .redirectUri("http://localhost:8080/login/oauth2/code/google")
-                .scope("email", "profile")
-                .state("test-state")
-                .additionalParameters(Map.of("key", "value"))
-                .build();
+        repository.saveAuthorizationRequest(sample(), request, response);
 
-        repository.saveAuthorizationRequest(authRequest, request, response);
+        var cookie = response.getCookie(COOKIE);
+        assertThat(cookie).isNotNull();
+        assertThat(cookie.getValue()).matches("[0-9a-f-]{36}");
+        assertThat(cookie.isHttpOnly()).isTrue();
+        assertThat(cookie.getSecure()).isTrue();
+        assertThat(response.getHeader("Set-Cookie")).contains("SameSite=Lax");
 
-        // Verify cookie was added
-        Cookie[] cookies = response.getCookies();
-        assertThat(cookies).hasSize(1);
-        assertThat(cookies[0].getName()).isEqualTo("oauth2_auth_request");
-        assertThat(cookies[0].getPath()).isEqualTo("/");
-        assertThat(cookies[0].isHttpOnly()).isTrue();
-        assertThat(cookies[0].getMaxAge()).isEqualTo(300);
-
-        // Simulate the cookie being sent back on the callback
-        request.setCookies(cookies[0]);
+        request.setCookies(cookie);
 
         OAuth2AuthorizationRequest loaded = repository.loadAuthorizationRequest(request);
         assertThat(loaded).isNotNull();
@@ -58,90 +82,60 @@ class CookieOAuth2AuthorizationRequestRepositoryTest {
         assertThat(loaded.getRedirectUri()).isEqualTo("http://localhost:8080/login/oauth2/code/google");
         assertThat(loaded.getScopes()).containsExactlyInAnyOrder("email", "profile");
         assertThat(loaded.getState()).isEqualTo("test-state");
+        assertThat(loaded.getAdditionalParameters())
+                .containsEntry("code_challenge_method", "S256")
+                .containsEntry("code_verifier", "verifier-123")
+                .containsEntry("nonce", "nonce-123");
+        assertThat(loaded.getAttributes()).containsEntry("registration_id", "google");
     }
 
     @Test
-    void removeAuthorizationRequestDeletesCookie() {
-        OAuth2AuthorizationRequest authRequest = OAuth2AuthorizationRequest.authorizationCode()
-                .authorizationUri("https://accounts.google.com/o/oauth2/v2/auth")
-                .clientId("test-client-id")
-                .redirectUri("http://localhost:8080/login/oauth2/code/google")
-                .scope("email")
-                .state("test-state")
-                .build();
+    void removeAuthorizationRequestDeletesCookieAndRedisEntry() {
+        repository.saveAuthorizationRequest(sample(), request, response);
+        request.setCookies(response.getCookie(COOKIE));
 
-        repository.saveAuthorizationRequest(authRequest, request, response);
-
-        // Simulate callback
-        Cookie savedCookie = response.getCookies()[0];
-        request.setCookies(savedCookie);
-
-        // Remove should return the request and clear the cookie
-        OAuth2AuthorizationRequest removed = repository.removeAuthorizationRequest(request, response);
+        MockHttpServletResponse removeResponse = new MockHttpServletResponse();
+        OAuth2AuthorizationRequest removed = repository.removeAuthorizationRequest(request, removeResponse);
         assertThat(removed).isNotNull();
         assertThat(removed.getState()).isEqualTo("test-state");
 
-        // Verify cookie deletion cookie was added (maxAge=0)
-        Cookie[] deleteCookies = response.getCookies();
-        assertThat(deleteCookies).isNotEmpty();
-        Cookie deleteCookie = deleteCookies[deleteCookies.length - 1];
-        assertThat(deleteCookie.getName()).isEqualTo("oauth2_auth_request");
-        assertThat(deleteCookie.getMaxAge()).isEqualTo(0);
+        assertThat(removeResponse.getHeader("Set-Cookie")).contains("Max-Age=0");
+        assertThat(repository.loadAuthorizationRequest(request)).isNull();
     }
 
     @Test
     void loadReturnsNullWhenNoCookie() {
-        OAuth2AuthorizationRequest loaded = repository.loadAuthorizationRequest(request);
-        assertThat(loaded).isNull();
+        assertThat(repository.loadAuthorizationRequest(request)).isNull();
     }
 
     @Test
     void loadReturnsNullWhenCookieIsInvalid() {
-        Cookie badCookie = new Cookie("oauth2_auth_request", "not-valid-base64!!!");
-        request.setCookies(badCookie);
+        request.setCookies(new jakarta.servlet.http.Cookie(COOKIE, "not-valid-base64!!!"));
 
-        OAuth2AuthorizationRequest loaded = repository.loadAuthorizationRequest(request);
-        assertThat(loaded).isNull();
+        assertThat(repository.loadAuthorizationRequest(request)).isNull();
+    }
+
+    @Test
+    void loadReturnsNullForAnUnknownUuidShapedCookie() {
+        request.setCookies(new jakarta.servlet.http.Cookie(COOKIE, "00000000-0000-0000-0000-000000000000"));
+
+        assertThat(repository.loadAuthorizationRequest(request)).isNull();
     }
 
     @Test
     void saveNullAuthorizationRequestRemovesExisting() {
         repository.saveAuthorizationRequest(null, request, response);
 
-        Cookie[] cookies = response.getCookies();
-        assertThat(cookies).isNotEmpty();
-        assertThat(cookies[cookies.length - 1].getMaxAge()).isEqualTo(0);
+        assertThat(response.getHeader("Set-Cookie")).contains("Max-Age=0");
     }
 
     @Test
-    void serializedRequestSurvivesBase64RoundTrip() throws Exception {
-        OAuth2AuthorizationRequest authRequest = OAuth2AuthorizationRequest.authorizationCode()
-                .authorizationUri("https://accounts.google.com/o/oauth2/v2/auth")
-                .clientId("1014065285256-5pepapvlq4d76t5nna5tk3ttil11rd09.apps.googleusercontent.com")
-                .redirectUri("http://localhost:8080/login/oauth2/code/google")
-                .scope("email", "profile")
-                .state("jF8IaEatCAURCg2qX7DrP_ol0t8mDz6G05p4UJs4BQ0=")
-                .additionalParameters(Map.of(
-                        "code_challenge", "b1fsT5zKirEtHwiG9C8OkLRdnqBrAVu9qhwQGt2CvuM",
-                        "code_challenge_method", "S256"))
-                .build();
+    void cookieIsAnOpaqueIdNotAJavaSerializationBlob() {
+        repository.saveAuthorizationRequest(sample(), request, response);
 
-        // Simulate what the repository does: serialize -> base64 -> deserialize
-        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-        try (java.io.ObjectOutputStream oos = new java.io.ObjectOutputStream(baos)) {
-            oos.writeObject(authRequest);
-        }
-        String encoded = Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(baos.toByteArray());
-
-        byte[] decoded = Base64.getUrlDecoder().decode(encoded);
-        try (java.io.ObjectInputStream ois = new java.io.ObjectInputStream(
-                new java.io.ByteArrayInputStream(decoded))) {
-            OAuth2AuthorizationRequest deserialized = (OAuth2AuthorizationRequest) ois.readObject();
-            assertThat(deserialized.getAuthorizationUri())
-                    .isEqualTo("https://accounts.google.com/o/oauth2/v2/auth");
-            assertThat(deserialized.getState()).isEqualTo("jF8IaEatCAURCg2qX7DrP_ol0t8mDz6G05p4UJs4BQ0=");
-            assertThat(deserialized.getAdditionalParameters()).containsKey("code_challenge");
-        }
+        String value = response.getCookie(COOKIE).getValue();
+        // Java serialization base64 starts with rO0; the new cookie must be a UUID.
+        assertThat(value).matches("[0-9a-f-]{36}");
+        assertThat(value).doesNotStartWith("rO0");
     }
 }

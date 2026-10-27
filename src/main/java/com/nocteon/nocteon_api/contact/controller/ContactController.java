@@ -20,6 +20,7 @@ import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.RateLimitExceededException;
 import com.nocteon.nocteon_api.common.ratelimit.RateLimiterService;
+import com.nocteon.nocteon_api.common.util.ClientIpResolver;
 import com.nocteon.nocteon_api.contact.dto.request.ContactRequest;
 import com.nocteon.nocteon_api.contact.dto.response.ContactResponse;
 import com.nocteon.nocteon_api.contact.dto.response.ContactStatsResponse;
@@ -38,12 +39,13 @@ public class ContactController {
 
     private final ContactService contactService;
     private final RateLimiterService rateLimiterService;
+    private final ClientIpResolver clientIpResolver;
 
     @PostMapping("/contact")
     public ResponseEntity<ApiResponse<ContactResponse>> submit(
             @Valid @RequestBody ContactRequest request,
             HttpServletRequest httpRequest) {
-        String ip = httpRequest.getRemoteAddr();
+        String ip = clientIpResolver.resolve(httpRequest);
         if (!rateLimiterService.tryConsumeContact(ip)) {
             throw new RateLimitExceededException();
         }

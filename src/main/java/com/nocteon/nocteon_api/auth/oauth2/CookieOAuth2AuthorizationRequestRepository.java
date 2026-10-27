@@ -1,48 +1,71 @@
 package com.nocteon.nocteon_api.auth.oauth2;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.util.Base64;
+import java.time.Duration;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.regex.Pattern;
 
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.lang.Nullable;
 import org.springframework.security.oauth2.client.web.AuthorizationRequestRepository;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Persists the OAuth2 authorization request in a cookie instead of the HTTP
- * session. This is required because the session is STATELESS — the session
- * cookie is not reliable across the browser redirect to Google and back.
+ * Persists the OAuth2 authorization request in Redis and stores only an opaque
+ * random id in the browser cookie.
+ *
+ * <p>The previous implementation stored a Java-serialized object in the cookie
+ * and deserialized it with {@link java.io.ObjectInputStream}. That is a remote
+ * code execution surface: the cookie is fully attacker-controlled, and
+ * deserialization runs before any type check. Redis + JSON removes it.
+ *
+ * <p>The id is single-use: {@link #removeAuthorizationRequest} deletes the Redis
+ * key and the cookie. Entries expire after five minutes.
  */
 @Component
 @Slf4j
+@RequiredArgsConstructor
 public class CookieOAuth2AuthorizationRequestRepository
         implements AuthorizationRequestRepository<OAuth2AuthorizationRequest> {
 
     private static final String COOKIE_NAME = "oauth2_auth_request";
-    private static final int COOKIE_EXPIRE_SECONDS = 300; // 5 minutes
+    private static final String KEY_PREFIX = "oauth2:authreq:";
+    private static final Duration TTL = Duration.ofMinutes(5);
+    private static final Pattern OPAQUE_ID = Pattern.compile(
+            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
+
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     @Nullable
     public OAuth2AuthorizationRequest loadAuthorizationRequest(HttpServletRequest request) {
-        Cookie cookie = getCookie(request, COOKIE_NAME);
-        if (cookie == null) {
+        String id = readCookie(request);
+        if (id == null) {
             return null;
         }
         try {
-            byte[] bytes = Base64.getUrlDecoder().decode(cookie.getValue());
-            try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bytes))) {
-                return (OAuth2AuthorizationRequest) ois.readObject();
+            String json = redisTemplate.opsForValue().get(KEY_PREFIX + id);
+            if (json == null) {
+                return null;
             }
+            StoredRequest stored = objectMapper.readValue(json, StoredRequest.class);
+            return toAuthorizationRequest(stored);
         } catch (Exception e) {
-            log.debug("Failed to load OAuth2 authorization request from cookie", e);
+            log.warn("Discarding unreadable OAuth2 authorization request");
+            redisTemplate.delete(KEY_PREFIX + id);
             return null;
         }
     }
@@ -56,22 +79,21 @@ public class CookieOAuth2AuthorizationRequestRepository
             removeAuthorizationRequest(request, response);
             return;
         }
-        try {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            try (ObjectOutputStream oos = new ObjectOutputStream(baos)) {
-                oos.writeObject(authorizationRequest);
-            }
-            String encoded = Base64.getUrlEncoder().withoutPadding()
-                    .encodeToString(baos.toByteArray());
 
-            Cookie cookie = new Cookie(COOKIE_NAME, encoded);
-            cookie.setPath("/");
-            cookie.setHttpOnly(true);
-            cookie.setSecure(request.isSecure());
-            cookie.setMaxAge(COOKIE_EXPIRE_SECONDS);
-            response.addCookie(cookie);
+        String id = UUID.randomUUID().toString();
+        try {
+            StoredRequest stored = new StoredRequest(
+                    authorizationRequest.getAuthorizationUri(),
+                    authorizationRequest.getClientId(),
+                    authorizationRequest.getRedirectUri(),
+                    authorizationRequest.getScopes(),
+                    authorizationRequest.getState(),
+                    authorizationRequest.getAdditionalParameters(),
+                    authorizationRequest.getAttributes());
+            redisTemplate.opsForValue().set(KEY_PREFIX + id, objectMapper.writeValueAsString(stored), TTL);
+            response.addHeader(HttpHeaders.SET_COOKIE, cookie(id, request).toString());
         } catch (Exception e) {
-            log.error("Failed to save OAuth2 authorization request to cookie", e);
+            log.error("Failed to save OAuth2 authorization request", e);
         }
     }
 
@@ -80,28 +102,75 @@ public class CookieOAuth2AuthorizationRequestRepository
     public OAuth2AuthorizationRequest removeAuthorizationRequest(
             HttpServletRequest request,
             HttpServletResponse response) {
-        OAuth2AuthorizationRequest authorizationRequest = loadAuthorizationRequest(request);
+        String id = readCookie(request);
+        String json = id == null ? null : redisTemplate.opsForValue().getAndDelete(KEY_PREFIX + id);
         deleteCookie(request, response);
-        return authorizationRequest;
+        if (json == null) {
+            return null;
+        }
+        try {
+            return toAuthorizationRequest(objectMapper.readValue(json, StoredRequest.class));
+        } catch (Exception e) {
+            log.warn("Discarding unreadable OAuth2 authorization request");
+            return null;
+        }
     }
 
-    private @Nullable Cookie getCookie(HttpServletRequest request, String name) {
+    private OAuth2AuthorizationRequest toAuthorizationRequest(StoredRequest stored) {
+        return OAuth2AuthorizationRequest.authorizationCode()
+                .authorizationUri(stored.authorizationUri())
+                .clientId(stored.clientId())
+                .redirectUri(stored.redirectUri())
+                .scopes(stored.scopes())
+                .state(stored.state())
+                .additionalParameters(stored.additionalParameters())
+                .attributes(stored.attributes())
+                .build();
+    }
+
+    private ResponseCookie cookie(String value, HttpServletRequest request) {
+        return ResponseCookie.from(COOKIE_NAME, value)
+                .httpOnly(true)
+                .secure(request.isSecure())
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(TTL)
+                .build();
+    }
+
+    private void deleteCookie(HttpServletRequest request, HttpServletResponse response) {
+        ResponseCookie expired = ResponseCookie.from(COOKIE_NAME, "")
+                .httpOnly(true)
+                .secure(request.isSecure())
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(0)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, expired.toString());
+    }
+
+    @Nullable
+    private String readCookie(HttpServletRequest request) {
         Cookie[] cookies = request.getCookies();
         if (cookies == null) {
             return null;
         }
         for (Cookie cookie : cookies) {
-            if (cookie.getName().equals(name)) {
-                return cookie;
+            if (COOKIE_NAME.equals(cookie.getName()) && cookie.getValue() != null
+                    && OPAQUE_ID.matcher(cookie.getValue()).matches()) {
+                return cookie.getValue();
             }
         }
         return null;
     }
 
-    private void deleteCookie(HttpServletRequest request, HttpServletResponse response) {
-        Cookie cookie = new Cookie(COOKIE_NAME, "");
-        cookie.setPath("/");
-        cookie.setMaxAge(0);
-        response.addCookie(cookie);
+    private record StoredRequest(
+            String authorizationUri,
+            String clientId,
+            String redirectUri,
+            Set<String> scopes,
+            String state,
+            Map<String, Object> additionalParameters,
+            Map<String, Object> attributes) {
     }
 }
