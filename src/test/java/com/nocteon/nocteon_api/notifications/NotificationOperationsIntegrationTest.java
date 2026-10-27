@@ -121,6 +121,36 @@ class NotificationOperationsIntegrationTest {
     }
 
     @Test
+    void bulkMarkReadTouchesOnlyTheOwnerRows() {
+        Notification first = create(USER_A, "test.bulk.mr.one", 51L, null);
+        Notification second = create(USER_A, "test.bulk.mr.two", 52L, null);
+        Notification foreign = create(USER_B, "test.bulk.mr.foreign", 53L, null);
+
+        notificationService.markReadBulk(USER_A, List.of(first.getId(), second.getId(), foreign.getId()));
+
+        assertThat(notificationService.getUnreadCount(USER_A)).isZero();
+        // Someone else's id in the payload is skipped, not read.
+        assertThat(notificationRepository.findById(foreign.getId()).orElseThrow().getReadAt()).isNull();
+        assertThat(notificationRepository.findById(first.getId()).orElseThrow().getReadAt()).isNotNull();
+    }
+
+    @Test
+    void bulkDeleteIsOneShotAndIdempotent() {
+        Notification first = create(USER_A, "test.bulk.del.one", 61L, null);
+        Notification second = create(USER_A, "test.bulk.del.two", 62L, null);
+        Notification foreign = create(USER_B, "test.bulk.del.foreign", 63L, null);
+
+        notificationService.deleteBulk(USER_A, List.of(first.getId(), second.getId(), foreign.getId()));
+
+        assertThat(notificationRepository.findById(first.getId())).isEmpty();
+        assertThat(notificationRepository.findById(second.getId())).isEmpty();
+        assertThat(notificationRepository.findById(foreign.getId())).isPresent();
+
+        // A UI that retries the same selection must not 404 on the second try.
+        notificationService.deleteBulk(USER_A, List.of(first.getId(), second.getId()));
+    }
+
+    @Test
     void deletesOwnNotificationOnlyOnce() {
         Notification own = create(USER_A, "test.delete", 31L, null);
 

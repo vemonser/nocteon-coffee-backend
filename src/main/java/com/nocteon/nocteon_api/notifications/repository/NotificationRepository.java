@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.notifications.repository;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,6 +36,20 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Modifying
     @Query("DELETE FROM Notification n WHERE n.id = :id AND n.recipientUserId = :recipientId")
     int deleteByIdAndRecipient(@Param("id") Long id, @Param("recipientId") Long recipientId);
+
+    /** One statement for a whole selection; ids that are not the caller's are untouched. */
+    @Modifying
+    @Query("""
+            UPDATE Notification n SET n.readAt = :now
+            WHERE n.id IN :ids AND n.recipientUserId = :recipientId AND n.readAt IS NULL
+            """)
+    int markReadBulk(@Param("ids") Collection<Long> ids,
+                     @Param("recipientId") Long recipientId,
+                     @Param("now") Instant now);
+
+    @Modifying
+    @Query("DELETE FROM Notification n WHERE n.id IN :ids AND n.recipientUserId = :recipientId")
+    int deleteBulk(@Param("ids") Collection<Long> ids, @Param("recipientId") Long recipientId);
 
     @Modifying
     @Query(value = """

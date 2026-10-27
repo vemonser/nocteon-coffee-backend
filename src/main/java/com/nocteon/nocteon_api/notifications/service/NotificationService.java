@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.notifications.service;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -109,6 +110,19 @@ public class NotificationService {
         if (updated == 0) {
             throw new NotificationNotFoundException();
         }
+    }
+
+    /** One query for a selection; missing or foreign ids are simply skipped. */
+    @Transactional
+    public void markReadBulk(Long userId, Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) return;
+        notificationRepository.markReadBulk(ids, userId, Instant.now());
+    }
+
+    @Transactional
+    public void deleteBulk(Long userId, Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) return;
+        notificationRepository.deleteBulk(ids, userId);
     }
 
     @Transactional
