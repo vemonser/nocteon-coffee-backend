@@ -42,6 +42,7 @@ public class ShippingZoneService {
         return zone.getShippingCost();
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<ShippingZoneResponse> getAll(BaseFilterRequest filter) {
         Page<ShippingZone> page = shippingZoneRepository.findAll(filter.toPageable());
         return PageResponse.of(page.map(this::buildResponse));
@@ -183,7 +184,9 @@ public class ShippingZoneService {
                 .id(zone.getId())
                 .name(zone.getName())
                 .shippingCost(zone.getShippingCost())
-                .cities(zone.getCities())
+                // A copy, not the persistent collection: Jackson serializes after the
+                // transaction and a lazy Set<String> then throws.
+                .cities(new java.util.HashSet<>(zone.getCities()))
                 .active(zone.isActive())
                 .createdAt(zone.getCreatedAt())
                 .updatedAt(zone.getUpdatedAt())

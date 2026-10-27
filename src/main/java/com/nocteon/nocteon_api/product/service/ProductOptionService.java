@@ -12,6 +12,7 @@ import java.util.Objects;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
@@ -48,7 +49,6 @@ import com.nocteon.nocteon_api.product.repository.ProductOptionValueTranslationR
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -149,10 +149,12 @@ public class ProductOptionService {
         optionRepository.delete(option);
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<ProductOptionResponseDashboard> getAllDashboard(LookupFilterRequest filter) {
         return getAllDashboard(filter, null);
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<ProductOptionResponseDashboard> getAllDashboard(LookupFilterRequest filter, ProductType productType) {
         String search = SearchPatterns.like(filter.getSearch());
         Page<ProductOption> page = optionRepository.findAllDashboard(search, productType, filter.toPageable());

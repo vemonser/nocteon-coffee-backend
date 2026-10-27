@@ -79,6 +79,7 @@ public class FarmService {
                 return PageResponse.of(page.map(f -> buildResponse(f, language)));
         }
 
+        @Transactional(readOnly = true)
         public PageResponse<DashboardFarmResponse> getAllDashboard(FarmFilterRequest filter) {
 
                 String search = SearchPatterns.like(filter.getSearch());
@@ -152,6 +153,7 @@ public class FarmService {
                 return buildResponse(reloaded);
         }
 
+        @Transactional(readOnly = true)
         public DashboardFarmResponse getDashboardBySlug(String slug) {
                 Farm farm = farmRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(FarmNotFoundException::new);
@@ -291,6 +293,7 @@ public class FarmService {
          * translation and report a row count as its total — which also splits one item's
          * translations across two pages. See {@link SoftDeleteRowFolder}.
          */
+        @Transactional(readOnly = true)
         public PageResponse<DashboardFarmResponse> getAllDeleted(LookupFilterRequest filter) {
                 String search = SearchPatterns.like(filter.getSearch());
                 int pageNum = filter.getPage();

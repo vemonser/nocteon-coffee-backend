@@ -71,6 +71,7 @@ public class JournalService {
                 return PageResponse.of(page.map(p -> buildListResponse(p, language)));
         }
 
+        @Transactional(readOnly = true)
         public PageResponse<JournalPostResponse> getAllDashboard(JournalFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 Page<JournalPost> page = postRepository.findAllDashboard(

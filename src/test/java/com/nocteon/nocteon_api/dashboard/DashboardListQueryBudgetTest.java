@@ -13,6 +13,7 @@ import com.nocteon.nocteon_api.brewingMethod.service.BrewingMethodService;
 import com.nocteon.nocteon_api.category.service.CategoryService;
 import com.nocteon.nocteon_api.coffeeVariety.service.CoffeeVarietyService;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
+import com.nocteon.nocteon_api.farm.service.FarmService;
 import com.nocteon.nocteon_api.origin.service.OriginService;
 import com.nocteon.nocteon_api.pairing.service.PairingService;
 import com.nocteon.nocteon_api.processingMethod.service.ProcessingMethodService;
@@ -48,6 +49,8 @@ class DashboardListQueryBudgetTest {
     private CategoryService categoryService;
     @Autowired
     private OriginService originService;
+    @Autowired
+    private FarmService farmService;
     @Autowired
     private RoastLevelService roastLevelService;
     @Autowired
@@ -94,6 +97,12 @@ class DashboardListQueryBudgetTest {
     void origins() {
         long n = statements(() -> originService.getAllDashboard(new LookupFilterRequest()));
         assertBudget("origins", n, 4);
+    }
+
+    @Test
+    void farms() {
+        long n = statements(() -> farmService.getAllDashboard(new com.nocteon.nocteon_api.farm.dto.request.FarmFilterRequest()));
+        assertBudget("farms", n, 4);
     }
 
     @Test

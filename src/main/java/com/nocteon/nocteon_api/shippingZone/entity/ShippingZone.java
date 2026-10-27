@@ -6,6 +6,7 @@ import java.util.HashSet;
 
 import com.nocteon.nocteon_api.common.entity.SoftDeletableEntity;
 
+import org.hibernate.annotations.BatchSize;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.JoinColumn;
@@ -35,6 +36,7 @@ public class ShippingZone extends SoftDeletableEntity {
     private BigDecimal shippingCost;
 
     @ElementCollection
+    @BatchSize(size = 30)
     @CollectionTable(name = "shipping_zone_cities", joinColumns = @JoinColumn(name = "shipping_zone_id"))
     @Column(name = "city", nullable = false)
     @Builder.Default
