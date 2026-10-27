@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.nocteon.nocteon_api.common.entity.SoftDeletableEntity;
 
+import org.hibernate.annotations.BatchSize;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -32,5 +33,6 @@ public class TastingNote extends SoftDeletableEntity {
 
     @OneToMany(mappedBy = "tastingNote", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
+    @BatchSize(size = 30)
     private List<TastingNoteTranslation> translations = new ArrayList<>();
 }
