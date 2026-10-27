@@ -31,6 +31,8 @@ import com.nocteon.nocteon_api.audit.enums.AuditAction;
 import com.nocteon.nocteon_api.order.repository.OrderRepository;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.auth.repository.RefreshTokenRepository;
+import com.nocteon.nocteon_api.auth.exception.AdminAccountProtectedException;
+import com.nocteon.nocteon_api.auth.exception.EmailChangeForbiddenException;
 import com.nocteon.nocteon_api.auth.exception.RoleChangeForbiddenException;
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.cloudinary.service.CloudinaryService;
@@ -237,9 +239,17 @@ public class UserService {
     }
 
     @Transactional
-    public UserResponse toggleActive(Long userId) {
+    public UserResponse toggleActive(Long userId, UserPrincipal actor) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException());
+
+        boolean actorIsAdmin = actor != null && actor.getUser() != null
+                && "ADMIN".equals(actor.getUser().getRole());
+        if ("ADMIN".equals(user.getRole()) && !actorIsAdmin) {
+            log.warn("User {} attempted to change the active state of administrator {}",
+                    actor == null ? "unknown" : actor.getUserId(), userId);
+            throw new AdminAccountProtectedException();
+        }
 
         boolean nowActive = !user.isActive();
         user.setActive(nowActive);
@@ -267,9 +277,21 @@ public class UserService {
             user.setUsername(request.getUsername());
         }
 
+        // An e-mail is the login identity: changing it to an address you control and
+        // then running "forgot password" is a takeover, including of an ADMIN. Same
+        // grant as a role change, so the route's user:update is not enough.
+        boolean mayChangeIdentity = actor != null && actor.getAuthorities().stream()
+                .anyMatch(authority -> Permission.USER_CHANGE_ROLE.getPermission()
+                        .equals(authority.getAuthority()));
+
         if (request.getEmail() != null) {
             String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
             if (!email.equalsIgnoreCase(user.getEmail())) {
+                if (!mayChangeIdentity) {
+                    log.warn("User {} attempted to change the e-mail of user {}",
+                            actor == null ? "unknown" : actor.getUserId(), userId);
+                    throw new EmailChangeForbiddenException();
+                }
                 if (userRepository.existsByEmail(email)) {
                     throw new EmailAlreadyExistsException();
                 }
@@ -283,10 +305,7 @@ public class UserService {
             // is gated on user:update, which MODERATOR holds, so without this a moderator could
             // promote any user — including themselves — to ADMIN and inherit every permission,
             // among them user:delete and user:create, which MODERATOR deliberately lacks.
-            boolean mayChangeRole = actor != null && actor.getAuthorities().stream()
-                    .anyMatch(authority -> Permission.USER_CHANGE_ROLE.getPermission()
-                            .equals(authority.getAuthority()));
-            if (!mayChangeRole) {
+            if (!mayChangeIdentity) {
                 log.warn("User {} attempted to change the role of user {} to {}",
                         actor == null ? "unknown" : actor.getUserId(),
                         userId,

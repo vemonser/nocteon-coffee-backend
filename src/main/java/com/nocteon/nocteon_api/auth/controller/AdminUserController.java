@@ -94,8 +94,10 @@ public class AdminUserController {
 
         @PatchMapping("/{id}/toggle-active")
         @PreAuthorize("hasAuthority('user:update')")
-        public ResponseEntity<ApiResponse<UserResponse>> toggleActive(@PathVariable Long id) {
-                UserResponse user = userService.toggleActive(id);
+        public ResponseEntity<ApiResponse<UserResponse>> toggleActive(
+                        @PathVariable Long id,
+                        @AuthenticationPrincipal UserPrincipal principal) {
+                UserResponse user = userService.toggleActive(id, principal);
                 String message = user.isActive() ? "User unblocked successfully" : "User blocked successfully";
                 return ResponseEntity.ok(ApiResponse.success(user, message));
         }
