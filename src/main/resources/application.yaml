@@ -26,6 +26,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+    # Controllers must not rely on an EntityManager that stays open during rendering.
+    open-in-view: false
     show-sql: false
     properties:
       hibernate:

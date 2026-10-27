@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261027-124754",
+    "task": "P0 backend hardening",
+    "source": ".quality/runs/20261027-124754/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-01",
+      "statement": "dependency:tree contains only the 8.10.1 Bucket4j artifacts and no bucket4j_jdk17-core; the full suite still passes.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-124754/CHANGE-CONTRACT.md",
+        "line": 22
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "pom.xml"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261027-124754/artifacts/bucket4j-tree.log",
+          "command": "bash .quality/runs/20261027-124754/artifacts/check-bucket4j-tree.sh",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T09:49:01.782Z"
+        },
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-124754/artifacts/full-suite.log",
+          "command": "env SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nocteon_flyway_check mise exec java@25 -- ./mvnw -o clean test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T09:51:40.106Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-02",
+      "statement": "With the prod profile active, Hibernate SQL/bind are INFO, SpringDoc is disabled, and open-in-view is false.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-124754/CHANGE-CONTRACT.md",
+        "line": 23
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/resources/application.yaml",
+        "src/main/resources/application-prod.yaml",
+        "render.yaml",
+        "src/test/java/com/nocteon/nocteon_api/auth/config/CorsConfigTest.java",
+        "src/test/java/com/nocteon/nocteon_api/config/ProductionProfileConfigTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-124754/artifacts/prod-profile-tests.log",
+          "command": "env SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nocteon_flyway_check mise exec java@25 -- ./mvnw -o -Dtest=ProductionProfileConfigTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T09:49:19.554Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-03",
+      "statement": "CORS origins are trimmed and blank entries dropped, and an empty list fails fast.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-124754/CHANGE-CONTRACT.md",
+        "line": 24
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "src/main/java/com/nocteon/nocteon_api/auth/config/CorsConfig.java",
+        "src/test/java/com/nocteon/nocteon_api/auth/config/CorsConfigTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": ".quality/runs/20261027-124754/artifacts/cors-tests.log",
+          "command": "mise exec java@25 -- ./mvnw -o -Dtest=CorsConfigTest test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T09:49:24.333Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-04",
+      "statement": "The Docker image still builds, is healthy, reaches Redis, and settings/readiness return 200.",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-124754/CHANGE-CONTRACT.md",
+        "line": 25
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "Dockerfile",
+        "docker-compose.yml",
+        "src/main/java/com/nocteon/nocteon_api/common/redis/RedisConfig.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "e2e",
+          "path": ".quality/runs/20261027-124754/artifacts/stack-smoke.log",
+          "command": "bash .quality/runs/20261027-124754/artifacts/check-p0-stack.sh",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T09:49:24.625Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-05",
+      "statement": ".dockerignore excludes .quality/ and artifacts/, and the full JDK 25 suite passes (741 tests).",
+      "sourceRef": {
+        "path": ".quality/runs/20261027-124754/CHANGE-CONTRACT.md",
+        "line": 26
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        ".dockerignore",
+        "src/test/java/com/nocteon/nocteon_api/auth/config/CorsConfigTest.java",
+        "src/test/java/com/nocteon/nocteon_api/config/ProductionProfileConfigTest.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261027-124754/artifacts/dockerignore.log",
+          "command": "bash .quality/runs/20261027-124754/artifacts/check-dockerignore.sh",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T09:49:24.665Z"
+        },
+        {
+          "type": "integration-test",
+          "path": ".quality/runs/20261027-124754/artifacts/full-suite.log",
+          "command": "env SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nocteon_flyway_check mise exec java@25 -- ./mvnw -o clean test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-27T09:51:40.106Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

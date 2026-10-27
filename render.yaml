@@ -9,6 +9,10 @@ services:
     dockerContext: .
     healthCheckPath: /actuator/health/readiness
     envVars:
+      # Activates application-prod.yaml: INFO logging (no SQL bind values) and
+      # SpringDoc disabled.
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
       - key: DATABASE_HOST
         fromDatabase:
           name: nocteon-db

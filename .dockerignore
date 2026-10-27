@@ -8,6 +8,10 @@
 # Build output
 target/
 
+# Local quality evidence and generated logs
+.quality/
+artifacts/
+
 # JWT key material must never enter the image build context
 src/main/resources/keys/
 *.pem

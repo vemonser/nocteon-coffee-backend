@@ -1,0 +1,15 @@
+# Production profile: quiet, PII-safe logs and no public API explorer.
+# Activated by SPRING_PROFILES_ACTIVE=prod in render.yaml.
+logging:
+  level:
+    "[org.hibernate.SQL]": INFO
+    "[org.hibernate.orm.jdbc.bind]": INFO
+    "[com.nocteon.nocteon_api]": INFO
+    "[org.springframework.security]": INFO
+    "[org.flywaydb]": INFO
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
