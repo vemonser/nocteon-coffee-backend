@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "20261026-231357-accept-migrationaudit",
+    "task": "Read-only Flyway migration inventory & integrity audit (Factory acceptance run)",
+    "source": ".quality/runs/20261026-231357-accept-migrationaudit/CHANGE-CONTRACT.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-01",
+      "statement": "Given the 33 migration files in src/main/resources/db/migration, when generate-audit.cjs emits migration-inventory.tsv, then the TSV contains one row per file (plus a header) with its version, segment tuple, and description",
+      "sourceRef": {
+        "path": ".quality/runs/20261026-231357-accept-migrationaudit/CHANGE-CONTRACT.md",
+        "line": 22
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        ".quality/runs/20261026-231357-accept-migrationaudit/generate-audit.cjs",
+        ".quality/runs/20261026-231357-accept-migrationaudit/migration-inventory.tsv"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261026-231357-accept-migrationaudit/artifacts/ac01-inventory-check.log",
+          "command": "node .quality/runs/20261026-231357-accept-migrationaudit/check-inventory-rows.cjs src/main/resources/db/migration .quality/runs/20261026-231357-accept-migrationaudit/migration-inventory.tsv",
+          "exitCode": 0
+        },
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261026-231357-accept-migrationaudit/artifacts/ac01-inventory-check.log",
+          "command": "node .quality/runs/20261026-231357-accept-migrationaudit/check-inventory-rows.cjs src/main/resources/db/migration .quality/runs/20261026-231357-accept-migrationaudit/migration-inventory.tsv",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T20:22:54.578Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-02",
+      "statement": "Given the migration filenames, when versions are parsed with Flyway semantics (underscores within the version label are minor segments, so V106, V106_1, V106_5 are versions 106, 106.1, 106.5), then no two files share the same version tuple",
+      "sourceRef": {
+        "path": ".quality/runs/20261026-231357-accept-migrationaudit/CHANGE-CONTRACT.md",
+        "line": 23
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        ".quality/runs/20261026-231357-accept-migrationaudit/generate-audit.cjs"
+      ],
+      "status": "PASS",
+      "notes": "duplicateVersionGroups=0 with correct Flyway version semantics",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261026-231357-accept-migrationaudit/artifacts/ac0123-audit.log",
+          "command": "node .quality/runs/20261026-231357-accept-migrationaudit/generate-audit.cjs .quality/runs/20261026-231357-accept-migrationaudit/migration-inventory.tsv .quality/runs/20261026-231357-accept-migrationaudit/REPORT.md",
+          "exitCode": 0
+        },
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261026-231357-accept-migrationaudit/artifacts/ac0123-audit.log",
+          "command": "node .quality/runs/20261026-231357-accept-migrationaudit/generate-audit.cjs .quality/runs/20261026-231357-accept-migrationaudit/migration-inventory.tsv .quality/runs/20261026-231357-accept-migrationaudit/REPORT.md",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T20:22:54.677Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-03",
+      "statement": "Given the migration directory contents, when each filename is checked against '^V[0-9]+(_[0-9]+)*__[A-Za-z0-9_]+\\.sql$', then all 33 filenames conform and the checker exits 0",
+      "sourceRef": {
+        "path": ".quality/runs/20261026-231357-accept-migrationaudit/CHANGE-CONTRACT.md",
+        "line": 24
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        ".quality/runs/20261026-231357-accept-migrationaudit/generate-audit.cjs"
+      ],
+      "status": "PASS",
+      "notes": "conforming=33 nonConforming=0",
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261026-231357-accept-migrationaudit/artifacts/ac0123-audit.log",
+          "command": "node .quality/runs/20261026-231357-accept-migrationaudit/generate-audit.cjs .quality/runs/20261026-231357-accept-migrationaudit/migration-inventory.tsv .quality/runs/20261026-231357-accept-migrationaudit/REPORT.md",
+          "exitCode": 0
+        },
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261026-231357-accept-migrationaudit/artifacts/ac0123-audit.log",
+          "command": "node .quality/runs/20261026-231357-accept-migrationaudit/generate-audit.cjs .quality/runs/20261026-231357-accept-migrationaudit/migration-inventory.tsv .quality/runs/20261026-231357-accept-migrationaudit/REPORT.md",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T20:22:54.799Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-04",
+      "statement": "Given the Factory verification-discovery rule, when it resolves this project, then the recorded output is RESOLVED './mvnw test' (a real Maven workflow), never 'true', empty, or a placeholder; the resolved command is intentionally NOT executed because this read-only task claims no test passage",
+      "sourceRef": {
+        "path": ".quality/runs/20261026-231357-accept-migrationaudit/CHANGE-CONTRACT.md",
+        "line": 25
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        ".quality/runs/20261026-231357-accept-migrationaudit/check-discovery-artifact.cjs",
+        ".quality/runs/20261026-231357-accept-migrationaudit/artifacts/resolver-result.json"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261026-231357-accept-migrationaudit/artifacts/ac04-discovery-check.log",
+          "command": "node .quality/runs/20261026-231357-accept-migrationaudit/check-discovery-artifact.cjs .quality/runs/20261026-231357-accept-migrationaudit/artifacts/resolver-result.json .quality/runs/20261026-231357-accept-migrationaudit/artifacts/resolver-stderr.log",
+          "exitCode": 0
+        },
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261026-231357-accept-migrationaudit/artifacts/ac04-discovery-check.log",
+          "command": "node .quality/runs/20261026-231357-accept-migrationaudit/check-discovery-artifact.cjs .quality/runs/20261026-231357-accept-migrationaudit/artifacts/resolver-result.json .quality/runs/20261026-231357-accept-migrationaudit/artifacts/resolver-stderr.log",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T20:22:54.902Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-05",
+      "statement": "Given the baseline recorded before any work (git HEAD b4f2d80 and porcelain status with 3 untracked entries: two pre-existing — the older 20261026-141419 run dir and the root artifacts/ — plus this run dir), when the repository status and HEAD are re-checked after all artifacts exist, then HEAD is unchanged, no tracked file is modified/added/deleted, no new untracked entry exists except this run directory, and every pre-existing untracked entry is preserved",
+      "sourceRef": {
+        "path": ".quality/runs/20261026-231357-accept-migrationaudit/CHANGE-CONTRACT.md",
+        "line": 26
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        ".quality/runs/20261026-231357-accept-migrationaudit/check-repo-clean.cjs",
+        ".quality/runs/20261026-231357-accept-migrationaudit/artifacts/baseline-status.txt"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261026-231357-accept-migrationaudit/artifacts/ac05-repo-clean.log",
+          "command": "node .quality/runs/20261026-231357-accept-migrationaudit/check-repo-clean.cjs .quality/runs/20261026-231357-accept-migrationaudit/artifacts/baseline-status.txt .quality/runs/20261026-231357-accept-migrationaudit/artifacts/baseline-head.txt .quality/runs/20261026-231357-accept-migrationaudit",
+          "exitCode": 0
+        },
+        {
+          "type": "static-analysis",
+          "path": ".quality/runs/20261026-231357-accept-migrationaudit/artifacts/ac05-repo-clean.log",
+          "command": "node .quality/runs/20261026-231357-accept-migrationaudit/check-repo-clean.cjs .quality/runs/20261026-231357-accept-migrationaudit/artifacts/baseline-status.txt .quality/runs/20261026-231357-accept-migrationaudit/artifacts/baseline-head.txt .quality/runs/20261026-231357-accept-migrationaudit",
+          "exitCode": 0,
+          "recordedAt": "2026-10-26T20:22:55.005Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

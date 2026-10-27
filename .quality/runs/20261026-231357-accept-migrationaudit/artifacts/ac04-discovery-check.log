@@ -1,0 +1,1 @@
+DISCOVERY-CHECK PASS — status=RESOLVED resolved="./mvnw test" source=Maven wrapper; JSON + stderr artifacts exist on disk (command NOT executed here, no pass claim made)
