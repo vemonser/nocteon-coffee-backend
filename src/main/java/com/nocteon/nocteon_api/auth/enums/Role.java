@@ -8,17 +8,30 @@ public enum Role {
 
     ADMIN(Set.of(Permission.values())), 
     
+    /** Content/community moderator: see, moderate, talk to customers. No identity,
+     *  catalogue-write, money or settings grants — keep in step with V13. */
     MODERATOR(Set.of(
             Permission.DASHBOARD_READ,
             Permission.ORDER_READ,
             Permission.CART_READ_ALL,
             Permission.REVIEW_READ,
             Permission.REVIEW_MODERATE,
+            Permission.REVIEW_DELETE,
             Permission.CONTACT_READ,
             Permission.CONTACT_UPDATE,
             Permission.NOTIFICATION_READ,
             Permission.NOTIFICATION_UPDATE,
-            Permission.PRODUCT_READ
+            Permission.PRODUCT_READ,
+            Permission.CATEGORY_READ,
+            Permission.ORIGIN_READ,
+            Permission.FARM_READ,
+            Permission.ROAST_LEVEL_READ,
+            Permission.PROCESSING_METHOD_READ,
+            Permission.COFFEE_VARIETY_READ,
+            Permission.TASTING_NOTE_READ,
+            Permission.BREWING_METHOD_READ,
+            Permission.PAIRING_READ,
+            Permission.AUDIT_READ
     )),
 
     CUSTOMER(Set.of(

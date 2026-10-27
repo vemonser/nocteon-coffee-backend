@@ -54,8 +54,20 @@ class ModeratorPermissionsIntegrationTest {
     @Test
     void moderatorRoleHasExpectedPermissions() {
         var perms = roleService.getPermissions("MODERATOR");
-        org.assertj.core.api.Assertions.assertThat(perms).contains("review:read", "review:moderate");
-        org.assertj.core.api.Assertions.assertThat(perms).doesNotContain("user:change_role", "settings:update");
+
+        // The surfaces a moderator works in.
+        org.assertj.core.api.Assertions.assertThat(perms).contains(
+                "dashboard:read", "order:read", "review:moderate",
+                "contact:read", "contact:update",
+                "notification:read", "notification:update");
+
+        // Grants that must never come back without a product decision: identity,
+        // catalogue writes, money operations and settings.
+        org.assertj.core.api.Assertions.assertThat(perms).doesNotContain(
+                "user:update", "user:change_role", "user:delete",
+                "product:update", "category:update", "order:update",
+                "cart:notify", "settings:update", "promo:update",
+                "broadcast:create", "newsletter:update");
     }
 
 }
