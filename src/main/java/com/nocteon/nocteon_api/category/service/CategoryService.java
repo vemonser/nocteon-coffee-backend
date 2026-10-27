@@ -219,6 +219,7 @@ public class CategoryService {
                 return PageResponse.of(page.map(c -> buildResponse(c, language)));
         }
 
+        @Transactional(readOnly = true)
         public PageResponse<DashboardCategoryResponse> getAllDashboard(
                         LookupFilterRequest filter) {
 
@@ -240,6 +241,7 @@ public class CategoryService {
                 return buildResponse(category, language);
         }
 
+        @Transactional(readOnly = true)
         public DashboardCategoryResponse getDashboardBySlug(String slug) {
                 Category category = categoryRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(CategoryNotFoundException::new);
@@ -299,6 +301,7 @@ public class CategoryService {
          * translation and report a row count as its total — which also splits one item's
          * translations across two pages. See {@link SoftDeleteRowFolder}.
          */
+        @Transactional(readOnly = true)
         public PageResponse<DashboardCategoryResponse> getAllDeleted(LookupFilterRequest filter) {
                 String search = SearchPatterns.like(filter.getSearch());
                 int pageNum = filter.getPage();

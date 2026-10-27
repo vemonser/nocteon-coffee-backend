@@ -159,12 +159,14 @@ public class CoffeeVarietyService {
                 return PageResponse.of(page.map(c -> buildResponse(c, language)));
         }
 
+        @Transactional(readOnly = true)
         public CoffeeVarietyResponseDashboard getDashboardBySlug(String slug) {
                 CoffeeVariety coffeeVariety = coffeeVarietyRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(CoffeeVarietyNotFoundException::new);
                 return buildResponse(coffeeVariety);
         }
 
+        @Transactional(readOnly = true)
         public PageResponse<CoffeeVarietyResponseDashboard> getAllDashboard(LookupFilterRequest filter) {
                 String search = SearchPatterns.like(filter.getSearch());
 
@@ -227,6 +229,7 @@ public class CoffeeVarietyService {
          * translation and report a row count as its total — which also splits one item's
          * translations across two pages. See {@link SoftDeleteRowFolder}.
          */
+        @Transactional(readOnly = true)
         public PageResponse<CoffeeVarietyResponseDashboard> getAllDeleted(LookupFilterRequest filter) {
                 String search = SearchPatterns.like(filter.getSearch());
                 int pageNum = filter.getPage();

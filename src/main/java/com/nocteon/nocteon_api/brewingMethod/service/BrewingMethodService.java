@@ -75,6 +75,7 @@ public class BrewingMethodService {
                 return Sort.by(dir, field);
         }
 
+        @Transactional(readOnly = true)
         public BrewingMethodResponseDashboard getDashboardBySlug(String slug) {
                 BrewingMethod brewingMethod = brewingMethodRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(BrewingMethodNotFoundException::new);
@@ -191,6 +192,7 @@ public class BrewingMethodService {
                 return PageResponse.of(page.map(b -> buildResponse(b, language)));
         }
 
+        @Transactional(readOnly = true)
         public PageResponse<BrewingMethodResponseDashboard> getAllDashboard(LookupFilterRequest filter) {
 
                 String search = SearchPatterns.like(filter.getSearch());
@@ -252,6 +254,7 @@ public class BrewingMethodService {
          * translation and report a row count as its total — which also splits one item's
          * translations across two pages. See {@link SoftDeleteRowFolder}.
          */
+        @Transactional(readOnly = true)
         public PageResponse<BrewingMethodResponseDashboard> getAllDeleted(LookupFilterRequest filter) {
                 String search = SearchPatterns.like(filter.getSearch());
                 int pageNum = filter.getPage();

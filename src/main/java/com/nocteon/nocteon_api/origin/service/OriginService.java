@@ -212,6 +212,7 @@ public class OriginService {
                                 .toList();
         }
 
+        @Transactional(readOnly = true)
         public DashboardOriginResponse getDashboardBySlug(String slug) {
                 Origin origin = originRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(OriginNotFoundException::new);
@@ -234,6 +235,7 @@ public class OriginService {
                 return PageResponse.of(page.map(o -> buildResponse(o, language)));
         }
 
+        @Transactional(readOnly = true)
         public PageResponse<DashboardOriginResponse> getAllDashboard(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 String search = SearchPatterns.like(filter.getSearch());
@@ -299,6 +301,7 @@ public class OriginService {
          * translation and report a row count as its total — which also splits one item's
          * translations across two pages. See {@link SoftDeleteRowFolder}.
          */
+        @Transactional(readOnly = true)
         public PageResponse<DashboardOriginResponse> getAllDeleted(LookupFilterRequest filter) {
                 String search = SearchPatterns.like(filter.getSearch());
                 int pageNum = filter.getPage();

@@ -162,12 +162,14 @@ public class RoastLevelService {
                 return PageResponse.of(page.map(r -> buildResponse(r, language)));
         }
 
+        @Transactional(readOnly = true)
         public DashboardRoastLevelResponse getDashboardBySlug(String slug) {
                 RoastLevel roastLevel = roastLevelRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(RoastLevelNotFoundException::new);
                 return buildResponse(roastLevel);
         }
 
+        @Transactional(readOnly = true)
         public PageResponse<DashboardRoastLevelResponse> getAllDashboard(LookupFilterRequest filter) {
                 String search = SearchPatterns.like(filter.getSearch());
                 Page<RoastLevel> page = roastLevelRepository.findAllDashboard(
@@ -227,6 +229,7 @@ public class RoastLevelService {
          * translation and report a row count as its total — which also splits one item's
          * translations across two pages. See {@link SoftDeleteRowFolder}.
          */
+        @Transactional(readOnly = true)
         public PageResponse<DashboardRoastLevelResponse> getAllDeleted(LookupFilterRequest filter) {
                 String search = SearchPatterns.like(filter.getSearch());
                 int pageNum = filter.getPage();

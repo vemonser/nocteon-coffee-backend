@@ -1,5 +1,6 @@
 package com.nocteon.nocteon_api.category.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -110,6 +111,21 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
                @Param("language") String language);
 
      Optional<Category> findBySlug(String slug);
+
+     /**
+      * Slug lookup with translations fetched in the same query.
+      *
+      * <p>{@code open-in-view} is off, so a caller that reads
+      * {@code category.getTranslations()} after the repository returns MUST
+      * use this variant: the plain {@code findBySlugIn} leaves the collection
+      * lazy and the first read throws LazyInitializationException.
+      */
+     @Query("""
+               SELECT DISTINCT c FROM Category c
+               LEFT JOIN FETCH c.translations
+               WHERE c.slug IN :slugs
+               """)
+     List<Category> findBySlugInWithTranslations(@Param("slugs") Collection<String> slugs);
 
      boolean existsBySlug(String slug);
 

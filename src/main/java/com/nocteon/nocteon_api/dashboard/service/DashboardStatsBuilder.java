@@ -107,7 +107,9 @@ public class DashboardStatsBuilder {
             List<Object[]> rows = orderItemRepository.getRevenueByCategory(PaymentStatus.PAID, since);
 
             List<String> slugs = rows.stream().map(row -> (String) row[0]).toList();
-            List<Category> categories = categoryRepository.findBySlugIn(slugs);
+            // Translations are read below and open-in-view is off, so they must be
+            // fetched with the rows (findBySlugIn leaves them lazy).
+            List<Category> categories = categoryRepository.findBySlugInWithTranslations(slugs);
             Map<String, Category> categoryBySlug = categories.stream()
                             .collect(Collectors.toMap(Category::getSlug, c -> c, (a, b) -> a));
 

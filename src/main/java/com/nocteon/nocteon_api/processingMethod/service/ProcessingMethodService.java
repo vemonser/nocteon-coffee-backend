@@ -52,6 +52,7 @@ public class ProcessingMethodService {
                 return PageResponse.of(page.map(p -> buildResponse(p, language)));
         }
 
+        @Transactional(readOnly = true)
         public PageResponse<ProcessingMethodResponseDashboard> getAllDashboard(LookupFilterRequest filter) {
                 String search = SearchPatterns.like(filter.getSearch());
 
@@ -70,6 +71,7 @@ public class ProcessingMethodService {
                 return buildResponse(processingMethod, language);
         }
 
+        @Transactional(readOnly = true)
         public ProcessingMethodResponseDashboard getDashboardBySlug(String slug) {
                 ProcessingMethod processingMethod = processingMethodRepository
                                 .findBySlugWithTranslations(slug)
@@ -228,6 +230,7 @@ public class ProcessingMethodService {
          * translation and report a row count as its total — which also splits one item's
          * translations across two pages. See {@link SoftDeleteRowFolder}.
          */
+        @Transactional(readOnly = true)
         public PageResponse<ProcessingMethodResponseDashboard> getAllDeleted(LookupFilterRequest filter) {
                 String search = SearchPatterns.like(filter.getSearch());
                 int pageNum = filter.getPage();

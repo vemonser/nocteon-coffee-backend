@@ -216,6 +216,7 @@ public class ProductService {
         return copy;
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<ProductCardResponse> getAllDashboard(ProductFilterRequest filter) {
         String language = LocaleContextHolder.getLocale().getLanguage();
 
@@ -233,6 +234,7 @@ public class ProductService {
         return productRepository.countByIsActiveTrue();
     }
 
+    @Transactional(readOnly = true)
     public DashboardProductResponse getDashboardBySlug(String slug) {
         Product product = productRepository.findBySlug(slug)
                 .orElseThrow(ProductNotFoundException::new);
@@ -322,6 +324,7 @@ public class ProductService {
                 filter.toPageable());
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<DashboardProductResponse> getAllDeleted(LookupFilterRequest filter) {
         String search = SearchPatterns.like(filter.getSearch());
         int pageNum = filter.getPage();

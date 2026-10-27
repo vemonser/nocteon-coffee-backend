@@ -49,6 +49,7 @@ public class TastingNoteService {
                 return PageResponse.of(page.map(t -> buildResponse(t, language)));
         }
 
+        @Transactional(readOnly = true)
         public PageResponse<TastingNoteResponseDashboard> getAllDashboard(LookupFilterRequest filter) {
                 String search = SearchPatterns.like(filter.getSearch());
 
@@ -65,6 +66,7 @@ public class TastingNoteService {
                 return buildResponse(tastingNote, language);
         }
 
+        @Transactional(readOnly = true)
         public TastingNoteResponseDashboard getDashboardBySlug(String slug) {
                 TastingNote tastingNote = tastingNoteRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(TastingNoteNotFoundException::new);
@@ -210,6 +212,7 @@ public class TastingNoteService {
          * translation and report a row count as its total — which also splits one item's
          * translations across two pages. See {@link SoftDeleteRowFolder}.
          */
+        @Transactional(readOnly = true)
         public PageResponse<TastingNoteResponseDashboard> getAllDeleted(LookupFilterRequest filter) {
                 String search = SearchPatterns.like(filter.getSearch());
                 int pageNum = filter.getPage();

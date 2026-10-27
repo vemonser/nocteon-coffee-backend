@@ -177,12 +177,14 @@ public class PairingService {
                 return PageResponse.of(page.map(p -> buildResponse(p, language)));
         }
 
+        @Transactional(readOnly = true)
         public PairingResponseDashboard getDashboardBySlug(String slug) {
                 Pairing pairing = pairingRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(PairingNotFoundException::new);
                 return buildResponse(pairing);
         }
 
+        @Transactional(readOnly = true)
         public PageResponse<PairingResponseDashboard> getAllDashboard(LookupFilterRequest filter) {
                 String search = SearchPatterns.like(filter.getSearch());
 
@@ -244,6 +246,7 @@ public class PairingService {
          * translation and report a row count as its total — which also splits one item's
          * translations across two pages. See {@link SoftDeleteRowFolder}.
          */
+        @Transactional(readOnly = true)
         public PageResponse<PairingResponseDashboard> getAllDeleted(LookupFilterRequest filter) {
                 String search = SearchPatterns.like(filter.getSearch());
                 int pageNum = filter.getPage();
