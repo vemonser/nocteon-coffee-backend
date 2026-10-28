@@ -89,6 +89,13 @@ class ProductTagFilterIntegrationTest {
         assertThat(findAll(tagFilter(gifts.getSlug())).getContent())
                 .extracting(Product::getSlug)
                 .containsExactly(tagged.getSlug());
+
+        // A trashed tag is invisible to the filter (its row and translations survive a soft
+        // delete, so this is the @SQLRestriction doing the work, not a missing row).
+        gifts.softDelete();
+        tagRepository.save(gifts);
+        entityManager.flush();
+        assertThat(findAll(tagFilter(gifts.getSlug())).getContent()).isEmpty();
     }
 
     /**

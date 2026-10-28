@@ -152,10 +152,10 @@ public class ProductTagService {
         if (found.size() != wanted.size()) {
             Set<String> foundSlugs = new HashSet<>();
             found.forEach(tag -> foundSlugs.add(tag.getSlug()));
-            wanted.stream()
+            List<String> missing = wanted.stream()
                     .filter(slug -> !foundSlugs.contains(slug))
-                    .findFirst()
-                    .ifPresent(missing -> log.warn("Unknown product tag requested: {}", missing));
+                    .toList();
+            log.warn("Unknown product tags requested: {}", missing);
             throw new ProductTagNotFoundException();
         }
         return new HashSet<>(found);
