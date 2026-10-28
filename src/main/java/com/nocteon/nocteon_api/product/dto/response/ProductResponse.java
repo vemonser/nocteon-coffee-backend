@@ -53,4 +53,7 @@ public class ProductResponse {
 
     /** Merchandising tags by slug and localized name (FE-10). */
     private List<ProductTagSummary> tags;
+
+    /** "You may also like" (FE-11): ready-to-render cards, empty when nothing is curated. */
+    private List<ProductCardResponse> relatedProducts;
 }

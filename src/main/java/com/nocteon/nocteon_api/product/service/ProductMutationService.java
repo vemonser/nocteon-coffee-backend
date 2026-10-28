@@ -110,6 +110,7 @@ public class ProductMutationService {
         productRelationService.attachTastingNotes(product, request.getTastingNoteSlugs());
         productRelationService.attachPairings(product, request.getPairingSlugs());
         productTagService.replaceTags(product, request.getTagSlugs());
+        productRelationService.replaceRelatedProducts(product, request.getRelatedProductSlugs());
         productRelationService.saveBrewingMethods(product, request.getBrewingMethods());
         productMediaService.saveMedia(product, request.getMedia(), files);
 
@@ -147,6 +148,7 @@ public class ProductMutationService {
         productRelationService.replaceTastingNotes(product, request.getTastingNoteSlugs());
         productRelationService.replacePairings(product, request.getPairingSlugs());
         productTagService.replaceTags(product, request.getTagSlugs());
+        productRelationService.replaceRelatedProducts(product, request.getRelatedProductSlugs());
         productRelationService.replaceBrewingMethods(product, request.getBrewingMethods());
         productMediaService.replaceMedia(product, request.getMedia(), files);
 

@@ -285,6 +285,9 @@ public class ProductResponseMapper {
                                 .reviewCount(reviewCount)
                                 .recentReviews(recentReviews)
                                 .tags(productTagMapper.toSummaries(product.getTags(), language))
+                                .relatedProducts(product.getRelatedProducts().stream()
+                                                .map(related -> buildListResponse(related, language))
+                                                .toList())
                                 .build();
         }
 
