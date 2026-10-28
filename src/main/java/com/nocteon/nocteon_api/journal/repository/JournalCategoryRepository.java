@@ -19,11 +19,26 @@ public interface JournalCategoryRepository extends JpaRepository<JournalCategory
             """)
     List<JournalCategory> findAllWithLanguage(@Param("language") String language);
 
+    /** Every live category with all of its translations, for the post form's category picker. */
+    @Query("SELECT DISTINCT c FROM JournalCategory c LEFT JOIN FETCH c.translations ORDER BY c.id")
+    List<JournalCategory> findAllWithTranslations();
+
     @Query("SELECT c FROM JournalCategory c LEFT JOIN FETCH c.translations WHERE c.slug = :slug")
     Optional<JournalCategory> findBySlugWithTranslations(@Param("slug") String slug);
 
+    @Query("SELECT c FROM JournalCategory c LEFT JOIN FETCH c.translations WHERE c.id = :id")
+    Optional<JournalCategory> findByIdWithTranslations(@Param("id") Long id);
+
     Optional<JournalCategory> findBySlug(String slug);
     boolean existsBySlug(String slug);
+
+    /**
+     * Slug existence including trashed rows: a soft-deleted category still owns its unique
+     * slug, so reusing it would fail on insert. Native because {@code @SQLRestriction} hides
+     * deleted rows from derived queries.
+     */
+    @Query(value = "SELECT COUNT(*) > 0 FROM journal_categories WHERE slug = :slug", nativeQuery = true)
+    boolean existsBySlugIncludingDeleted(@Param("slug") String slug);
 
     /**
      * Trashed categories for the dashboard's deleted-items table.

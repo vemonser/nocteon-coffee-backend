@@ -19,6 +19,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -324,6 +325,7 @@ public class ProductService {
                 filter.getProductType(),
                 filter.getIsActive(),
                 filter.getFeatured(),
+                StringUtils.hasText(filter.getTagSlug()) ? filter.getTagSlug() : null,
                 filter.toPageable());
     }
 

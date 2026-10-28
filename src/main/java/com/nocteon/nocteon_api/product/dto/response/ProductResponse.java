@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import com.nocteon.nocteon_api.product.dto.response.summary.LockupResponseImage;
+import com.nocteon.nocteon_api.product.dto.response.summary.ProductTagSummary;
 import com.nocteon.nocteon_api.product.enums.ProductType;
 import com.nocteon.nocteon_api.review.dto.response.ReviewResponse;
 
@@ -28,6 +29,11 @@ public class ProductResponse {
     private String name;
     private String shortDescription;
     private String description;
+    private String metaTitle;
+    private String metaDescription;
+
+    /** The social card image: either the product's own choice or its primary image. */
+    private String ogImageUrl;
 
     // للـ List Response بس
     private String primaryImageUrl;
@@ -44,4 +50,7 @@ public class ProductResponse {
     private List<ProductPairingResponse> pairings;
     private List<ProductBrewingMethodResponse> brewingMethods;
     private List<ProductMediaResponse> media;
+
+    /** Merchandising tags by slug and localized name (FE-10). */
+    private List<ProductTagSummary> tags;
 }

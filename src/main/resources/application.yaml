@@ -53,6 +53,12 @@ spring:
     # SPRING_FLYWAY_LOCATIONS=classpath:db/migration so no demo data is loaded.
     locations: classpath:db/migration,classpath:db/seed
     baseline-on-migrate: true
+    # Schema lives below V100 and demo seeds at V100+, so a schema migration written
+    # after a database was seeded is versioned "behind" it. Without this, validate
+    # fails at startup on every developer/CI database (and on render, where the seed
+    # range is absent but an older seeded database may exist) instead of applying the
+    # additive change. Production's location is db/migration only and stays in order.
+    out-of-order: true
 
   data:
     redis:

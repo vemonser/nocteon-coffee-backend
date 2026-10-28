@@ -1,5 +1,8 @@
 package com.nocteon.nocteon_api.journal.controller;
 
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.validation.annotation.Validated;
@@ -23,6 +27,7 @@ import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.journal.dto.request.JournalCategoryRequest;
 import com.nocteon.nocteon_api.journal.dto.request.JournalFilterRequest;
 import com.nocteon.nocteon_api.journal.dto.request.JournalPostRequest;
 import com.nocteon.nocteon_api.journal.dto.response.JournalCategoryResponseDashboard;
@@ -63,6 +68,46 @@ public class JournalController {
                         @ModelAttribute JournalFilterRequest filter) {
                 return ResponseEntity.ok(
                                 ApiResponse.success(journalService.getAllDashboard(filter), "Posts retrieved"));
+        }
+
+        @PostMapping("/dashboard/journal-categories")
+        @PreAuthorize("hasAuthority('journal:create')")
+        public ResponseEntity<ApiResponse<JournalCategoryResponseDashboard>> createCategory(
+                        @Valid @RequestBody JournalCategoryRequest request) {
+                return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(
+                                journalService.createCategory(request), "Category created"));
+        }
+
+        @PutMapping("/dashboard/journal-categories/{id}")
+        @PreAuthorize("hasAuthority('journal:update')")
+        public ResponseEntity<ApiResponse<JournalCategoryResponseDashboard>> renameCategory(
+                        @PathVariable Long id,
+                        @Valid @RequestBody JournalCategoryRequest request) {
+                return ResponseEntity.ok(ApiResponse.success(
+                                journalService.renameCategory(id, request), "Category updated"));
+        }
+
+        @DeleteMapping("/dashboard/journal-categories/{id}")
+        @PreAuthorize("hasAuthority('journal:delete')")
+        public ResponseEntity<ApiResponse<Void>> deleteCategory(@PathVariable Long id) {
+                journalService.deleteCategory(id);
+                return ResponseEntity.ok(ApiResponse.success(null, "Category deleted"));
+        }
+
+        @PostMapping(value = "/dashboard/journal/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+        @PreAuthorize("hasAnyAuthority('journal:create', 'journal:update')")
+        public ResponseEntity<ApiResponse<Map<String, String>>> uploadInlineImage(
+                        @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
+                return ResponseEntity.ok(ApiResponse.success(
+                                Map.of("url", journalService.uploadInlineImage(file)),
+                                "Image uploaded"));
+        }
+
+        @GetMapping("/dashboard/journal-categories")
+        @PreAuthorize("hasAuthority('journal:read')")
+        public ResponseEntity<ApiResponse<List<JournalCategoryResponseDashboard>>> getCategories() {
+                return ResponseEntity.ok(
+                                ApiResponse.success(journalService.getCategories(), "Categories retrieved"));
         }
 
         @GetMapping("/dashboard/journal/{slug}")

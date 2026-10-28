@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.product.mapper;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Component;
@@ -9,10 +10,12 @@ import org.springframework.stereotype.Component;
 import com.nocteon.nocteon_api.brewingMethod.entity.BrewingMethodTranslation;
 import com.nocteon.nocteon_api.product.dto.response.DashboardCoffeeDetailsResponse;
 import com.nocteon.nocteon_api.product.dto.response.DashboardProductResponse;
+import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
 import com.nocteon.nocteon_api.product.dto.response.ProductBrewingMethodResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductMediaResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductTranslationResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductVariantResponse;
+import com.nocteon.nocteon_api.product.entity.CoffeeDetails;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.repository.CoffeeDetailsRepository;
 import com.nocteon.nocteon_api.product.repository.ProductBrewingMethodRepository;
@@ -27,9 +30,19 @@ public class DashboardProductMapper {
         private final ProductBrewingMethodRepository productBrewingMethodRepository;
         private final CoffeeDetailsRepository coffeeDetailsRepository;
         private final ProductResponseMapper productResponseMapper;
+        private final HtmlSanitizer htmlSanitizer;
+        private final ProductTagMapper productTagMapper;
 
         public DashboardProductResponse buildDashboardResponse(Product product) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
+
+                // The legacy single story lives on coffee_details; a translation without its own
+                // story falls back to it so the wizard opens with the text that is published.
+                Optional<CoffeeDetails> coffeeDetails = coffeeDetailsRepository.findByProductId(product.getId());
+                String legacyStory = coffeeDetails
+                                .map(CoffeeDetails::getStory)
+                                .filter(story -> story != null && !story.isBlank())
+                                .orElse(null);
 
                 List<ProductTranslationResponse> translations = productTranslationRepository
                                 .findByProductId(product.getId()).stream()
@@ -38,7 +51,12 @@ public class DashboardProductMapper {
                                                 .name(t.getName())
                                                 .shortDescription(t.getShortDescription())
                                                 .description(t.getDescription())
-                                                .story(t.getStory())
+                                                .story(htmlSanitizer.sanitize(
+                                                                t.getStory() != null && !t.getStory().isBlank()
+                                                                                ? t.getStory()
+                                                                                : legacyStory))
+                                                .metaTitle(t.getMetaTitle())
+                                                .metaDescription(t.getMetaDescription())
                                                 .build())
                                 .toList();
 
@@ -92,8 +110,7 @@ public class DashboardProductMapper {
                                 })
                                 .toList();
 
-                DashboardCoffeeDetailsResponse coffeeDetailsResponse = coffeeDetailsRepository
-                                .findByProductId(product.getId())
+                DashboardCoffeeDetailsResponse coffeeDetailsResponse = coffeeDetails
                                 .map(cd -> DashboardCoffeeDetailsResponse.builder()
                                                 .processingMethodSlug(cd.getProcessingMethod() != null
                                                                 ? cd.getProcessingMethod().getSlug()
@@ -103,7 +120,7 @@ public class DashboardProductMapper {
                                                                 : null)
                                                 .altitude(cd.getAltitude())
                                                 .harvestYear(cd.getHarvestYear())
-                                                .story(cd.getStory())
+                                                .story(htmlSanitizer.sanitize(cd.getStory()))
                                                 .roastLevelSlug(cd.getRoastLevel() != null
                                                                 ? cd.getRoastLevel().getSlug()
                                                                 : null)
@@ -136,6 +153,8 @@ public class DashboardProductMapper {
                                 .tastingNotes(tastingNotes)
                                 .pairings(pairings)
                                 .brewingMethods(brewingMethods)
+                                .tags(productTagMapper.toSummaries(product.getTags(), language))
+                                .ogImageUrl(product.getOgImageUrl())
                                 .build();
         }
 }

@@ -25,6 +25,9 @@ public class ProductVariantRequest {
 
     private BigDecimal compareAtPrice;
 
+    /** Optional per-variant photo. Blank means "use the product gallery". */
+    private String imageUrl;
+
     @NotNull
     @Min(value = 0, message = "{validation.stock.min}")
     private Integer stockQuantity;

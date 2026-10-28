@@ -3,6 +3,7 @@ package com.nocteon.nocteon_api.journal.service;
 import java.time.Instant;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -18,11 +19,17 @@ import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.common.exception.invalid.JournalCategoryInUseException;
+import com.nocteon.nocteon_api.common.exception.invalid.JournalCategorySlugTakenException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.JournalCategoryNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.JournalPostNotFoundException;
+import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
+import com.nocteon.nocteon_api.common.service.RichTextImageService;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.common.transaction.AfterCommit;
+import com.nocteon.nocteon_api.journal.dto.request.JournalCategoryRequest;
+import com.nocteon.nocteon_api.journal.dto.request.JournalCategoryTranslationRequest;
 import com.nocteon.nocteon_api.journal.dto.request.JournalFilterRequest;
 import com.nocteon.nocteon_api.journal.dto.request.JournalPostRequest;
 import com.nocteon.nocteon_api.journal.dto.request.JournalPostTranslationRequest;
@@ -31,6 +38,7 @@ import com.nocteon.nocteon_api.journal.dto.response.JournalPostResponse;
 import com.nocteon.nocteon_api.journal.dto.response.JournalPostResponseDashboard;
 import com.nocteon.nocteon_api.journal.dto.response.TranslationResponseDashboard;
 import com.nocteon.nocteon_api.journal.entity.JournalCategory;
+import com.nocteon.nocteon_api.journal.entity.JournalCategoryTranslation;
 import com.nocteon.nocteon_api.journal.entity.JournalPost;
 import com.nocteon.nocteon_api.journal.entity.JournalPostTranslation;
 import com.nocteon.nocteon_api.journal.enums.JournalPostStatus;
@@ -41,6 +49,7 @@ import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.enums.MediaType;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import com.nocteon.nocteon_api.common.repository.SearchPatterns;
+import com.nocteon.nocteon_api.common.util.SlugUtils;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -57,9 +66,12 @@ public class JournalService {
         private final JournalCategoryRepository categoryRepository;
         private final UserRepository userRepository;
         private final LookupServiceHelper helper;
+        private final HtmlSanitizer htmlSanitizer;
+        private final RichTextImageService richTextImageService;
 
         private static final int WORDS_PER_MINUTE = 200;
 
+        @Transactional(readOnly = true)
         public PageResponse<JournalPostResponse> getAll(JournalFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 Page<JournalPost> page = postRepository.findAllPublic(
@@ -67,6 +79,7 @@ public class JournalService {
                                 SearchPatterns.like(filter.getSearch()),
                                 filter.getCategorySlug(),
                                 filter.getFeatured(),
+                                Instant.now(),
                                 filter.toPageable());
                 return PageResponse.of(page.map(p -> buildListResponse(p, language)));
         }
@@ -81,14 +94,126 @@ public class JournalService {
                 return PageResponse.of(page.map(p -> buildListResponse(p, language)));
         }
 
+        @Transactional(readOnly = true)
         public JournalPostResponse getBySlug(String slug) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 // findPublishedBySlugAndLanguage, not findBySlugForDashboard: this backs the
                 // anonymous /api/journal/{slug} route, so an unpublished post must resolve to
                 // 404 rather than returning its body.
-                JournalPost post = postRepository.findPublishedBySlugAndLanguage(slug, language)
+                JournalPost post = postRepository.findPublishedBySlugAndLanguage(slug, language, Instant.now())
                                 .orElseThrow(JournalPostNotFoundException::new);
                 return buildDetailResponse(post, language);
+        }
+
+        /**
+         * The categories a post can be filed under.
+         *
+         * <p>The post form needs these by slug; loading the product catalogue's categories
+         * instead made every create/update fail with "Journal category not found" as soon as
+         * the two vocabularies differed.
+         */
+        @Transactional(readOnly = true)
+        public List<JournalCategoryResponseDashboard> getCategories() {
+                return categoryRepository.findAllWithTranslations().stream()
+                                .map(c -> JournalCategoryResponseDashboard.builder()
+                                                .id(c.getId())
+                                                .slug(c.getSlug())
+                                                .createdAt(c.getCreatedAt())
+                                                .translations(c.getTranslations().stream()
+                                                                .map(t -> TranslationResponseDashboard.builder()
+                                                                                .language(t.getLanguage())
+                                                                                .title(t.getName())
+                                                                                .build())
+                                                                .toList())
+                                                .build())
+                                .toList();
+        }
+
+        @Transactional
+        public JournalCategoryResponseDashboard createCategory(JournalCategoryRequest request) {
+                helper.validateTranslations(request.getTranslations());
+                String englishName = request.getTranslations().stream()
+                                .filter(t -> t.getLanguage().equals("en"))
+                                .findFirst()
+                                .map(JournalCategoryTranslationRequest::getName)
+                                .orElseThrow(InvalidTranslationException::new);
+                // The slug column is unique across trashed rows too: include them, and lock the
+                // base slug so two admins creating the same name cannot both pass the check.
+                String baseSlug = SlugUtils.toSlug(englishName);
+                helper.acquireNameLock("journal-category", "slug", baseSlug);
+                String slug = helper.generateUniqueSlug(
+                                englishName, categoryRepository::existsBySlugIncludingDeleted);
+
+                JournalCategory category = JournalCategory.builder().slug(slug).build();
+                for (JournalCategoryTranslationRequest t : request.getTranslations()) {
+                        category.getTranslations().add(JournalCategoryTranslation.builder()
+                                        .journalCategory(category)
+                                        .language(t.getLanguage())
+                                        .name(t.getName())
+                                        .build());
+                }
+                categoryRepository.save(category);
+                log.info("Journal category created: {}", slug);
+                return toCategoryResponse(category);
+        }
+
+        @Transactional
+        public JournalCategoryResponseDashboard renameCategory(Long id, JournalCategoryRequest request) {
+                helper.validateTranslations(request.getTranslations());
+                JournalCategory category = categoryRepository.findByIdWithTranslations(id)
+                                .orElseThrow(JournalCategoryNotFoundException::new);
+
+                for (JournalCategoryTranslationRequest t : request.getTranslations()) {
+                        JournalCategoryTranslation translation = category.getTranslations().stream()
+                                        .filter(existing -> existing.getLanguage().equals(t.getLanguage()))
+                                        .findFirst()
+                                        .orElseGet(() -> {
+                                                JournalCategoryTranslation created = JournalCategoryTranslation.builder()
+                                                                .journalCategory(category)
+                                                                .language(t.getLanguage())
+                                                                .name(t.getName())
+                                                                .build();
+                                                category.getTranslations().add(created);
+                                                return created;
+                                        });
+                        translation.setName(t.getName());
+                }
+                categoryRepository.save(category);
+                log.info("Journal category renamed: {}", category.getSlug());
+                return toCategoryResponse(category);
+        }
+
+        /**
+         * Remove a category, refusing while it is still used.
+         *
+         * <p>The count includes trashed posts: a category whose only posts are in the trash must
+         * not vanish, or restoring one would leave it pointing at a deleted row.
+         */
+        @Transactional
+        public void deleteCategory(Long id) {
+                JournalCategory category = categoryRepository.findById(id)
+                                .orElseThrow(JournalCategoryNotFoundException::new);
+                long posts = postRepository.countAllByCategoryIdIncludingDeleted(id);
+                if (posts > 0) {
+                        throw new JournalCategoryInUseException(posts);
+                }
+                category.softDelete();
+                categoryRepository.save(category);
+                log.info("Journal category deleted: {}", category.getSlug());
+        }
+
+        private JournalCategoryResponseDashboard toCategoryResponse(JournalCategory category) {
+                return JournalCategoryResponseDashboard.builder()
+                                .id(category.getId())
+                                .slug(category.getSlug())
+                                .createdAt(category.getCreatedAt())
+                                .translations(category.getTranslations().stream()
+                                                .map(t -> TranslationResponseDashboard.builder()
+                                                                .language(t.getLanguage())
+                                                                .title(t.getName())
+                                                                .build())
+                                                .toList())
+                                .build();
         }
 
         @Transactional(readOnly = true)
@@ -104,7 +229,10 @@ public class JournalService {
                                                 .language(t.getLanguage())
                                                 .title(t.getTitle())
                                                 .excerpt(t.getExcerpt())
-                                                .content(t.getContent())
+                                                // Rows stored before the sanitizer existed are still in
+                                                // the table; clean them on the way out too, so the dashboard
+                                                // never re-opens a post into an editor holding a payload.
+                                                .content(htmlSanitizer.sanitize(t.getContent()))
                                                 .metaTitle(t.getMetaTitle())
                                                 .metaDescription(t.getMetaDescription())
                                                 .build())
@@ -124,15 +252,21 @@ public class JournalService {
                                 .status(post.getStatus())
                                 .readingTimeMinutes(post.getReadingTimeMinutes())
                                 .publishedAt(post.getPublishedAt())
-                                .tags(post.getTags())
+                                .tags(copyTags(post))
                                 .relatedProductSlugs(relatedProductSlugs)
                                 .createdAt(post.getCreatedAt())
                                 .translations(translations)
                                 .build();
         }
 
+        /** One image for the editor body; shared validation lives in RichTextImageService. */
+        public String uploadInlineImage(MultipartFile file) {
+                return richTextImageService.upload(file, "journal/inline");
+        }
+
         @Transactional
         public JournalPostResponseDashboard create(JournalPostRequest request, MultipartFile image, Long authorId) {
+                sanitizeTranslations(request.getTranslations());
                 helper.validateTranslations(request.getTranslations());
 
                 JournalCategory category = categoryRepository.findBySlug(request.getCategorySlug())
@@ -159,12 +293,10 @@ public class JournalService {
                                 .featured(request.isFeatured())
                                 .status(request.getStatus())
                                 .readingTimeMinutes(readingTime)
-                                .tags(request.getTags() != null ? Set.copyOf(request.getTags()) : Set.of())
+                                .tags(request.getTags() != null ? new HashSet<>(request.getTags()) : new HashSet<>())
                                 .build();
 
-                if (request.getStatus() == JournalPostStatus.PUBLISHED && post.getPublishedAt() == null) {
-                        post.setPublishedAt(java.time.Instant.now());
-                }
+                applyPublishedAt(post, request);
 
                 post = postRepository.save(post);
 
@@ -174,7 +306,7 @@ public class JournalService {
                         translations.add(JournalPostTranslation.builder()
                                         .journalPost(savedPost)
                                         .language(t.getLanguage())
-                                        .title(t.getTitle())
+                                        .title(t.getName())
                                         .excerpt(t.getExcerpt())
                                         .content(t.getContent())
                                         .metaTitle(t.getMetaTitle())
@@ -207,6 +339,7 @@ public class JournalService {
 
         @Transactional
         public JournalPostResponseDashboard update(String slug, JournalPostRequest request, MultipartFile image) {
+                sanitizeTranslations(request.getTranslations());
                 helper.validateTranslations(request.getTranslations());
 
                 JournalPost post = postRepository.findBySlugForDashboard(slug)
@@ -219,11 +352,9 @@ public class JournalService {
                 post.setFeatured(request.isFeatured());
                 post.setStatus(request.getStatus());
                 post.setReadingTimeMinutes(calculateReadingTime(request.getTranslations()));
-                post.setTags(request.getTags() != null ? Set.copyOf(request.getTags()) : Set.of());
+                post.setTags(request.getTags() != null ? new HashSet<>(request.getTags()) : new HashSet<>());
 
-                if (request.getStatus() == JournalPostStatus.PUBLISHED && post.getPublishedAt() == null) {
-                        post.setPublishedAt(java.time.Instant.now());
-                }
+                applyPublishedAt(post, request);
 
                 if (image != null && !image.isEmpty()) {
                         helper.deleteMediaIfExists(post.getCoverImageUrl());
@@ -237,6 +368,24 @@ public class JournalService {
 
                 log.info("Journal post updated with slug: {}", slug);
                 return getDashboardBySlug(slug);
+        }
+
+        /**
+         * Store the date the editor chose.
+         *
+         * <p>The form's "published at" was previously ignored: publishing always stamped "now",
+         * so a future date could never survive the save and FE-03's scheduled posts were
+         * impossible. A null date means "publish now" the first time a post goes live, and
+         * "keep the original date" once it already has one.
+         */
+        private static void applyPublishedAt(JournalPost post, JournalPostRequest request) {
+                if (request.getPublishedAt() != null) {
+                        post.setPublishedAt(request.getPublishedAt());
+                        return;
+                }
+                if (request.getStatus() == JournalPostStatus.PUBLISHED && post.getPublishedAt() == null) {
+                        post.setPublishedAt(java.time.Instant.now());
+                }
         }
 
         private void updateTranslations(JournalPost post, List<JournalPostTranslationRequest> requests) {
@@ -263,7 +412,9 @@ public class JournalService {
                                 ? List.of()
                                 : productRepository.findBySlugIn(productSlugs);
 
-                post.setProducts(products);
+                // A mutable list: the entity is managed on update, and Hibernate's merge calls
+                // clear() on the collection it is given.
+                post.setProducts(new ArrayList<>(products));
         }
 
         @Transactional
@@ -273,6 +424,22 @@ public class JournalService {
 
                 post.softDelete();
                 postRepository.save(post);
+        }
+
+        /**
+         * Sanitize the body of every translation before it is persisted.
+         *
+         * <p>The journal body is HTML and the public site renders it as such. Persisting the
+         * editor's output verbatim would store whatever a compromised admin session sent, so the
+         * allowlist is applied here — the single place both create and update pass through —
+         * rather than trusting the client. Reading time is computed afterwards, on the sanitized
+         * value, so removed markup does not inflate it.
+         */
+        private void sanitizeTranslations(List<JournalPostTranslationRequest> translations) {
+                if (translations == null) {
+                        return;
+                }
+                translations.forEach(t -> t.setContent(htmlSanitizer.sanitize(t.getContent())));
         }
 
         private int calculateReadingTime(List<JournalPostTranslationRequest> translations) {
@@ -286,6 +453,15 @@ public class JournalService {
                         }
                 }
                 return Math.max(1, (int) Math.ceil((double) totalWords / WORDS_PER_MINUTE));
+        }
+
+        /**
+         * Materialize the lazy tag collection while the session is still open. Passing the
+         * Hibernate collection straight into a DTO made Jackson read it after the transaction
+         * closed, which turned every journal list and detail request into a 500.
+         */
+        private static Set<String> copyTags(JournalPost post) {
+                return post.getTags() == null ? Set.of() : Set.copyOf(post.getTags());
         }
 
         private JournalPostResponse buildListResponse(JournalPost post, String language) {
@@ -304,7 +480,7 @@ public class JournalService {
                                 .status(post.getStatus())
                                 .readingTimeMinutes(post.getReadingTimeMinutes())
                                 .publishedAt(post.getPublishedAt())
-                                .tags(post.getTags())
+                                .tags(copyTags(post))
                                 .title(translation != null ? translation.getTitle() : null)
                                 .excerpt(translation != null ? translation.getExcerpt() : null)
                                 .build();
@@ -330,10 +506,10 @@ public class JournalService {
                                 .status(post.getStatus())
                                 .readingTimeMinutes(post.getReadingTimeMinutes())
                                 .publishedAt(post.getPublishedAt())
-                                .tags(post.getTags())
+                                .tags(copyTags(post))
                                 .title(translation != null ? translation.getTitle() : null)
                                 .excerpt(translation != null ? translation.getExcerpt() : null)
-                                .content(translation != null ? translation.getContent() : null)
+                                .content(translation != null ? htmlSanitizer.sanitize(translation.getContent()) : null)
                                 .metaTitle(translation != null ? translation.getMetaTitle() : null)
                                 .metaDescription(translation != null ? translation.getMetaDescription() : null)
                                 .relatedProductSlugs(relatedProductSlugs)
@@ -514,6 +690,14 @@ public class JournalService {
         public void restoreCategory(Long id) {
                 JournalCategory category = categoryRepository.findDeletedById(id)
                                 .orElseThrow(JournalCategoryNotFoundException::new);
+
+                // A category created under the same name while this one sat in the trash owns the
+                // slug now; restoring would hit the unique constraint.
+                helper.acquireNameLock("journal-category", "slug", category.getSlug());
+                if (categoryRepository.existsBySlug(category.getSlug())) {
+                        throw new JournalCategorySlugTakenException();
+                }
+
                 category.setDeletedAt(null);
                 categoryRepository.save(category);
                 log.info("Journal category restored: {}", category.getSlug());

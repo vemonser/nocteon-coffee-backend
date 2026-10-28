@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
+import com.nocteon.nocteon_api.product.dto.response.summary.ProductTagSummary;
 import com.nocteon.nocteon_api.product.enums.ProductType;
 
 import lombok.Builder;
@@ -39,4 +40,10 @@ public class DashboardProductResponse {
     private List<String> tastingNotes;
     private List<String> pairings;
     private List<ProductBrewingMethodResponse> brewingMethods;
+
+    /** Merchandising tags by slug and localized name (FE-10). */
+    private List<ProductTagSummary> tags;
+
+    /** The admin's own choice, nullable: empty means "use the primary image". */
+    private String ogImageUrl;
 }

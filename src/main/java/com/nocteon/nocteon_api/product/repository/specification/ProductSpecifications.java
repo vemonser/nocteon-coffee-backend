@@ -16,6 +16,7 @@ import com.nocteon.nocteon_api.product.dto.request.ProductFilterRequest;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.entity.ProductBrewingMethod;
 import com.nocteon.nocteon_api.product.entity.ProductOptionValue;
+import com.nocteon.nocteon_api.product.entity.ProductTag;
 import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
 import com.nocteon.nocteon_api.review.entity.Review;
@@ -125,6 +126,23 @@ public class ProductSpecifications {
                         cb.equal(cb.countDistinct(ovSub.get("option").get("id")), distinctOptionCount));
 
                 predicates.add(cb.exists(matchingVariant));
+            }
+            // FE-10: a tag is many-to-many, so a plain join would multiply the row count and the
+            // page with it. EXISTS keeps one row per product, the same shape the option filter uses.
+            // The `deleted_at` test is explicit: a JPQL join does not carry a joined entity's
+            // @SQLRestriction, so without it a trashed tag would keep matching.
+            if (StringUtils.hasText(filter.getTagSlug())) {
+                Subquery<Long> tagged = query.subquery(Long.class);
+                Root<Product> taggedProduct = tagged.from(Product.class);
+                Join<Product, ProductTag> tagJoin = taggedProduct.join("tags");
+
+                tagged.select(taggedProduct.get("id"));
+                tagged.where(
+                        cb.equal(taggedProduct.get("id"), root.get("id")),
+                        cb.equal(tagJoin.get("slug"), filter.getTagSlug()),
+                        cb.isNull(tagJoin.get("deletedAt")));
+
+                predicates.add(cb.exists(tagged));
             }
 
             Join<Product, ProductBrewingMethod> brewingMethods = null;

@@ -48,7 +48,7 @@ class ProductPaginationGuardTest {
     void findAllDashboardPaginatesInSqlNotInMemory() {
         SqlCapture.start();
         try {
-            productRepository.findAllDashboard("", null, null, null, null, PageRequest.of(0, 5));
+            productRepository.findAllDashboard("", null, null, null, null, null, PageRequest.of(0, 5));
         } finally {
             // keep capture running until we have read it
         }
@@ -79,7 +79,7 @@ class ProductPaginationGuardTest {
     @Test
     void findAllDashboardSecondPageStillPaginatesInSql() {
         SqlCapture.start();
-        productRepository.findAllDashboard("", null, null, null, null, PageRequest.of(1, 5));
+        productRepository.findAllDashboard("", null, null, null, null, null, PageRequest.of(1, 5));
         List<String> sqls = SqlCapture.stop();
 
         String rowSql = sqls.stream()

@@ -31,6 +31,9 @@ public class ProductFilterRequest extends BaseFilterRequest {
     private Boolean inStockOnly;
     private Boolean onSaleOnly;
 
+    /** Merchandising tag slug (FE-10). Products carrying it, across categories. */
+    private String tagSlug;
+
     /**
      * Opt-in flag for vector-similarity ranking, bound from {@code ?semantic=true}.
      *

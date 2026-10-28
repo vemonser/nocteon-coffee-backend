@@ -16,6 +16,7 @@ import com.nocteon.nocteon_api.common.exception.notFound.CategoryNotFoundExcepti
 import com.nocteon.nocteon_api.common.exception.notFound.FarmNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductNotFoundException;
+import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.common.transaction.AfterCommit;
 import com.nocteon.nocteon_api.farm.entity.Farm;
@@ -65,6 +66,8 @@ public class ProductMutationService {
     private final ProductCoffeeDetailsService productCoffeeDetailsService;
     private final ProductRelationService productRelationService;
     private final ProductIndexingService productIndexingService;
+    private final HtmlSanitizer htmlSanitizer;
+    private final ProductTagService productTagService;
 
     @Transactional
     public DashboardProductResponse create(ProductRequest request, List<MultipartFile> files) {
@@ -92,6 +95,7 @@ public class ProductMutationService {
                 .productType(request.getProductType())
                 .featured(request.isFeatured())
                 .isActive(request.isActive())
+                .ogImageUrl(normalizeOgImageUrl(request.getOgImageUrl()))
                 .build();
         product = productRepository.save(product);
 
@@ -105,6 +109,7 @@ public class ProductMutationService {
 
         productRelationService.attachTastingNotes(product, request.getTastingNoteSlugs());
         productRelationService.attachPairings(product, request.getPairingSlugs());
+        productTagService.replaceTags(product, request.getTagSlugs());
         productRelationService.saveBrewingMethods(product, request.getBrewingMethods());
         productMediaService.saveMedia(product, request.getMedia(), files);
 
@@ -133,6 +138,7 @@ public class ProductMutationService {
         product.setProductType(request.getProductType());
         product.setFeatured(request.isFeatured());
         product.setActive(request.isActive());
+        product.setOgImageUrl(normalizeOgImageUrl(request.getOgImageUrl()));
         productRepository.save(product);
 
         upsertTranslations(product, request.getTranslations());
@@ -140,6 +146,7 @@ public class ProductMutationService {
         productCoffeeDetailsService.replaceCoffeeDetails(product, request.getProductType(), request.getCoffeeDetails());
         productRelationService.replaceTastingNotes(product, request.getTastingNoteSlugs());
         productRelationService.replacePairings(product, request.getPairingSlugs());
+        productTagService.replaceTags(product, request.getTagSlugs());
         productRelationService.replaceBrewingMethods(product, request.getBrewingMethods());
         productMediaService.replaceMedia(product, request.getMedia(), files);
 
@@ -330,6 +337,27 @@ public class ProductMutationService {
         }
     }
 
+    /**
+     * A blank {@code og_image_url} from the form means "no custom card", not an empty string:
+     * stored as null so the response falls back to the primary image instead of a broken URL.
+     */
+    private static String normalizeOgImageUrl(String url) {
+        return url == null || url.isBlank() ? null : url.trim();
+    }
+
+    /**
+     * A blank meta field is "not set", not a string of spaces: stored as null so the public
+     * response can fall back to the product name / short description.
+     */
+    /** The story is rich text (the journal editor); legacy plain text passes through as text. */
+    private String sanitizeStory(String story) {
+        return htmlSanitizer.sanitize(story);
+    }
+
+    private static String normalizeText(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
     private Origin findOrigin(String slug) {
         if (slug == null) {
             return null;
@@ -355,7 +383,9 @@ public class ProductMutationService {
                     .name(t.getName())
                     .shortDescription(t.getShortDescription())
                     .description(t.getDescription())
-                    .story(t.getStory())
+                    .story(sanitizeStory(t.getStory()))
+                    .metaTitle(normalizeText(t.getMetaTitle()))
+                    .metaDescription(normalizeText(t.getMetaDescription()))
                     .build());
         }
         productTranslationRepository.saveAll(translations);
@@ -368,7 +398,9 @@ public class ProductMutationService {
                         existing.setName(t.getName());
                         existing.setShortDescription(t.getShortDescription());
                         existing.setDescription(t.getDescription());
-                        existing.setStory(t.getStory());
+                        existing.setStory(sanitizeStory(t.getStory()));
+                        existing.setMetaTitle(normalizeText(t.getMetaTitle()));
+                        existing.setMetaDescription(normalizeText(t.getMetaDescription()));
                         productTranslationRepository.save(existing);
                     }, () -> productTranslationRepository.save(ProductTranslation.builder()
                             .product(product)
@@ -376,7 +408,9 @@ public class ProductMutationService {
                             .name(t.getName())
                             .shortDescription(t.getShortDescription())
                             .description(t.getDescription())
-                            .story(t.getStory())
+                            .story(sanitizeStory(t.getStory()))
+                            .metaTitle(normalizeText(t.getMetaTitle()))
+                            .metaDescription(normalizeText(t.getMetaDescription()))
                             .build()));
         }
     }

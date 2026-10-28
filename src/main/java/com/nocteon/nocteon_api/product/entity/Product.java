@@ -70,6 +70,13 @@ public class Product extends SoftDeletableEntity {
         @Builder.Default
         private boolean featured = false;
 
+        /**
+         * Social-preview image. {@code null} means "use the primary media", resolved when the
+         * response is built — not copied here, so the card follows a cover change.
+         */
+        @Column(name = "og_image_url", columnDefinition = "TEXT")
+        private String ogImageUrl;
+
         @Column(name = "is_active", nullable = false)
         @Builder.Default
         private boolean isActive = true;
@@ -114,6 +121,17 @@ public class Product extends SoftDeletableEntity {
         @Builder.Default
         @BatchSize(size = 30)
         private List<Pairing> pairings = new ArrayList<>();
+
+        /**
+         * Merchandising labels (FE-10). Batched for the same reason as the other collections: the
+         * detail response reads them, and anything walking many products must not pay one SELECT
+         * per product. Never read by the list projection.
+         */
+        @ManyToMany(fetch = FetchType.LAZY)
+        @JoinTable(name = "product_tag_links", joinColumns = @JoinColumn(name = "product_id"), inverseJoinColumns = @JoinColumn(name = "tag_id"))
+        @Builder.Default
+        @BatchSize(size = 30)
+        private Set<ProductTag> tags = new HashSet<>();
 
         // BrewingMethod
         @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
