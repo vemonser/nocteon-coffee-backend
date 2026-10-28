@@ -101,6 +101,29 @@ class HtmlSanitizerTest {
     }
 
     @Test
+    @DisplayName("a link cannot hide its real host behind userinfo")
+    void rejectsUserInfoInLinks() {
+        String stored = sanitizer.sanitize(
+                "<a href=\"https://nocteon.coffee@evil.example/phish\">trusted</a>"
+                        + "<a href=\"https://nocteon.coffee/path\">ok</a>");
+
+        assertThat(stored).doesNotContain("evil.example");
+        assertThat(stored).contains("href=\"https://nocteon.coffee/path\"");
+    }
+
+    @Test
+    @DisplayName("no cloud name means no image can be proven ours, so none is kept")
+    void rejectsImagesWhenTheAccountIsNotConfigured() {
+        CloudinaryProperties unconfigured = new CloudinaryProperties();
+        HtmlSanitizer strict = new HtmlSanitizer(unconfigured);
+
+        String stored = strict.sanitize("<img src=\"" + OWN_IMAGE + "\" alt=\"bag\">");
+
+        assertThat(stored).doesNotContain("res.cloudinary.com");
+        assertThat(stored).doesNotContain("<img");
+    }
+
+    @Test
     @DisplayName("style, class and id are not kept: the public stylesheet owns presentation")
     void dropsPresentationalAttributes() {
         String stored = sanitizer.sanitize(

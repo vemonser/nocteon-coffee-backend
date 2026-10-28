@@ -101,8 +101,23 @@ public class HtmlSanitizer {
     }
 
     private static boolean isAllowedLink(String href) {
-        String lower = href.toLowerCase(java.util.Locale.ROOT);
-        return lower.startsWith("https://") || lower.startsWith("mailto:");
+        URI uri;
+        try {
+            uri = URI.create(href);
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(java.util.Locale.ROOT);
+        if ("mailto".equals(scheme)) {
+            String address = uri.getRawSchemeSpecificPart();
+            return address != null && !address.isBlank();
+        }
+        // `https://trusted.example@evil.example/` starts with a trusted-looking string but
+        // resolves to evil.example: userinfo is never something an article link needs.
+        return "https".equals(scheme)
+                && uri.getHost() != null
+                && !uri.getHost().isBlank()
+                && uri.getUserInfo() == null;
     }
 
     /**
@@ -132,10 +147,13 @@ public class HtmlSanitizer {
             return false;
         }
         String cloudName = cloudinaryProperties.getCloudName();
-        // A blank cloud name is the local/test configuration. The folder rule still
-        // scopes the URL to uploads this application made.
-        return cloudName == null
-                || cloudName.isBlank()
-                || path.startsWith("/" + cloudName + "/");
+        // No cloud name means no uploads can happen from this application at all. Refusing
+        // images here keeps the rule honest instead of accepting any account's asset in a
+        // configuration where the account cannot be checked.
+        if (cloudName == null || cloudName.isBlank()) {
+            return false;
+        }
+        // `/other-account/...` must not pass: the first segment is the account.
+        return path.startsWith("/" + cloudName + "/") && path.contains(CDN_FOLDER);
     }
 }
