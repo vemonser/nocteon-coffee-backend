@@ -3,6 +3,7 @@ package com.nocteon.nocteon_api.journal.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -19,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.common.exception.invalid.JournalCategoryInUseException;
+import com.nocteon.nocteon_api.common.exception.invalid.JournalCategorySlugTakenException;
 import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.journal.dto.request.JournalCategoryRequest;
@@ -70,6 +72,47 @@ class JournalCategoryServiceTest {
         ArgumentCaptor<JournalCategory> saved = ArgumentCaptor.forClass(JournalCategory.class);
         verify(categoryRepository).save(saved.capture());
         assertThat(saved.getValue().getTranslations()).hasSize(2);
+    }
+
+    @Test
+    void theSlugUniquenessCheckIncludesTrashedCategories() {
+        when(helper.generateUniqueSlug(anyString(), any())).thenReturn("brewing-guides");
+        when(categoryRepository.save(any(JournalCategory.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(categoryRepository.existsBySlugIncludingDeleted("brewing-guides")).thenReturn(true);
+
+        service.createCategory(request("Brewing guides", "أدلة التحضير"));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<java.util.function.Predicate<String>> predicate =
+                ArgumentCaptor.forClass(java.util.function.Predicate.class);
+        verify(helper).generateUniqueSlug(eq("Brewing guides"), predicate.capture());
+        assertThat(predicate.getValue().test("brewing-guides")).isTrue();
+        verify(helper).acquireNameLock("journal-category", "slug", "brewing-guides");
+    }
+
+    @Test
+    void restoringIsRefusedWhenALiveCategoryTookTheSlug() {
+        JournalCategory trashed = JournalCategory.builder().id(9L).slug("guides").build();
+        when(categoryRepository.findDeletedById(9L)).thenReturn(Optional.of(trashed));
+        when(categoryRepository.existsBySlug("guides")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.restoreCategory(9L))
+                .isInstanceOf(JournalCategorySlugTakenException.class);
+        assertThat(trashed.getDeletedAt()).isNull();
+    }
+
+    @Test
+    void restoringSucceedsWhenTheSlugIsFree() {
+        JournalCategory trashed = JournalCategory.builder().id(9L).slug("guides").build();
+        when(categoryRepository.findDeletedById(9L)).thenReturn(Optional.of(trashed));
+        when(categoryRepository.existsBySlug("guides")).thenReturn(false);
+        when(categoryRepository.save(trashed)).thenReturn(trashed);
+
+        service.restoreCategory(9L);
+
+        assertThat(trashed.getDeletedAt()).isNull();
+        verify(categoryRepository).save(trashed);
     }
 
     @Test

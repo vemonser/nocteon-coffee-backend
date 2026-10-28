@@ -33,6 +33,14 @@ public interface JournalCategoryRepository extends JpaRepository<JournalCategory
     boolean existsBySlug(String slug);
 
     /**
+     * Slug existence including trashed rows: a soft-deleted category still owns its unique
+     * slug, so reusing it would fail on insert. Native because {@code @SQLRestriction} hides
+     * deleted rows from derived queries.
+     */
+    @Query(value = "SELECT COUNT(*) > 0 FROM journal_categories WHERE slug = :slug", nativeQuery = true)
+    boolean existsBySlugIncludingDeleted(@Param("slug") String slug);
+
+    /**
      * Trashed categories for the dashboard's deleted-items table.
      *
      * <p>Native because {@code @SQLRestriction} on {@code SoftDeletableEntity} filters

@@ -22,6 +22,7 @@ import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.image.ImageUploadException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidImageException;
 import com.nocteon.nocteon_api.common.exception.invalid.JournalCategoryInUseException;
+import com.nocteon.nocteon_api.common.exception.invalid.JournalCategorySlugTakenException;
 import com.nocteon.nocteon_api.common.exception.upload.ImageSizeExceededException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.JournalCategoryNotFoundException;
@@ -50,6 +51,7 @@ import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.enums.MediaType;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import com.nocteon.nocteon_api.common.repository.SearchPatterns;
+import com.nocteon.nocteon_api.common.util.SlugUtils;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -136,7 +138,12 @@ public class JournalService {
                                 .findFirst()
                                 .map(JournalCategoryTranslationRequest::getName)
                                 .orElseThrow(InvalidTranslationException::new);
-                String slug = helper.generateUniqueSlug(englishName, categoryRepository::existsBySlug);
+                // The slug column is unique across trashed rows too: include them, and lock the
+                // base slug so two admins creating the same name cannot both pass the check.
+                String baseSlug = SlugUtils.toSlug(englishName);
+                helper.acquireNameLock("journal-category", "slug", baseSlug);
+                String slug = helper.generateUniqueSlug(
+                                englishName, categoryRepository::existsBySlugIncludingDeleted);
 
                 JournalCategory category = JournalCategory.builder().slug(slug).build();
                 for (JournalCategoryTranslationRequest t : request.getTranslations()) {
@@ -743,6 +750,14 @@ public class JournalService {
         public void restoreCategory(Long id) {
                 JournalCategory category = categoryRepository.findDeletedById(id)
                                 .orElseThrow(JournalCategoryNotFoundException::new);
+
+                // A category created under the same name while this one sat in the trash owns the
+                // slug now; restoring would hit the unique constraint.
+                helper.acquireNameLock("journal-category", "slug", category.getSlug());
+                if (categoryRepository.existsBySlug(category.getSlug())) {
+                        throw new JournalCategorySlugTakenException();
+                }
+
                 category.setDeletedAt(null);
                 categoryRepository.save(category);
                 log.info("Journal category restored: {}", category.getSlug());
