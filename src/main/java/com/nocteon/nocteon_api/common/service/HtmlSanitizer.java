@@ -153,11 +153,20 @@ public class HtmlSanitizer {
         if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null) {
             return false;
         }
+        // `https://evil@www.youtube.com/embed/x` has an allowed host but carries userinfo.
+        if (uri.getUserInfo() != null) {
+            return false;
+        }
+        // An explicit non-default port is not the provider's player.
+        if (uri.getPort() != -1 && uri.getPort() != 443) {
+            return false;
+        }
         if (!VIDEO_HOSTS.contains(uri.getHost().toLowerCase(java.util.Locale.ROOT))) {
             return false;
         }
         String path = uri.getPath() == null ? "" : uri.getPath();
-        return path.startsWith("/embed/") || path.startsWith("/video/");
+        // Exactly one id segment: /embed/<id> or /video/<id>.
+        return path.matches("^/(embed|video)/[A-Za-z0-9_-]+/?$");
     }
 
     private static boolean isAllowedLink(String href) {
@@ -197,6 +206,9 @@ public class HtmlSanitizer {
             return false;
         }
         if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null) {
+            return false;
+        }
+        if (uri.getUserInfo() != null) {
             return false;
         }
         if (!CDN_HOST.equalsIgnoreCase(uri.getHost())) {

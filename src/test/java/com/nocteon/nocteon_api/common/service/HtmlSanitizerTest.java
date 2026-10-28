@@ -103,6 +103,47 @@ class HtmlSanitizerTest {
     }
 
     @Test
+    @DisplayName("a video src cannot hide userinfo, extra path segments or a port trick")
+    void rejectsVideoUrlTricks() {
+        String stored = sanitizer.sanitize(
+                "<iframe src=\"https://evil@www.youtube.com/embed/abc123\"></iframe>"
+                        + "<iframe src=\"https://www.youtube.com:8443/embed/abc123\"></iframe>"
+                        + "<iframe src=\"https://www.youtube.com/embed/abc123/extra\"></iframe>"
+                        + "<iframe src=\"//www.youtube.com/embed/abc123\"></iframe>"
+                        + "<iframe src=\"https://WWW.YOUTUBE.COM/embed/abc123\"></iframe>");
+
+        assertThat(stored).doesNotContain("evil@", ":8443", "/embed/abc123/extra", "src=\"//");
+        // Host/scheme are case-insensitive; the canonical one is kept.
+        assertThat(stored).contains("src=\"https://WWW.YOUTUBE.COM/embed/abc123\"");
+    }
+
+    @Test
+    @DisplayName("an image src with userinfo is not our CDN")
+    void rejectsImageUserInfo() {
+        String stored = sanitizer.sanitize(
+                "<img src=\"https://evil@res.cloudinary.com/nocteon-test/image/upload/v1/nocteon/journal/a.png\">");
+
+        assertThat(stored).doesNotContain("res.cloudinary.com");
+    }
+
+    @Test
+    @DisplayName("code blocks keep angle brackets and ampersands as text")
+    void codeBlockEscapesMarkup() {
+        String stored = sanitizer.sanitize(
+                "<div class=\"ql-code-block-container\">"
+                        + "<div class=\"ql-code-block\">if (a &lt; b &amp;&amp; c &gt; d) {</div>"
+                        + "<div class=\"ql-code-block\">  run(&quot;x&quot;);</div>"
+                        + "</div>"
+                        + "<div class=\"ql-code-block-container\">"
+                        + "<div class=\"ql-code-block\">second();</div>"
+                        + "</div>");
+
+        assertThat(stored).contains("<pre><code>if (a &lt; b &amp;&amp; c &gt; d) {\n  run(\"x\");</code></pre>");
+        assertThat(stored).contains("<pre><code>second();</code></pre>");
+        assertThat(stored).doesNotContain("<script");
+    }
+
+    @Test
     @DisplayName("Quill's code-block markup becomes pre/code instead of being flattened")
     void convertsQuillCodeBlocks() {
         String stored = sanitizer.sanitize(
