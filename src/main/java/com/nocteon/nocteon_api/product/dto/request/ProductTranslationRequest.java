@@ -24,6 +24,12 @@ public class ProductTranslationRequest implements TranslationRequest {
     @Size(max = 20000, message = "{validation.description.size}")
     private String story;
 
+    @Size(max = 200, message = "{validation.metaTitle.size}")
+    private String metaTitle;
+
+    @Size(max = 500, message = "{validation.metaDescription.size}")
+    private String metaDescription;
+
     @NotBlank(message = "{validation.language.notBlank}")
     private String language;
 }

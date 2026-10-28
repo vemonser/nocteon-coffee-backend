@@ -70,6 +70,13 @@ public class Product extends SoftDeletableEntity {
         @Builder.Default
         private boolean featured = false;
 
+        /**
+         * Social-preview image. {@code null} means "use the primary media", resolved when the
+         * response is built — not copied here, so the card follows a cover change.
+         */
+        @Column(name = "og_image_url", columnDefinition = "TEXT")
+        private String ogImageUrl;
+
         @Column(name = "is_active", nullable = false)
         @Builder.Default
         private boolean isActive = true;

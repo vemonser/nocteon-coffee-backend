@@ -39,4 +39,7 @@ public class DashboardProductResponse {
     private List<String> tastingNotes;
     private List<String> pairings;
     private List<ProductBrewingMethodResponse> brewingMethods;
+
+    /** The admin's own choice, nullable: empty means "use the primary image". */
+    private String ogImageUrl;
 }

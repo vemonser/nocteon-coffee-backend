@@ -29,6 +29,12 @@ public class ProductRequest {
 
     private boolean isActive = true;
 
+    /**
+     * Social-preview image. Omitted ({@code null}) keeps the primary media as the card image;
+     * this is never defaulted in the database, so a cover change still reaches the card.
+     */
+    private String ogImageUrl;
+
     @NotEmpty(message = "{validation.translations.notEmpty}")
     @Size(min = 2, message = "{validation.translations.size}")
     private List<@Valid ProductTranslationRequest> translations;

@@ -42,4 +42,12 @@ public class ProductTranslation extends BaseEntity {
     /** The long-form story, per language (the product page's editorial block). */
     @Column(columnDefinition = "TEXT")
     private String story;
+
+    /** Search/social title for this language. The public response falls back to {@code name}. */
+    @Column(name = "meta_title", length = 200)
+    private String metaTitle;
+
+    /** Search/social description; the public response falls back to {@code shortDescription}. */
+    @Column(name = "meta_description", length = 500)
+    private String metaDescription;
 }

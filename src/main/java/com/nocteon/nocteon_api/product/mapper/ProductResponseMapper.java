@@ -35,6 +35,7 @@ import com.nocteon.nocteon_api.product.entity.ProductOptionTranslation;
 import com.nocteon.nocteon_api.product.entity.ProductOptionValueTranslation;
 import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
+import com.nocteon.nocteon_api.product.enums.MediaType;
 import com.nocteon.nocteon_api.product.enums.ProductType;
 import com.nocteon.nocteon_api.product.repository.CoffeeDetailsRepository;
 import com.nocteon.nocteon_api.product.repository.ProductBrewingMethodRepository;
@@ -262,6 +263,15 @@ public class ProductResponseMapper {
                                 .name(translation != null ? translation.getName() : null)
                                 .shortDescription(translation != null ? translation.getShortDescription() : null)
                                 .description(translation != null ? translation.getDescription() : null)
+                                .metaTitle(translation != null
+                                                ? firstNonBlank(translation.getMetaTitle(), translation.getName())
+                                                : null)
+                                .metaDescription(translation != null
+                                                ? firstNonBlank(
+                                                                translation.getMetaDescription(),
+                                                                translation.getShortDescription())
+                                                : null)
+                                .ogImageUrl(resolveOgImageUrl(product, media))
                                 .coffeeDetails(coffeeDetailsResponse)
                                 .variants(variants)
                                 .media(media)
@@ -361,6 +371,35 @@ public class ProductResponseMapper {
                                                         .build();
                                 })
                                 .toList();
+        }
+
+        /**
+         * The first value that is actually text. An empty SEO field is "not set", and the
+         * public response fills it with the product name / short description so the storefront
+         * never renders an empty {@code <title>}.
+         */
+        private static String firstNonBlank(String preferred, String fallback) {
+                return preferred != null && !preferred.isBlank() ? preferred : fallback;
+        }
+
+        /**
+         * The social card image.
+         *
+         * <p>An explicit {@code og_image_url} wins; otherwise the primary image does. A video is
+         * never a social card, so a product whose primary media is a video falls back to its first
+         * image rather than sending a video URL in {@code og:image}.
+         */
+        private String resolveOgImageUrl(Product product, List<ProductMediaResponse> media) {
+                if (product.getOgImageUrl() != null && !product.getOgImageUrl().isBlank()) {
+                        return product.getOgImageUrl();
+                }
+                return media.stream()
+                                .filter(m -> m.getType() == MediaType.IMAGE)
+                                .filter(ProductMediaResponse::isPrimary)
+                                .findFirst()
+                                .or(() -> media.stream().filter(m -> m.getType() == MediaType.IMAGE).findFirst())
+                                .map(ProductMediaResponse::getUrl)
+                                .orElse(null);
         }
 
         List<ProductMediaResponse> buildMedia(Product product) {

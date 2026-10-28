@@ -39,6 +39,8 @@ public class DashboardProductMapper {
                                                 .shortDescription(t.getShortDescription())
                                                 .description(t.getDescription())
                                                 .story(t.getStory())
+                                                .metaTitle(t.getMetaTitle())
+                                                .metaDescription(t.getMetaDescription())
                                                 .build())
                                 .toList();
 
@@ -136,6 +138,7 @@ public class DashboardProductMapper {
                                 .tastingNotes(tastingNotes)
                                 .pairings(pairings)
                                 .brewingMethods(brewingMethods)
+                                .ogImageUrl(product.getOgImageUrl())
                                 .build();
         }
 }

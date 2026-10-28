@@ -92,6 +92,7 @@ public class ProductMutationService {
                 .productType(request.getProductType())
                 .featured(request.isFeatured())
                 .isActive(request.isActive())
+                .ogImageUrl(normalizeOgImageUrl(request.getOgImageUrl()))
                 .build();
         product = productRepository.save(product);
 
@@ -133,6 +134,7 @@ public class ProductMutationService {
         product.setProductType(request.getProductType());
         product.setFeatured(request.isFeatured());
         product.setActive(request.isActive());
+        product.setOgImageUrl(normalizeOgImageUrl(request.getOgImageUrl()));
         productRepository.save(product);
 
         upsertTranslations(product, request.getTranslations());
@@ -330,6 +332,14 @@ public class ProductMutationService {
         }
     }
 
+    /**
+     * A blank {@code og_image_url} from the form means "no custom card", not an empty string:
+     * stored as null so the response falls back to the primary image instead of a broken URL.
+     */
+    private static String normalizeOgImageUrl(String url) {
+        return url == null || url.isBlank() ? null : url.trim();
+    }
+
     private Origin findOrigin(String slug) {
         if (slug == null) {
             return null;
@@ -356,6 +366,8 @@ public class ProductMutationService {
                     .shortDescription(t.getShortDescription())
                     .description(t.getDescription())
                     .story(t.getStory())
+                    .metaTitle(t.getMetaTitle())
+                    .metaDescription(t.getMetaDescription())
                     .build());
         }
         productTranslationRepository.saveAll(translations);
@@ -369,6 +381,8 @@ public class ProductMutationService {
                         existing.setShortDescription(t.getShortDescription());
                         existing.setDescription(t.getDescription());
                         existing.setStory(t.getStory());
+                        existing.setMetaTitle(t.getMetaTitle());
+                        existing.setMetaDescription(t.getMetaDescription());
                         productTranslationRepository.save(existing);
                     }, () -> productTranslationRepository.save(ProductTranslation.builder()
                             .product(product)
@@ -377,6 +391,8 @@ public class ProductMutationService {
                             .shortDescription(t.getShortDescription())
                             .description(t.getDescription())
                             .story(t.getStory())
+                            .metaTitle(t.getMetaTitle())
+                            .metaDescription(t.getMetaDescription())
                             .build()));
         }
     }

@@ -13,4 +13,6 @@ public class ProductTranslationResponse {
     private String shortDescription;
     private String description;
     private String story;
+    private String metaTitle;
+    private String metaDescription;
 }

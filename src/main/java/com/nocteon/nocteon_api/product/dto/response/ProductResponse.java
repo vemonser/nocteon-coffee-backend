@@ -28,6 +28,11 @@ public class ProductResponse {
     private String name;
     private String shortDescription;
     private String description;
+    private String metaTitle;
+    private String metaDescription;
+
+    /** The social card image: either the product's own choice or its primary image. */
+    private String ogImageUrl;
 
     // للـ List Response بس
     private String primaryImageUrl;
