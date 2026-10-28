@@ -43,7 +43,11 @@ public class ProductMediaService {
                 .filter(m -> m.getId() == null)
                 .count();
 
-        if (files == null || files.size() != newItemsCount) {
+        // No "files" part at all is the normal edit case: every media item already exists and
+        // the browser has nothing to upload. Spring binds that as null, not as an empty list,
+        // so treating null as "zero uploads" is what lets an ordinary save succeed.
+        int uploadedCount = files == null ? 0 : files.size();
+        if (uploadedCount != newItemsCount) {
             throw new IllegalArgumentException(
                     "Uploaded files count must match new media items count.");
         }
