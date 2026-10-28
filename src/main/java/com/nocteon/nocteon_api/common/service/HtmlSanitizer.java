@@ -1,6 +1,8 @@
 package com.nocteon.nocteon_api.common.service;
 
 import java.net.URI;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -42,19 +44,30 @@ public class HtmlSanitizer {
     /** Folder prefix every upload from this application is written under. */
     private static final String CDN_FOLDER = "/nocteon/";
 
+    /**
+     * Providers whose embed player may be framed. Everything else is not a video: an arbitrary
+     * iframe is a page inside the article, not a clip.
+     */
+    private static final Set<String> VIDEO_HOSTS = Set.of(
+            "www.youtube.com", "youtube.com", "m.youtube.com",
+            "www.youtube-nocookie.com", "youtube-nocookie.com",
+            "player.vimeo.com");
+
     private static final Safelist ALLOWLIST = new Safelist()
             .addTags(
                     "p", "h1", "h2", "h3", "h4", "h5", "h6",
                     "strong", "b", "em", "i", "u", "s",
                     "a", "ul", "ol", "li", "blockquote", "code", "pre",
-                    "img", "br", "hr",
+                    "img", "br", "hr", "iframe",
                     "table", "thead", "tbody", "tfoot", "tr", "th", "td")
             .addAttributes("a", "href", "title")
             .addAttributes("img", "src", "alt", "title")
+            .addAttributes("iframe", "src", "class", "allowfullscreen", "frameborder", "width", "height", "title")
             .addAttributes("th", "colspan", "rowspan", "scope")
             .addAttributes("td", "colspan", "rowspan")
             .addProtocols("a", "href", "https", "mailto")
             .addProtocols("img", "src", "https")
+            .addProtocols("iframe", "src", "https")
             // A link the reader clicks must not hand the opener back to the target page.
             // Not enforced for images: Cloudinary serves them, nothing opens a window.
             .addEnforcedAttribute("a", "rel", "noopener noreferrer");
@@ -72,7 +85,20 @@ public class HtmlSanitizer {
             return html;
         }
 
-        String cleaned = Jsoup.clean(html, "", ALLOWLIST, outputSettings());
+        // Quill 2 renders a code block as nested divs; convert that to the pre/code pair the
+        // allowlist (and the reader's stylesheet) understands, so the code survives a save.
+        Document source = Jsoup.parseBodyFragment(html);
+        source.outputSettings().prettyPrint(false);
+        for (Element container : source.select("div.ql-code-block-container")) {
+                String code = container.select("div.ql-code-block").stream()
+                                .map(Element::wholeText)
+                                .collect(Collectors.joining("\n"));
+                Element pre = source.createElement("pre");
+                pre.appendElement("code").text(code);
+                container.replaceWith(pre);
+        }
+
+        String cleaned = Jsoup.clean(source.body().html(), "", ALLOWLIST, outputSettings());
 
         // Protocol checks in Safelist are necessary but not sufficient for the two
         // attributes that can point at another origin: JSoup validates the scheme, not
@@ -87,6 +113,23 @@ public class HtmlSanitizer {
                 link.unwrap();
             }
         }
+        for (Element frame : document.select("iframe")) {
+            if (!isAllowedVideo(frame.attr("src"))) {
+                frame.remove();
+                continue;
+            }
+            // Quill's own class is the only one the reader's stylesheet needs; anything else
+            // is presentation smuggled through an embed.
+            String keptClass = java.util.Arrays.stream(frame.attr("class").split("\\s+"))
+                    .filter(token -> token.equals("ql-video"))
+                    .findFirst()
+                    .orElse("");
+            if (keptClass.isEmpty()) {
+                frame.removeAttr("class");
+            } else {
+                frame.attr("class", keptClass);
+            }
+        }
         for (Element image : document.select("img[src]")) {
             if (!isOwnMediaUrl(image.attr("src"))) {
                 image.remove();
@@ -98,6 +141,23 @@ public class HtmlSanitizer {
 
     private static Document.OutputSettings outputSettings() {
         return new Document.OutputSettings().prettyPrint(false);
+    }
+
+    private static boolean isAllowedVideo(String src) {
+        URI uri;
+        try {
+            uri = URI.create(src);
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
+        if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null) {
+            return false;
+        }
+        if (!VIDEO_HOSTS.contains(uri.getHost().toLowerCase(java.util.Locale.ROOT))) {
+            return false;
+        }
+        String path = uri.getPath() == null ? "" : uri.getPath();
+        return path.startsWith("/embed/") || path.startsWith("/video/");
     }
 
     private static boolean isAllowedLink(String href) {

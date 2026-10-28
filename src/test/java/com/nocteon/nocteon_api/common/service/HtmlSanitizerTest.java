@@ -53,12 +53,14 @@ class HtmlSanitizerTest {
                 + "<blockquote>Quote</blockquote>"
                 + "<pre><code>grind();</code></pre>"
                 + "<p>Line<br>break</p><hr>"
+                + "<h4>Brewing</h4>"
                 + "<table><thead><tr><th scope=\"col\">A</th></tr></thead>"
                 + "<tbody><tr><td>1</td></tr></tbody></table>";
 
         String stored = sanitizer.sanitize(body);
 
         assertThat(stored).contains("<h2>Brewing</h2>");
+        assertThat(stored).contains("<h4>Brewing</h4>").as("h4 from the upgraded toolbar");
         assertThat(stored).contains("<strong>Grind</strong>");
         assertThat(stored).contains("<em>fresh</em>", "<u>daily</u>", "<s>never stale</s>");
         assertThat(stored).contains("<ul><li>One</li></ul>", "<ol><li>Two</li></ol>");
@@ -81,6 +83,36 @@ class HtmlSanitizerTest {
         assertThat(stored).doesNotContain("javascript:", "data:text", "http://nocteon.coffee");
         assertThat(stored).contains("mailto:hello@nocteon.coffee");
         assertThat(stored).contains("href=\"https://nocteon.coffee\" rel=\"noopener noreferrer\"");
+    }
+
+    @Test
+    @DisplayName("only the allowlisted video players may be framed")
+    void keepsOnlyAllowlistedVideoEmbeds() {
+        String stored = sanitizer.sanitize(
+                "<iframe class=\"ql-video\" src=\"https://www.youtube.com/embed/abc123\" allowfullscreen=\"true\"></iframe>"
+                        + "<iframe src=\"https://player.vimeo.com/video/12345\"></iframe>"
+                        + "<iframe src=\"https://www.youtube.com/watch?v=abc123\"></iframe>"
+                        + "<iframe src=\"http://www.youtube.com/embed/abc123\"></iframe>"
+                        + "<iframe src=\"https://evil.example/embed/abc123\"></iframe>"
+                        + "<iframe src=\"javascript:alert(1)\"></iframe>");
+
+        assertThat(stored).contains("src=\"https://www.youtube.com/embed/abc123\"");
+        assertThat(stored).contains("class=\"ql-video\"");
+        assertThat(stored).contains("src=\"https://player.vimeo.com/video/12345\"");
+        assertThat(stored).doesNotContain("watch?v=", "http://www.youtube.com", "evil.example", "javascript:");
+    }
+
+    @Test
+    @DisplayName("Quill's code-block markup becomes pre/code instead of being flattened")
+    void convertsQuillCodeBlocks() {
+        String stored = sanitizer.sanitize(
+                "<div class=\"ql-code-block-container\" spellcheck=\"false\">"
+                        + "<div class=\"ql-code-block\">const a = 1;</div>"
+                        + "<div class=\"ql-code-block\">grind(a);</div>"
+                        + "</div>");
+
+        assertThat(stored).contains("<pre><code>const a = 1;\ngrind(a);</code></pre>");
+        assertThat(stored).doesNotContain("ql-code-block");
     }
 
     @Test
