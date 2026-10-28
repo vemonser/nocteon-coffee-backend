@@ -340,6 +340,14 @@ public class ProductMutationService {
         return url == null || url.isBlank() ? null : url.trim();
     }
 
+    /**
+     * A blank meta field is "not set", not a string of spaces: stored as null so the public
+     * response can fall back to the product name / short description.
+     */
+    private static String normalizeText(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
     private Origin findOrigin(String slug) {
         if (slug == null) {
             return null;
@@ -366,8 +374,8 @@ public class ProductMutationService {
                     .shortDescription(t.getShortDescription())
                     .description(t.getDescription())
                     .story(t.getStory())
-                    .metaTitle(t.getMetaTitle())
-                    .metaDescription(t.getMetaDescription())
+                    .metaTitle(normalizeText(t.getMetaTitle()))
+                    .metaDescription(normalizeText(t.getMetaDescription()))
                     .build());
         }
         productTranslationRepository.saveAll(translations);
@@ -381,8 +389,8 @@ public class ProductMutationService {
                         existing.setShortDescription(t.getShortDescription());
                         existing.setDescription(t.getDescription());
                         existing.setStory(t.getStory());
-                        existing.setMetaTitle(t.getMetaTitle());
-                        existing.setMetaDescription(t.getMetaDescription());
+                        existing.setMetaTitle(normalizeText(t.getMetaTitle()));
+                        existing.setMetaDescription(normalizeText(t.getMetaDescription()));
                         productTranslationRepository.save(existing);
                     }, () -> productTranslationRepository.save(ProductTranslation.builder()
                             .product(product)
@@ -391,8 +399,8 @@ public class ProductMutationService {
                             .shortDescription(t.getShortDescription())
                             .description(t.getDescription())
                             .story(t.getStory())
-                            .metaTitle(t.getMetaTitle())
-                            .metaDescription(t.getMetaDescription())
+                            .metaTitle(normalizeText(t.getMetaTitle()))
+                            .metaDescription(normalizeText(t.getMetaDescription()))
                             .build()));
         }
     }

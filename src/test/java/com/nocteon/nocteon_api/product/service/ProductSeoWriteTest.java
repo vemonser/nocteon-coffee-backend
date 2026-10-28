@@ -2,6 +2,7 @@ package com.nocteon.nocteon_api.product.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -9,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -144,6 +146,56 @@ class ProductSeoWriteTest {
         service.update("yirgacheffe", request, List.of());
 
         assertThat(existing.getOgImageUrl()).isNull();
+    }
+
+    @Test
+    void createWritesTheSeoFieldsAndTheSocialImageToo() {
+        AtomicReference<Product> saved = new AtomicReference<>();
+        when(categoryRepository.findBySlug("single-origin"))
+                .thenReturn(Optional.of(Category.builder().slug("single-origin").build()));
+        when(helper.generateUniqueSlug(anyString(), any())).thenReturn("yirgacheffe");
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
+            saved.set(invocation.getArgument(0));
+            return invocation.getArgument(0);
+        });
+        when(productTranslationRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(productRepository.findBySlug("yirgacheffe"))
+                .thenAnswer(invocation -> Optional.of(saved.get()));
+        when(dashboardProductMapper.buildDashboardResponse(any(Product.class)))
+                .thenReturn(DashboardProductResponse.builder().build());
+
+        service.create(request(), List.of());
+
+        assertThat(saved.get().getOgImageUrl()).isEqualTo(OG_IMAGE);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ProductTranslation>> captor = ArgumentCaptor.forClass(List.class);
+        verify(productTranslationRepository).saveAll(captor.capture());
+        assertThat(captor.getValue())
+                .extracting(ProductTranslation::getMetaTitle)
+                .containsExactly(EN_TITLE, AR_TITLE);
+    }
+
+    @Test
+    void aWhitespaceMetaFieldIsStoredAsNotSet() {
+        Product existing = Product.builder().id(7L).slug("yirgacheffe").isActive(true).build();
+        when(productRepository.findBySlug("yirgacheffe")).thenReturn(Optional.of(existing));
+        when(categoryRepository.findBySlug("single-origin"))
+                .thenReturn(Optional.of(Category.builder().slug("single-origin").build()));
+        when(dashboardProductMapper.buildDashboardResponse(existing))
+                .thenReturn(DashboardProductResponse.builder().build());
+
+        ProductRequest request = request();
+        request.getTranslations().get(0).setMetaTitle("   ");
+        request.getTranslations().get(0).setMetaDescription(" ");
+        service.update("yirgacheffe", request, List.of());
+
+        ArgumentCaptor<ProductTranslation> captor =
+                ArgumentCaptor.forClass(ProductTranslation.class);
+        verify(productTranslationRepository, times(2)).save(captor.capture());
+        ProductTranslation first = captor.getAllValues().get(0);
+        assertThat(first.getMetaTitle()).isNull();
+        assertThat(first.getMetaDescription()).isNull();
     }
 
     private static final String OG_IMAGE =
