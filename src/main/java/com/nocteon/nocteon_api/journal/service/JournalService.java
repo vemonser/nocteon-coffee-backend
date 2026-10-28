@@ -21,6 +21,7 @@ import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.image.ImageUploadException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidImageException;
+import com.nocteon.nocteon_api.common.exception.invalid.JournalCategoryInUseException;
 import com.nocteon.nocteon_api.common.exception.upload.ImageSizeExceededException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.JournalCategoryNotFoundException;
@@ -28,6 +29,8 @@ import com.nocteon.nocteon_api.common.exception.notFound.JournalPostNotFoundExce
 import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.common.transaction.AfterCommit;
+import com.nocteon.nocteon_api.journal.dto.request.JournalCategoryRequest;
+import com.nocteon.nocteon_api.journal.dto.request.JournalCategoryTranslationRequest;
 import com.nocteon.nocteon_api.journal.dto.request.JournalFilterRequest;
 import com.nocteon.nocteon_api.journal.dto.request.JournalPostRequest;
 import com.nocteon.nocteon_api.journal.dto.request.JournalPostTranslationRequest;
@@ -36,6 +39,7 @@ import com.nocteon.nocteon_api.journal.dto.response.JournalPostResponse;
 import com.nocteon.nocteon_api.journal.dto.response.JournalPostResponseDashboard;
 import com.nocteon.nocteon_api.journal.dto.response.TranslationResponseDashboard;
 import com.nocteon.nocteon_api.journal.entity.JournalCategory;
+import com.nocteon.nocteon_api.journal.entity.JournalCategoryTranslation;
 import com.nocteon.nocteon_api.journal.entity.JournalPost;
 import com.nocteon.nocteon_api.journal.entity.JournalPostTranslation;
 import com.nocteon.nocteon_api.journal.enums.JournalPostStatus;
@@ -122,6 +126,88 @@ public class JournalService {
                                                                 .toList())
                                                 .build())
                                 .toList();
+        }
+
+        @Transactional
+        public JournalCategoryResponseDashboard createCategory(JournalCategoryRequest request) {
+                helper.validateTranslations(request.getTranslations());
+                String englishName = request.getTranslations().stream()
+                                .filter(t -> t.getLanguage().equals("en"))
+                                .findFirst()
+                                .map(JournalCategoryTranslationRequest::getName)
+                                .orElseThrow(InvalidTranslationException::new);
+                String slug = helper.generateUniqueSlug(englishName, categoryRepository::existsBySlug);
+
+                JournalCategory category = JournalCategory.builder().slug(slug).build();
+                for (JournalCategoryTranslationRequest t : request.getTranslations()) {
+                        category.getTranslations().add(JournalCategoryTranslation.builder()
+                                        .journalCategory(category)
+                                        .language(t.getLanguage())
+                                        .name(t.getName())
+                                        .build());
+                }
+                categoryRepository.save(category);
+                log.info("Journal category created: {}", slug);
+                return toCategoryResponse(category);
+        }
+
+        @Transactional
+        public JournalCategoryResponseDashboard renameCategory(Long id, JournalCategoryRequest request) {
+                helper.validateTranslations(request.getTranslations());
+                JournalCategory category = categoryRepository.findByIdWithTranslations(id)
+                                .orElseThrow(JournalCategoryNotFoundException::new);
+
+                for (JournalCategoryTranslationRequest t : request.getTranslations()) {
+                        JournalCategoryTranslation translation = category.getTranslations().stream()
+                                        .filter(existing -> existing.getLanguage().equals(t.getLanguage()))
+                                        .findFirst()
+                                        .orElseGet(() -> {
+                                                JournalCategoryTranslation created = JournalCategoryTranslation.builder()
+                                                                .journalCategory(category)
+                                                                .language(t.getLanguage())
+                                                                .name(t.getName())
+                                                                .build();
+                                                category.getTranslations().add(created);
+                                                return created;
+                                        });
+                        translation.setName(t.getName());
+                }
+                categoryRepository.save(category);
+                log.info("Journal category renamed: {}", category.getSlug());
+                return toCategoryResponse(category);
+        }
+
+        /**
+         * Remove a category, refusing while it is still used.
+         *
+         * <p>The count includes trashed posts: a category whose only posts are in the trash must
+         * not vanish, or restoring one would leave it pointing at a deleted row.
+         */
+        @Transactional
+        public void deleteCategory(Long id) {
+                JournalCategory category = categoryRepository.findById(id)
+                                .orElseThrow(JournalCategoryNotFoundException::new);
+                long posts = postRepository.countAllByCategoryIdIncludingDeleted(id);
+                if (posts > 0) {
+                        throw new JournalCategoryInUseException(posts);
+                }
+                category.softDelete();
+                categoryRepository.save(category);
+                log.info("Journal category deleted: {}", category.getSlug());
+        }
+
+        private JournalCategoryResponseDashboard toCategoryResponse(JournalCategory category) {
+                return JournalCategoryResponseDashboard.builder()
+                                .id(category.getId())
+                                .slug(category.getSlug())
+                                .createdAt(category.getCreatedAt())
+                                .translations(category.getTranslations().stream()
+                                                .map(t -> TranslationResponseDashboard.builder()
+                                                                .language(t.getLanguage())
+                                                                .title(t.getName())
+                                                                .build())
+                                                .toList())
+                                .build();
         }
 
         @Transactional(readOnly = true)

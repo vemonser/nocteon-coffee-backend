@@ -26,6 +26,9 @@ public interface JournalCategoryRepository extends JpaRepository<JournalCategory
     @Query("SELECT c FROM JournalCategory c LEFT JOIN FETCH c.translations WHERE c.slug = :slug")
     Optional<JournalCategory> findBySlugWithTranslations(@Param("slug") String slug);
 
+    @Query("SELECT c FROM JournalCategory c LEFT JOIN FETCH c.translations WHERE c.id = :id")
+    Optional<JournalCategory> findByIdWithTranslations(@Param("id") Long id);
+
     Optional<JournalCategory> findBySlug(String slug);
     boolean existsBySlug(String slug);
 
