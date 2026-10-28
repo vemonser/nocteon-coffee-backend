@@ -79,6 +79,7 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
                         SELECT DISTINCT p FROM JournalPost p
                         LEFT JOIN p.translations t
                         LEFT JOIN FETCH p.author
+                        LEFT JOIN FETCH p.journalCategory
                         WHERE t.language = :language
                         AND p.status = com.nocteon.nocteon_api.journal.enums.JournalPostStatus.PUBLISHED
                         AND (p.publishedAt IS NULL OR p.publishedAt <= :now)
@@ -126,6 +127,7 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
                         SELECT DISTINCT p FROM JournalPost p
                         LEFT JOIN FETCH p.translations t
                         LEFT JOIN FETCH p.author
+                        LEFT JOIN FETCH p.journalCategory
                         WHERE p.slug = :slug
                         AND t.language = :language
                         AND p.status = com.nocteon.nocteon_api.journal.enums.JournalPostStatus.PUBLISHED

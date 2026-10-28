@@ -3,6 +3,7 @@ package com.nocteon.nocteon_api.journal.service;
 import java.time.Instant;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -156,7 +157,7 @@ public class JournalService {
                                 .status(post.getStatus())
                                 .readingTimeMinutes(post.getReadingTimeMinutes())
                                 .publishedAt(post.getPublishedAt())
-                                .tags(post.getTags())
+                                .tags(copyTags(post))
                                 .relatedProductSlugs(relatedProductSlugs)
                                 .createdAt(post.getCreatedAt())
                                 .translations(translations)
@@ -192,7 +193,7 @@ public class JournalService {
                                 .featured(request.isFeatured())
                                 .status(request.getStatus())
                                 .readingTimeMinutes(readingTime)
-                                .tags(request.getTags() != null ? Set.copyOf(request.getTags()) : Set.of())
+                                .tags(request.getTags() != null ? new HashSet<>(request.getTags()) : new HashSet<>())
                                 .build();
 
                 applyPublishedAt(post, request);
@@ -251,7 +252,7 @@ public class JournalService {
                 post.setFeatured(request.isFeatured());
                 post.setStatus(request.getStatus());
                 post.setReadingTimeMinutes(calculateReadingTime(request.getTranslations()));
-                post.setTags(request.getTags() != null ? Set.copyOf(request.getTags()) : Set.of());
+                post.setTags(request.getTags() != null ? new HashSet<>(request.getTags()) : new HashSet<>());
 
                 applyPublishedAt(post, request);
 
@@ -311,7 +312,9 @@ public class JournalService {
                                 ? List.of()
                                 : productRepository.findBySlugIn(productSlugs);
 
-                post.setProducts(products);
+                // A mutable list: the entity is managed on update, and Hibernate's merge calls
+                // clear() on the collection it is given.
+                post.setProducts(new ArrayList<>(products));
         }
 
         @Transactional
