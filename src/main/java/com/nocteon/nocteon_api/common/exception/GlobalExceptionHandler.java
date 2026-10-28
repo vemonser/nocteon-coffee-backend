@@ -358,7 +358,7 @@ public class GlobalExceptionHandler {
 
         @ExceptionHandler(Exception.class)
         public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
-                log.error("Unexpected error occurred: {}", ex.getMessage());
+                log.error("Unexpected error occurred", ex);
                 Locale locale = LocaleContextHolder.getLocale();
                 String message = messageSource.getMessage("error.unexpected", null, locale);
 
