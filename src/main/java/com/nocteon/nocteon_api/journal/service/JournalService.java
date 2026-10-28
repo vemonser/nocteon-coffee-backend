@@ -21,6 +21,7 @@ import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.JournalCategoryNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.JournalPostNotFoundException;
+import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.common.transaction.AfterCommit;
 import com.nocteon.nocteon_api.journal.dto.request.JournalFilterRequest;
@@ -57,6 +58,7 @@ public class JournalService {
         private final JournalCategoryRepository categoryRepository;
         private final UserRepository userRepository;
         private final LookupServiceHelper helper;
+        private final HtmlSanitizer htmlSanitizer;
 
         private static final int WORDS_PER_MINUTE = 200;
 
@@ -104,7 +106,10 @@ public class JournalService {
                                                 .language(t.getLanguage())
                                                 .title(t.getTitle())
                                                 .excerpt(t.getExcerpt())
-                                                .content(t.getContent())
+                                                // Rows stored before the sanitizer existed are still in
+                                                // the table; clean them on the way out too, so the dashboard
+                                                // never re-opens a post into an editor holding a payload.
+                                                .content(htmlSanitizer.sanitize(t.getContent()))
                                                 .metaTitle(t.getMetaTitle())
                                                 .metaDescription(t.getMetaDescription())
                                                 .build())
@@ -133,6 +138,7 @@ public class JournalService {
 
         @Transactional
         public JournalPostResponseDashboard create(JournalPostRequest request, MultipartFile image, Long authorId) {
+                sanitizeTranslations(request.getTranslations());
                 helper.validateTranslations(request.getTranslations());
 
                 JournalCategory category = categoryRepository.findBySlug(request.getCategorySlug())
@@ -207,6 +213,7 @@ public class JournalService {
 
         @Transactional
         public JournalPostResponseDashboard update(String slug, JournalPostRequest request, MultipartFile image) {
+                sanitizeTranslations(request.getTranslations());
                 helper.validateTranslations(request.getTranslations());
 
                 JournalPost post = postRepository.findBySlugForDashboard(slug)
@@ -275,6 +282,22 @@ public class JournalService {
                 postRepository.save(post);
         }
 
+        /**
+         * Sanitize the body of every translation before it is persisted.
+         *
+         * <p>The journal body is HTML and the public site renders it as such. Persisting the
+         * editor's output verbatim would store whatever a compromised admin session sent, so the
+         * allowlist is applied here — the single place both create and update pass through —
+         * rather than trusting the client. Reading time is computed afterwards, on the sanitized
+         * value, so removed markup does not inflate it.
+         */
+        private void sanitizeTranslations(List<JournalPostTranslationRequest> translations) {
+                if (translations == null) {
+                        return;
+                }
+                translations.forEach(t -> t.setContent(htmlSanitizer.sanitize(t.getContent())));
+        }
+
         private int calculateReadingTime(List<JournalPostTranslationRequest> translations) {
                 if (translations == null || translations.isEmpty()) {
                         return 0;
@@ -333,7 +356,7 @@ public class JournalService {
                                 .tags(post.getTags())
                                 .title(translation != null ? translation.getTitle() : null)
                                 .excerpt(translation != null ? translation.getExcerpt() : null)
-                                .content(translation != null ? translation.getContent() : null)
+                                .content(translation != null ? htmlSanitizer.sanitize(translation.getContent()) : null)
                                 .metaTitle(translation != null ? translation.getMetaTitle() : null)
                                 .metaDescription(translation != null ? translation.getMetaDescription() : null)
                                 .relatedProductSlugs(relatedProductSlugs)
