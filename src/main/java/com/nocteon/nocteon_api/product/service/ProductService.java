@@ -130,6 +130,7 @@ public class ProductService {
     }
 
     // في ProductService
+    @Transactional(readOnly = true)
     public List<ProductOptionOptionResponse> getAvailableOptions(ProductFilterRequest filter) {
         String language = LocaleContextHolder.getLocale().getLanguage();
 
