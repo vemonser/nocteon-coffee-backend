@@ -19,6 +19,7 @@ import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.common.exception.invalid.InvalidImageException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.JournalCategoryNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.JournalPostNotFoundException;
@@ -162,6 +163,23 @@ public class JournalService {
                                 .createdAt(post.getCreatedAt())
                                 .translations(translations)
                                 .build();
+        }
+
+        /**
+         * Upload one image for the editor body.
+         *
+         * <p>The toolbar inserts the returned URL; nothing is embedded as base64, so the stored
+         * HTML stays small and the sanitizer's own-CDN rule (FE-01) covers it.
+         */
+        public String uploadInlineImage(MultipartFile file) {
+                if (file == null || file.isEmpty()) {
+                        throw new InvalidImageException();
+                }
+                String contentType = file.getContentType();
+                if (contentType == null || !contentType.startsWith("image/")) {
+                        throw new InvalidImageException();
+                }
+                return helper.uploadMedia(file, "journal/inline", MediaType.IMAGE);
         }
 
         @Transactional

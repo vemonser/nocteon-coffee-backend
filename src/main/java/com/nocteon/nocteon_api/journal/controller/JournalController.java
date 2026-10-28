@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.journal.controller;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -65,6 +66,15 @@ public class JournalController {
                         @ModelAttribute JournalFilterRequest filter) {
                 return ResponseEntity.ok(
                                 ApiResponse.success(journalService.getAllDashboard(filter), "Posts retrieved"));
+        }
+
+        @PostMapping(value = "/dashboard/journal/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+        @PreAuthorize("hasAnyAuthority('journal:create', 'journal:update')")
+        public ResponseEntity<ApiResponse<Map<String, String>>> uploadInlineImage(
+                        @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
+                return ResponseEntity.ok(ApiResponse.success(
+                                Map.of("url", journalService.uploadInlineImage(file)),
+                                "Image uploaded"));
         }
 
         @GetMapping("/dashboard/journal-categories")
