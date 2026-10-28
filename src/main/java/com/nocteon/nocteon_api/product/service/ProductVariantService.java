@@ -2,7 +2,9 @@ package com.nocteon.nocteon_api.product.service;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,16 +51,53 @@ public class ProductVariantService {
     public void replaceVariants(Product product, List<ProductVariantRequest> requests) {
         assertNoDuplicateCombinations(requests);
 
-        productVariantRepository.deleteByProductId(product.getId());
-        productVariantRepository.flush();
+        // Update in place by SKU instead of delete-and-recreate. `order_items` references
+        // product_variants, so deleting a variant that has ever been ordered fails on the
+        // foreign key — and an ordinary save that only touched the description used to do
+        // exactly that. Matching by SKU also keeps the stock and the order history attached
+        // to the same row.
+        Map<String, ProductVariant> existingBySku = productVariantRepository
+                .findByProductId(product.getId()).stream()
+                .collect(Collectors.toMap(ProductVariant::getSku, v -> v));
+
         for (ProductVariantRequest v : requests) {
+            ProductVariant existing = existingBySku.remove(v.getSku());
+            if (existing != null) {
+                applyRequest(existing, product, v);
+                productVariantRepository.save(existing);
+                continue;
+            }
             productVariantRepository.findBySku(v.getSku())
-                    .filter(existing -> !existing.getProduct().getId().equals(product.getId()))
-                    .ifPresent(existing -> {
+                    .filter(other -> !other.getProduct().getId().equals(product.getId()))
+                    .ifPresent(other -> {
                         throw new DuplicateSkuException();
                     });
             productVariantRepository.save(buildVariant(product, v));
         }
+
+        // Whatever the request no longer names is retired, not erased: an order line may still
+        // point at it, and a hard delete would break the order's history.
+        for (ProductVariant removed : existingBySku.values()) {
+            removed.softDelete();
+            productVariantRepository.save(removed);
+        }
+    }
+
+    private void applyRequest(ProductVariant variant, Product product, ProductVariantRequest v) {
+        variant.setPrice(v.getPrice());
+        variant.setCompareAtPrice(v.getCompareAtPrice());
+        variant.setCostPrice(v.getCostPrice());
+        variant.setStockQuantity(v.getStockQuantity());
+        variant.setReorderThreshold(v.getReorderThreshold() != null ? v.getReorderThreshold() : 5);
+        variant.setActive(v.getIsActive() != null ? v.getIsActive() : true);
+        Set<ProductOptionValue> values = resolveOptionValues(v.getOptionValueIds(), product);
+        // Mutate the loaded collection instead of replacing it: Hibernate merges the entity and
+        // would call clear() on the new instance, which fails for an immutable Set.
+        if (variant.getOptionValues() == null) {
+            variant.setOptionValues(new HashSet<>());
+        }
+        variant.getOptionValues().clear();
+        variant.getOptionValues().addAll(values);
     }
 
     private void assertNoDuplicateCombinations(List<ProductVariantRequest> requests) {
@@ -104,6 +143,6 @@ public class ProductVariantService {
             }
         }
 
-        return Set.copyOf(found);
+        return new HashSet<>(found);
     }
 }
