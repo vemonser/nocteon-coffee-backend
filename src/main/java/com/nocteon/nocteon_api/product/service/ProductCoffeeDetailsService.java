@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.nocteon.nocteon_api.coffeeVariety.entity.CoffeeVariety;
 import com.nocteon.nocteon_api.coffeeVariety.repository.CoffeeVarietyRepository;
 import com.nocteon.nocteon_api.common.exception.notFound.CoffeeVarietyNotFoundException;
+import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
 import com.nocteon.nocteon_api.common.exception.notFound.ProcessingMethodNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.RoastLevelNotFoundException;
 import com.nocteon.nocteon_api.processingMethod.entity.ProcessingMethod;
@@ -30,6 +31,7 @@ public class ProductCoffeeDetailsService {
     private final RoastLevelRepository roastLevelRepository;
     private final ProcessingMethodRepository processingMethodRepository;
     private final CoffeeVarietyRepository coffeeVarietyRepository;
+    private final HtmlSanitizer htmlSanitizer;
 
     @Transactional
     public void saveCoffeeDetails(Product product, CoffeeDetailsRequest cd) {
@@ -62,7 +64,7 @@ public class ProductCoffeeDetailsService {
                         .roastLevel(roastLevel)
                         .altitude(cd.getAltitude())
                         .harvestYear(cd.getHarvestYear())
-                        .story(cd.getStory())
+                        .story(htmlSanitizer.sanitize(cd.getStory()))
                         .build());
     }
 
