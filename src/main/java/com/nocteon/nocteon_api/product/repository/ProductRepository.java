@@ -99,7 +99,8 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
                         AND (:featured IS NULL OR p.featured = :featured)
                         AND (:tagSlug IS NULL OR EXISTS (
                                 SELECT 1 FROM Product tagged JOIN tagged.tags tag
-                                WHERE tagged = p AND tag.slug = :tagSlug))
+                                WHERE tagged = p AND tag.slug = :tagSlug
+                                  AND tag.deletedAt IS NULL))
                         """,
                 countQuery = """
                         SELECT COUNT(DISTINCT p.id) FROM Product p
@@ -113,7 +114,8 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
                         AND (:featured IS NULL OR p.featured = :featured)
                         AND (:tagSlug IS NULL OR EXISTS (
                                 SELECT 1 FROM Product tagged JOIN tagged.tags tag
-                                WHERE tagged = p AND tag.slug = :tagSlug))
+                                WHERE tagged = p AND tag.slug = :tagSlug
+                                  AND tag.deletedAt IS NULL))
                         """)
         Page<Product> findAllDashboard(
                         @Param("search") String search,

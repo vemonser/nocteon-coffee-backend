@@ -85,6 +85,9 @@ class ProductSeoWriteTest {
     @Mock
     private HtmlSanitizer htmlSanitizer;
 
+    @Mock
+    private ProductTagService productTagService;
+
     @InjectMocks
     private ProductMutationService service;
 
