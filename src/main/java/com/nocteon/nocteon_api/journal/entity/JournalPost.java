@@ -78,6 +78,7 @@ public class JournalPost extends SoftDeletableEntity {
     @CollectionTable(name = "journal_post_tags", joinColumns = @JoinColumn(name = "journal_post_id"))
     @Column(name = "tag")
     @Builder.Default
+    @BatchSize(size = 30)
     private Set<String> tags = new HashSet<>();
 
     @OneToMany(mappedBy = "journalPost", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

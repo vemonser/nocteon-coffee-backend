@@ -1,5 +1,7 @@
 package com.nocteon.nocteon_api.journal.controller;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -63,6 +65,13 @@ public class JournalController {
                         @ModelAttribute JournalFilterRequest filter) {
                 return ResponseEntity.ok(
                                 ApiResponse.success(journalService.getAllDashboard(filter), "Posts retrieved"));
+        }
+
+        @GetMapping("/dashboard/journal-categories")
+        @PreAuthorize("hasAuthority('journal:read')")
+        public ResponseEntity<ApiResponse<List<JournalCategoryResponseDashboard>>> getCategories() {
+                return ResponseEntity.ok(
+                                ApiResponse.success(journalService.getCategories(), "Categories retrieved"));
         }
 
         @GetMapping("/dashboard/journal/{slug}")

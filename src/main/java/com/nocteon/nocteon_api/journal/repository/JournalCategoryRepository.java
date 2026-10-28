@@ -19,6 +19,10 @@ public interface JournalCategoryRepository extends JpaRepository<JournalCategory
             """)
     List<JournalCategory> findAllWithLanguage(@Param("language") String language);
 
+    /** Every live category with all of its translations, for the post form's category picker. */
+    @Query("SELECT DISTINCT c FROM JournalCategory c LEFT JOIN FETCH c.translations ORDER BY c.id")
+    List<JournalCategory> findAllWithTranslations();
+
     @Query("SELECT c FROM JournalCategory c LEFT JOIN FETCH c.translations WHERE c.slug = :slug")
     Optional<JournalCategory> findBySlugWithTranslations(@Param("slug") String slug);
 

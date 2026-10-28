@@ -62,6 +62,7 @@ public class JournalService {
 
         private static final int WORDS_PER_MINUTE = 200;
 
+        @Transactional(readOnly = true)
         public PageResponse<JournalPostResponse> getAll(JournalFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 Page<JournalPost> page = postRepository.findAllPublic(
@@ -69,6 +70,7 @@ public class JournalService {
                                 SearchPatterns.like(filter.getSearch()),
                                 filter.getCategorySlug(),
                                 filter.getFeatured(),
+                                Instant.now(),
                                 filter.toPageable());
                 return PageResponse.of(page.map(p -> buildListResponse(p, language)));
         }
@@ -83,14 +85,39 @@ public class JournalService {
                 return PageResponse.of(page.map(p -> buildListResponse(p, language)));
         }
 
+        @Transactional(readOnly = true)
         public JournalPostResponse getBySlug(String slug) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
                 // findPublishedBySlugAndLanguage, not findBySlugForDashboard: this backs the
                 // anonymous /api/journal/{slug} route, so an unpublished post must resolve to
                 // 404 rather than returning its body.
-                JournalPost post = postRepository.findPublishedBySlugAndLanguage(slug, language)
+                JournalPost post = postRepository.findPublishedBySlugAndLanguage(slug, language, Instant.now())
                                 .orElseThrow(JournalPostNotFoundException::new);
                 return buildDetailResponse(post, language);
+        }
+
+        /**
+         * The categories a post can be filed under.
+         *
+         * <p>The post form needs these by slug; loading the product catalogue's categories
+         * instead made every create/update fail with "Journal category not found" as soon as
+         * the two vocabularies differed.
+         */
+        @Transactional(readOnly = true)
+        public List<JournalCategoryResponseDashboard> getCategories() {
+                return categoryRepository.findAllWithTranslations().stream()
+                                .map(c -> JournalCategoryResponseDashboard.builder()
+                                                .id(c.getId())
+                                                .slug(c.getSlug())
+                                                .createdAt(c.getCreatedAt())
+                                                .translations(c.getTranslations().stream()
+                                                                .map(t -> TranslationResponseDashboard.builder()
+                                                                                .language(t.getLanguage())
+                                                                                .title(t.getName())
+                                                                                .build())
+                                                                .toList())
+                                                .build())
+                                .toList();
         }
 
         @Transactional(readOnly = true)
@@ -168,9 +195,7 @@ public class JournalService {
                                 .tags(request.getTags() != null ? Set.copyOf(request.getTags()) : Set.of())
                                 .build();
 
-                if (request.getStatus() == JournalPostStatus.PUBLISHED && post.getPublishedAt() == null) {
-                        post.setPublishedAt(java.time.Instant.now());
-                }
+                applyPublishedAt(post, request);
 
                 post = postRepository.save(post);
 
@@ -180,7 +205,7 @@ public class JournalService {
                         translations.add(JournalPostTranslation.builder()
                                         .journalPost(savedPost)
                                         .language(t.getLanguage())
-                                        .title(t.getTitle())
+                                        .title(t.getName())
                                         .excerpt(t.getExcerpt())
                                         .content(t.getContent())
                                         .metaTitle(t.getMetaTitle())
@@ -228,9 +253,7 @@ public class JournalService {
                 post.setReadingTimeMinutes(calculateReadingTime(request.getTranslations()));
                 post.setTags(request.getTags() != null ? Set.copyOf(request.getTags()) : Set.of());
 
-                if (request.getStatus() == JournalPostStatus.PUBLISHED && post.getPublishedAt() == null) {
-                        post.setPublishedAt(java.time.Instant.now());
-                }
+                applyPublishedAt(post, request);
 
                 if (image != null && !image.isEmpty()) {
                         helper.deleteMediaIfExists(post.getCoverImageUrl());
@@ -244,6 +267,24 @@ public class JournalService {
 
                 log.info("Journal post updated with slug: {}", slug);
                 return getDashboardBySlug(slug);
+        }
+
+        /**
+         * Store the date the editor chose.
+         *
+         * <p>The form's "published at" was previously ignored: publishing always stamped "now",
+         * so a future date could never survive the save and FE-03's scheduled posts were
+         * impossible. A null date means "publish now" the first time a post goes live, and
+         * "keep the original date" once it already has one.
+         */
+        private static void applyPublishedAt(JournalPost post, JournalPostRequest request) {
+                if (request.getPublishedAt() != null) {
+                        post.setPublishedAt(request.getPublishedAt());
+                        return;
+                }
+                if (request.getStatus() == JournalPostStatus.PUBLISHED && post.getPublishedAt() == null) {
+                        post.setPublishedAt(java.time.Instant.now());
+                }
         }
 
         private void updateTranslations(JournalPost post, List<JournalPostTranslationRequest> requests) {
@@ -311,6 +352,15 @@ public class JournalService {
                 return Math.max(1, (int) Math.ceil((double) totalWords / WORDS_PER_MINUTE));
         }
 
+        /**
+         * Materialize the lazy tag collection while the session is still open. Passing the
+         * Hibernate collection straight into a DTO made Jackson read it after the transaction
+         * closed, which turned every journal list and detail request into a 500.
+         */
+        private static Set<String> copyTags(JournalPost post) {
+                return post.getTags() == null ? Set.of() : Set.copyOf(post.getTags());
+        }
+
         private JournalPostResponse buildListResponse(JournalPost post, String language) {
                 JournalPostTranslation translation = post.getTranslations().stream()
                                 .filter(t -> t.getLanguage().equals(language))
@@ -327,7 +377,7 @@ public class JournalService {
                                 .status(post.getStatus())
                                 .readingTimeMinutes(post.getReadingTimeMinutes())
                                 .publishedAt(post.getPublishedAt())
-                                .tags(post.getTags())
+                                .tags(copyTags(post))
                                 .title(translation != null ? translation.getTitle() : null)
                                 .excerpt(translation != null ? translation.getExcerpt() : null)
                                 .build();
@@ -353,7 +403,7 @@ public class JournalService {
                                 .status(post.getStatus())
                                 .readingTimeMinutes(post.getReadingTimeMinutes())
                                 .publishedAt(post.getPublishedAt())
-                                .tags(post.getTags())
+                                .tags(copyTags(post))
                                 .title(translation != null ? translation.getTitle() : null)
                                 .excerpt(translation != null ? translation.getExcerpt() : null)
                                 .content(translation != null ? htmlSanitizer.sanitize(translation.getContent()) : null)
