@@ -341,6 +341,7 @@ public class ProductResponseMapper {
                                                 .price(v.getPrice())
                                                 .compareAtPrice(v.getCompareAtPrice())
                                                 .costPrice(v.getCostPrice())
+                                                .imageUrl(v.getImageUrl())
                                                 .stockQuantity(v.getStockQuantity())
                                                 .reservedQuantity(v.getReservedQuantity())
                                                 .reorderThreshold(v.getReorderThreshold())

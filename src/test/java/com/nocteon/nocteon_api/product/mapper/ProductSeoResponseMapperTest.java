@@ -155,6 +155,29 @@ class ProductSeoResponseMapperTest {
         assertThat(response.getMetaDescription()).isEqualTo("A floral Ethiopian coffee.");
     }
 
+    @Test
+    @DisplayName("a variant's own photo reaches the public response")
+    void exposesEachVariantsOwnImage() {
+        Product product = product(null);
+        stubReads(product);
+        stubMedia(media(1L, PRIMARY_IMAGE, MediaType.IMAGE, true, 0));
+        when(productVariantRepository.findByProductId(1L)).thenReturn(List.of(
+                com.nocteon.nocteon_api.product.entity.ProductVariant.builder()
+                        .id(5L)
+                        .sku("YIR-250")
+                        .price(new java.math.BigDecimal("650.00"))
+                        .imageUrl("https://res.cloudinary.com/nocteon-test/image/upload/v1/nocteon/products/variants/250g.jpg")
+                        .isActive(true)
+                        .optionValues(java.util.Set.of())
+                        .build()));
+
+        ProductResponse response = mapper.buildDetailResponse(product, "en");
+
+        assertThat(response.getVariants()).hasSize(1);
+        assertThat(response.getVariants().get(0).getImageUrl())
+                .isEqualTo("https://res.cloudinary.com/nocteon-test/image/upload/v1/nocteon/products/variants/250g.jpg");
+    }
+
     private static Product product(String ogImageUrl) {
         return Product.builder()
                 .id(1L)

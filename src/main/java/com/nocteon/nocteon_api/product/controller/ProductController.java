@@ -126,6 +126,20 @@ public class ProductController {
                                 "Image uploaded"));
         }
 
+        /**
+         * One photo for one variant. Uploaded on its own, before the product is saved, so the
+         * variants step can show the picture immediately — the same contract the story editor
+         * uses. The URL is then carried in the variant request.
+         */
+        @PostMapping(value = "/dashboard/products/variant-images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+        @PreAuthorize("hasAnyAuthority('product:create', 'product:update')")
+        public ResponseEntity<ApiResponse<java.util.Map<String, String>>> uploadVariantImage(
+                        @RequestPart("file") MultipartFile file) {
+                return ResponseEntity.ok(ApiResponse.success(
+                                java.util.Map.of("url", richTextImageService.upload(file, "products/variants")),
+                                "Image uploaded"));
+        }
+
         @PostMapping(value = "/dashboard/products", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
         @PreAuthorize("hasAuthority('product:create')")
         public ResponseEntity<ApiResponse<DashboardProductResponse>> create(

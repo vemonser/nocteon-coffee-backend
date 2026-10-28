@@ -87,6 +87,7 @@ public class ProductVariantService {
         variant.setPrice(v.getPrice());
         variant.setCompareAtPrice(v.getCompareAtPrice());
         variant.setCostPrice(v.getCostPrice());
+        variant.setImageUrl(normalizeImageUrl(v.getImageUrl()));
         variant.setStockQuantity(v.getStockQuantity());
         variant.setReorderThreshold(v.getReorderThreshold() != null ? v.getReorderThreshold() : 5);
         variant.setActive(v.getIsActive() != null ? v.getIsActive() : true);
@@ -119,6 +120,7 @@ public class ProductVariantService {
                 .product(product)
                 .sku(v.getSku())
                 .price(v.getPrice())
+                .imageUrl(normalizeImageUrl(v.getImageUrl()))
                 .stockQuantity(v.getStockQuantity())
                 .costPrice(v.getCostPrice())
                 .reorderThreshold(v.getReorderThreshold() != null ? v.getReorderThreshold() : 5)
@@ -144,5 +146,14 @@ public class ProductVariantService {
         }
 
         return new HashSet<>(found);
+    }
+
+    /**
+     * A blank image URL from the form means "no photo of its own", not the empty string: stored as
+     * null so the response and the storefront fall back to the product gallery instead of asking
+     * for an empty resource.
+     */
+    private static String normalizeImageUrl(String url) {
+        return url == null || url.isBlank() ? null : url.trim();
     }
 }

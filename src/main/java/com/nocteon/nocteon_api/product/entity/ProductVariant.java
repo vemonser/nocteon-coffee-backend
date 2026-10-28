@@ -54,6 +54,14 @@ public class ProductVariant extends SoftDeletableEntity {
     @BatchSize(size = 30)
     private Set<ProductOptionValue> optionValues = new HashSet<>();
 
+    /**
+     * The photo this variant shows instead of the product gallery. {@code null} means "use the
+     * product gallery", resolved by the storefront — never copied from the media table, so a
+     * cover change still reaches a variant that never had a photo of its own.
+     */
+    @Column(name = "image_url", columnDefinition = "TEXT")
+    private String imageUrl;
+
     @Column(name = "stock_quantity", nullable = false)
     @Builder.Default
     private int stockQuantity = 0;

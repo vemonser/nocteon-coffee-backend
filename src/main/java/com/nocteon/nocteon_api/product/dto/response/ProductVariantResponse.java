@@ -19,6 +19,8 @@ public class ProductVariantResponse {
     private BigDecimal price;
     private BigDecimal compareAtPrice;
     private BigDecimal costPrice;
+    /** The variant's own photo, or {@code null} to use the product gallery. */
+    private String imageUrl;
     private int stockQuantity;
     private int reservedQuantity;
     private int reorderThreshold;
