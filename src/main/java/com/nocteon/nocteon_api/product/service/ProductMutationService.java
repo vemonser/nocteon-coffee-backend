@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.product.service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -156,6 +157,152 @@ public class ProductMutationService {
         log.info("Product updated with slug: {}", slug);
         scheduleIndexUpsert(product.getId(), slug);
         return dashboardProductMapper.buildDashboardResponse(product);
+    }
+
+    /**
+     * FE-12: copy a product into an editable draft.
+     *
+     * <p>Everything the admin would otherwise retype is carried over — translations, coffee
+     * details, media, tasting notes, pairings, brewing methods, tags and related products — while
+     * three things are deliberately different:
+     *
+     * <ul>
+     *   <li>the slug is {@code <slug>-copy} (then {@code -copy-2}, ...), checked against trashed
+     *       rows too, because the unique index covers them;
+     *   <li>every variant gets a new SKU ({@code <sku>-copy}) — two live rows cannot share one;
+     *   <li>stock starts at <b>0</b>. Duplicating a row does not duplicate the coffee on the
+     *       shelf, and copying the count would silently double the inventory report.
+     * </ul>
+     *
+     * <p>The copy is inactive so it cannot reach the storefront before the admin edits it.
+     */
+    @Transactional
+    public DashboardProductResponse duplicate(String slug) {
+        Product source = productRepository.findBySlug(slug)
+                .orElseThrow(ProductNotFoundException::new);
+
+        String copySlug = uniqueCopySlug(source.getSlug());
+        Product copy = Product.builder()
+                .slug(copySlug)
+                .category(source.getCategory())
+                .origin(source.getOrigin())
+                .farm(source.getFarm())
+                .productType(source.getProductType())
+                .featured(false)
+                .isActive(false)
+                .ogImageUrl(source.getOgImageUrl())
+                .build();
+        copy = productRepository.save(copy);
+
+        copyTranslations(source, copy);
+        copyVariants(source, copy);
+        copyMedia(source, copy);
+        productCoffeeDetailsService.copyCoffeeDetails(source, copy);
+        productRelationService.replaceTastingNotes(copy, tastingNoteSlugs(source));
+        productRelationService.replacePairings(copy, pairingSlugs(source));
+        productRelationService.replaceBrewingMethods(copy, brewingMethodRequests(source));
+        productTagService.replaceTags(copy, source.getTags().stream().map(t -> t.getSlug()).toList());
+        productRelationService.replaceRelatedProducts(copy,
+                source.getRelatedProducts().stream().map(Product::getSlug).toList());
+
+        productRepository.save(copy);
+        log.info("Product duplicated: {} -> {}", slug, copySlug);
+        scheduleIndexUpsert(copy.getId(), copySlug);
+        return dashboardProductMapper.buildDashboardResponse(copy);
+    }
+
+    private String uniqueCopySlug(String sourceSlug) {
+        String base = sourceSlug + "-copy";
+        String candidate = base;
+        int counter = 2;
+        while (productRepository.existsBySlugIncludingDeleted(candidate)) {
+            candidate = base + "-" + counter++;
+        }
+        return candidate;
+    }
+
+    private static String uniqueCopySku(String sourceSku, java.util.function.Predicate<String> taken) {
+        String base = sourceSku + "-copy";
+        String candidate = base;
+        int counter = 2;
+        while (taken.test(candidate)) {
+            candidate = base + "-" + counter++;
+        }
+        return candidate;
+    }
+
+    private void copyTranslations(Product source, Product target) {
+        List<ProductTranslation> copies = new ArrayList<>();
+        for (ProductTranslation t : source.getTranslations()) {
+            copies.add(ProductTranslation.builder()
+                    .product(target)
+                    .language(t.getLanguage())
+                    .name(t.getName())
+                    .shortDescription(t.getShortDescription())
+                    .description(t.getDescription())
+                    .story(t.getStory())
+                    .metaTitle(t.getMetaTitle())
+                    .metaDescription(t.getMetaDescription())
+                    .build());
+        }
+        productTranslationRepository.saveAll(copies);
+    }
+
+    private void copyVariants(Product source, Product target) {
+        for (ProductVariant v : source.getVariants()) {
+            productVariantRepository.save(ProductVariant.builder()
+                    .product(target)
+                    .sku(uniqueCopySku(v.getSku(), productVariantRepository::existsBySkuIncludingDeleted))
+                    .price(v.getPrice())
+                    .compareAtPrice(v.getCompareAtPrice())
+                    .costPrice(v.getCostPrice())
+                    .imageUrl(v.getImageUrl())
+                    .stockQuantity(0)
+                    .reservedQuantity(0)
+                    .reorderThreshold(v.getReorderThreshold())
+                    .isActive(v.isActive())
+                    .version(0L)
+                    // A variant built without option values carries a null set (Lombok's builder
+                    // bypasses the field initializer), so the copy has to allow for it.
+                    .optionValues(v.getOptionValues() == null
+                            ? new HashSet<>()
+                            : new HashSet<>(v.getOptionValues()))
+                    .build());
+        }
+    }
+
+    private void copyMedia(Product source, Product target) {
+        for (ProductMedia m : source.getMedia()) {
+            productMediaRepository.save(ProductMedia.builder()
+                    .product(target)
+                    .url(m.getUrl())
+                    .altText(m.getAltText())
+                    .type(m.getType())
+                    .sortOrder(m.getSortOrder())
+                    .isPrimary(m.isPrimary())
+                    .build());
+        }
+    }
+
+    private static List<String> tastingNoteSlugs(Product product) {
+        return product.getTastingNotes().stream().map(tn -> tn.getSlug()).toList();
+    }
+
+    private static List<String> pairingSlugs(Product product) {
+        return product.getPairings().stream().map(p -> p.getSlug()).toList();
+    }
+
+    private static List<com.nocteon.nocteon_api.product.dto.request.ProductBrewingMethodRequest> brewingMethodRequests(
+            Product product) {
+        return product.getBrewingMethods().stream()
+                .map(bm -> {
+                    com.nocteon.nocteon_api.product.dto.request.ProductBrewingMethodRequest request =
+                            new com.nocteon.nocteon_api.product.dto.request.ProductBrewingMethodRequest();
+                    request.setBrewingMethodSlug(bm.getBrewingMethod().getSlug());
+                    request.setScore(bm.getScore());
+                    return request;
+                })
+                .toList();
     }
 
     @Transactional

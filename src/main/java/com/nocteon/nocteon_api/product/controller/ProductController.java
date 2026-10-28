@@ -170,6 +170,21 @@ public class ProductController {
                                                 "Product updated"));
         }
 
+        /**
+         * FE-12: copy a product into an inactive draft. `product:create` is the grant — the action
+         * creates a product, even though it starts from an existing one.
+         */
+        @PostMapping("/dashboard/products/{slug}/duplicate")
+        @PreAuthorize("hasAuthority('product:create')")
+        public ResponseEntity<ApiResponse<DashboardProductResponse>> duplicate(
+                        @PathVariable String slug) {
+
+                return ResponseEntity.status(HttpStatus.CREATED).body(
+                                ApiResponse.success(
+                                                productService.duplicate(slug),
+                                                "Product duplicated"));
+        }
+
         @PatchMapping("/dashboard/products/{slug}/active")
         @PreAuthorize("hasAuthority('product:update')")
         public ResponseEntity<ApiResponse<DashboardProductResponse>> toggleActive(
