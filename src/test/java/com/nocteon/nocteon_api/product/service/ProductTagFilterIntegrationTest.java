@@ -18,7 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.nocteon.nocteon_api.NocteonApiApplication;
 import com.nocteon.nocteon_api.category.entity.Category;
 import com.nocteon.nocteon_api.category.repository.CategoryRepository;
+import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.product.dto.request.ProductFilterRequest;
+import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.entity.ProductTag;
 import com.nocteon.nocteon_api.product.entity.ProductTagTranslation;
@@ -49,6 +51,8 @@ class ProductTagFilterIntegrationTest {
     private ProductTagRepository tagRepository;
     @Autowired
     private CategoryRepository categoryRepository;
+    @Autowired
+    private ProductService productService;
     @Autowired
     private EntityManager entityManager;
 
@@ -85,6 +89,28 @@ class ProductTagFilterIntegrationTest {
         assertThat(findAll(tagFilter(gifts.getSlug())).getContent())
                 .extracting(Product::getSlug)
                 .containsExactly(tagged.getSlug());
+    }
+
+    /**
+     * The dashboard list does not go through the specification — it has its own paginated JPQL —
+     * so the filter has to work there too, or the select would be a decoration.
+     */
+    @Test
+    void theDashboardListFiltersByIdenticalRules() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        ProductTag arrivals = persistTag("new-arrivals-" + suffix, "New arrivals", "وصل حديثاً");
+        Category category = persistCategory("dashboard-tag-" + suffix);
+        Product tagged = persistProduct(category, "dash-tagged-" + suffix, arrivals);
+        Product untagged = persistProduct(category, "dash-untagged-" + suffix, (ProductTag) null);
+
+        ProductFilterRequest filter = tagFilter(arrivals.getSlug());
+        filter.setSize(100);
+        PageResponse<ProductCardResponse> page = productService.getAllDashboard(filter);
+
+        assertThat(page.getContent()).extracting(ProductCardResponse::getSlug)
+                .contains(tagged.getSlug())
+                .doesNotContain(untagged.getSlug());
+        assertThat(page.getTotalElements()).isEqualTo(page.getContent().size());
     }
 
     private Page<Product> findAll(ProductFilterRequest filter) {

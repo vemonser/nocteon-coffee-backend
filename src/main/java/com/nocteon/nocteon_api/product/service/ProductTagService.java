@@ -13,6 +13,7 @@ import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationExcept
 import com.nocteon.nocteon_api.common.exception.invalid.ProductTagInUseException;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductTagNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.journal.dto.response.TranslationResponseDashboard;
 import com.nocteon.nocteon_api.product.dto.request.ProductTagRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductTagTranslationRequest;
@@ -58,7 +59,7 @@ public class ProductTagService {
 
         // The slug column is unique across trashed rows too: include them, and lock the base slug
         // so two admins creating the same name cannot both pass the check.
-        String baseSlug = com.nocteon.nocteon_api.common.util.SlugUtils.toSlug(englishName);
+        String baseSlug = SlugUtils.toSlug(englishName);
         helper.acquireNameLock("product-tag", "slug", baseSlug);
         String slug = helper.generateUniqueSlug(
                 englishName, tagRepository::existsBySlugIncludingDeleted);
