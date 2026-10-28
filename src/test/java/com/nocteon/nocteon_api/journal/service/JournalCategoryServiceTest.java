@@ -22,6 +22,7 @@ import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.common.exception.invalid.JournalCategoryInUseException;
 import com.nocteon.nocteon_api.common.exception.invalid.JournalCategorySlugTakenException;
 import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
+import com.nocteon.nocteon_api.common.service.RichTextImageService;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.journal.dto.request.JournalCategoryRequest;
 import com.nocteon.nocteon_api.journal.dto.request.JournalCategoryTranslationRequest;
@@ -51,6 +52,9 @@ class JournalCategoryServiceTest {
     private LookupServiceHelper helper;
     @Mock
     private HtmlSanitizer htmlSanitizer;
+
+    @Mock
+    private RichTextImageService richTextImageService;
 
     @InjectMocks
     private JournalService service;

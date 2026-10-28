@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import com.nocteon.nocteon_api.brewingMethod.entity.BrewingMethodTranslation;
 import com.nocteon.nocteon_api.product.dto.response.DashboardCoffeeDetailsResponse;
 import com.nocteon.nocteon_api.product.dto.response.DashboardProductResponse;
+import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
 import com.nocteon.nocteon_api.product.dto.response.ProductBrewingMethodResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductMediaResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductTranslationResponse;
@@ -27,6 +28,7 @@ public class DashboardProductMapper {
         private final ProductBrewingMethodRepository productBrewingMethodRepository;
         private final CoffeeDetailsRepository coffeeDetailsRepository;
         private final ProductResponseMapper productResponseMapper;
+        private final HtmlSanitizer htmlSanitizer;
 
         public DashboardProductResponse buildDashboardResponse(Product product) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
@@ -38,7 +40,7 @@ public class DashboardProductMapper {
                                                 .name(t.getName())
                                                 .shortDescription(t.getShortDescription())
                                                 .description(t.getDescription())
-                                                .story(t.getStory())
+                                                .story(htmlSanitizer.sanitize(t.getStory()))
                                                 .metaTitle(t.getMetaTitle())
                                                 .metaDescription(t.getMetaDescription())
                                                 .build())

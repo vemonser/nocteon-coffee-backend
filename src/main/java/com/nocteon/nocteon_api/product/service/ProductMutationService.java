@@ -16,6 +16,7 @@ import com.nocteon.nocteon_api.common.exception.notFound.CategoryNotFoundExcepti
 import com.nocteon.nocteon_api.common.exception.notFound.FarmNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductNotFoundException;
+import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.common.transaction.AfterCommit;
 import com.nocteon.nocteon_api.farm.entity.Farm;
@@ -65,6 +66,7 @@ public class ProductMutationService {
     private final ProductCoffeeDetailsService productCoffeeDetailsService;
     private final ProductRelationService productRelationService;
     private final ProductIndexingService productIndexingService;
+    private final HtmlSanitizer htmlSanitizer;
 
     @Transactional
     public DashboardProductResponse create(ProductRequest request, List<MultipartFile> files) {
@@ -344,6 +346,11 @@ public class ProductMutationService {
      * A blank meta field is "not set", not a string of spaces: stored as null so the public
      * response can fall back to the product name / short description.
      */
+    /** The story is rich text (the journal editor); legacy plain text passes through as text. */
+    private String sanitizeStory(String story) {
+        return htmlSanitizer.sanitize(story);
+    }
+
     private static String normalizeText(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
@@ -373,7 +380,7 @@ public class ProductMutationService {
                     .name(t.getName())
                     .shortDescription(t.getShortDescription())
                     .description(t.getDescription())
-                    .story(t.getStory())
+                    .story(sanitizeStory(t.getStory()))
                     .metaTitle(normalizeText(t.getMetaTitle()))
                     .metaDescription(normalizeText(t.getMetaDescription()))
                     .build());
@@ -388,7 +395,7 @@ public class ProductMutationService {
                         existing.setName(t.getName());
                         existing.setShortDescription(t.getShortDescription());
                         existing.setDescription(t.getDescription());
-                        existing.setStory(t.getStory());
+                        existing.setStory(sanitizeStory(t.getStory()));
                         existing.setMetaTitle(normalizeText(t.getMetaTitle()));
                         existing.setMetaDescription(normalizeText(t.getMetaDescription()));
                         productTranslationRepository.save(existing);
@@ -398,7 +405,7 @@ public class ProductMutationService {
                             .name(t.getName())
                             .shortDescription(t.getShortDescription())
                             .description(t.getDescription())
-                            .story(t.getStory())
+                            .story(sanitizeStory(t.getStory()))
                             .metaTitle(normalizeText(t.getMetaTitle()))
                             .metaDescription(normalizeText(t.getMetaDescription()))
                             .build()));

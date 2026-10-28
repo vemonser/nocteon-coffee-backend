@@ -17,6 +17,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+
+import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.nocteon.nocteon_api.ai.service.ProductIndexingService;
@@ -79,6 +81,9 @@ class ProductSeoWriteTest {
     private DashboardProductMapper dashboardProductMapper;
     @Mock
     private ProductVariantRepository productVariantRepository;
+
+    @Mock
+    private HtmlSanitizer htmlSanitizer;
 
     @InjectMocks
     private ProductMutationService service;

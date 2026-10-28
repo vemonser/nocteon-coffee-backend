@@ -19,15 +19,13 @@ import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
-import com.nocteon.nocteon_api.common.exception.image.ImageUploadException;
-import com.nocteon.nocteon_api.common.exception.invalid.InvalidImageException;
 import com.nocteon.nocteon_api.common.exception.invalid.JournalCategoryInUseException;
 import com.nocteon.nocteon_api.common.exception.invalid.JournalCategorySlugTakenException;
-import com.nocteon.nocteon_api.common.exception.upload.ImageSizeExceededException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.JournalCategoryNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.JournalPostNotFoundException;
 import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
+import com.nocteon.nocteon_api.common.service.RichTextImageService;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.common.transaction.AfterCommit;
 import com.nocteon.nocteon_api.journal.dto.request.JournalCategoryRequest;
@@ -69,6 +67,7 @@ public class JournalService {
         private final UserRepository userRepository;
         private final LookupServiceHelper helper;
         private final HtmlSanitizer htmlSanitizer;
+        private final RichTextImageService richTextImageService;
 
         private static final int WORDS_PER_MINUTE = 200;
 
@@ -260,68 +259,9 @@ public class JournalService {
                                 .build();
         }
 
-        /**
-         * Upload one image for the editor body.
-         *
-         * <p>The toolbar inserts the returned URL; nothing is embedded as base64, so the stored
-         * HTML stays small and the sanitizer's own-CDN rule (FE-01) covers it.
-         */
+        /** One image for the editor body; shared validation lives in RichTextImageService. */
         public String uploadInlineImage(MultipartFile file) {
-                if (file == null || file.isEmpty()) {
-                        throw new InvalidImageException();
-                }
-                if (file.getSize() > MAX_INLINE_IMAGE_BYTES) {
-                        throw new ImageSizeExceededException();
-                }
-                String contentType = file.getContentType();
-                if (contentType == null
-                                || !ALLOWED_IMAGE_TYPES.contains(contentType.toLowerCase(java.util.Locale.ROOT))) {
-                        throw new InvalidImageException();
-                }
-                // The client's Content-Type is a claim, not proof: verify the magic bytes before
-                // handing the file to the CDN. An SVG or HTML document must never become an
-                // "image" that the article renderer later trusts.
-                try (java.io.InputStream in = file.getInputStream()) {
-                        if (!looksLikeImage(in.readNBytes(12))) {
-                                throw new InvalidImageException();
-                        }
-                } catch (java.io.IOException e) {
-                        throw new ImageUploadException();
-                }
-                String url = helper.uploadMedia(file, "journal/inline", MediaType.IMAGE);
-                if (url == null || url.isBlank()) {
-                        throw new ImageUploadException();
-                }
-                return url;
-        }
-
-        private static final long MAX_INLINE_IMAGE_BYTES = 5L * 1024 * 1024;
-
-        /** Formats Cloudinary can render and the sanitizer will keep. SVG and HTML are excluded. */
-        private static final Set<String> ALLOWED_IMAGE_TYPES = Set.of(
-                        "image/jpeg", "image/png", "image/gif", "image/webp");
-
-        private static boolean looksLikeImage(byte[] header) {
-                if (header.length >= 3
-                                && (header[0] & 0xFF) == 0xFF
-                                && (header[1] & 0xFF) == 0xD8
-                                && (header[2] & 0xFF) == 0xFF) {
-                        return true; // JPEG
-                }
-                if (header.length >= 8
-                                && (header[0] & 0xFF) == 0x89
-                                && header[1] == 'P' && header[2] == 'N' && header[3] == 'G') {
-                        return true; // PNG
-                }
-                if (header.length >= 6
-                                && header[0] == 'G' && header[1] == 'I' && header[2] == 'F') {
-                        return true; // GIF
-                }
-                return header.length >= 12
-                                && header[0] == 'R' && header[1] == 'I'
-                                && header[2] == 'F' && header[3] == 'F'
-                                && header[8] == 'W' && header[9] == 'E'
-                                && header[10] == 'B' && header[11] == 'P'; // WEBP
+                return richTextImageService.upload(file, "journal/inline");
         }
 
         @Transactional

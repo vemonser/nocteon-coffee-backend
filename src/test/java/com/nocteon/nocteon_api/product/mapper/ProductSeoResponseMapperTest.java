@@ -17,6 +17,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
+import com.nocteon.nocteon_api.cloudinary.config.CloudinaryProperties;
+import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
 import com.nocteon.nocteon_api.product.dto.response.ProductMediaResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
 import com.nocteon.nocteon_api.product.entity.Product;
@@ -70,6 +72,12 @@ class ProductSeoResponseMapperTest {
 
     private ProductResponseMapper mapper;
 
+    private static CloudinaryProperties cloudinaryProperties() {
+        CloudinaryProperties properties = new CloudinaryProperties();
+        properties.setCloudName("nocteon-test");
+        return properties;
+    }
+
     @BeforeEach
     void setUp() {
         mapper = new ProductResponseMapper(
@@ -81,7 +89,8 @@ class ProductSeoResponseMapperTest {
                 reviewRepository,
                 reviewService,
                 lookupResponseMapper,
-                lookupResponseImageMapper);
+                lookupResponseImageMapper,
+                new HtmlSanitizer(cloudinaryProperties()));
     }
 
     @Test

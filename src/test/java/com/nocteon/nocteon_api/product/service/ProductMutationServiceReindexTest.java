@@ -4,11 +4,14 @@ import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+
+import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -41,6 +44,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -102,8 +106,18 @@ class ProductMutationServiceReindexTest {
     @Mock
     private ProductIndexingService productIndexingService;
 
+    @Mock
+    private HtmlSanitizer htmlSanitizer;
+
     @InjectMocks
     private ProductMutationService service;
+
+    /** Story sanitization is pass-through here; its own behaviour is covered elsewhere. */
+    @BeforeEach
+    void passThroughSanitizer() {
+        lenient().when(htmlSanitizer.sanitize(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+    }
 
     @AfterEach
     void clearSynchronization() {

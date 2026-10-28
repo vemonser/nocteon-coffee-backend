@@ -31,6 +31,7 @@ import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductOptionOptionResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
 import com.nocteon.nocteon_api.product.service.ProductService;
+import com.nocteon.nocteon_api.common.service.RichTextImageService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ import lombok.RequiredArgsConstructor;
 public class ProductController {
 
         private final ProductService productService;
+        private final RichTextImageService richTextImageService;
 
         // =========================
         // Public
@@ -113,6 +115,15 @@ public class ProductController {
                                 ApiResponse.success(
                                                 productService.getDashboardBySlug(slug),
                                                 "Product retrieved"));
+        }
+
+        @PostMapping(value = "/dashboard/products/story-images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+        @PreAuthorize("hasAnyAuthority('product:create', 'product:update')")
+        public ResponseEntity<ApiResponse<java.util.Map<String, String>>> uploadStoryImage(
+                        @RequestPart("file") MultipartFile file) {
+                return ResponseEntity.ok(ApiResponse.success(
+                                java.util.Map.of("url", richTextImageService.upload(file, "products/story")),
+                                "Image uploaded"));
         }
 
         @PostMapping(value = "/dashboard/products", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

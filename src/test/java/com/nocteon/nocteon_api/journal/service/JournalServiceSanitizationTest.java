@@ -24,6 +24,7 @@ import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.cloudinary.config.CloudinaryProperties;
 import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
+import com.nocteon.nocteon_api.common.service.RichTextImageService;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
 import com.nocteon.nocteon_api.journal.dto.request.JournalPostRequest;
 import com.nocteon.nocteon_api.journal.dto.request.JournalPostTranslationRequest;
@@ -81,7 +82,8 @@ class JournalServiceSanitizationTest {
                 categoryRepository,
                 userRepository,
                 helper,
-                new HtmlSanitizer(properties));
+                new HtmlSanitizer(properties),
+                org.mockito.Mockito.mock(RichTextImageService.class));
     }
 
     @Test

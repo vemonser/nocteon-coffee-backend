@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import com.nocteon.nocteon_api.brewingMethod.entity.BrewingMethodTranslation;
 import com.nocteon.nocteon_api.category.entity.CategoryTranslation;
 import com.nocteon.nocteon_api.coffeeVariety.entity.CoffeeVarietyTranslation;
+import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
 import com.nocteon.nocteon_api.common.util.DiscountCalculator;
 import com.nocteon.nocteon_api.farm.entity.FarmTranslation;
 import com.nocteon.nocteon_api.origin.entity.OriginTranslation;
@@ -63,6 +64,7 @@ public class ProductResponseMapper {
         private final ReviewService reviewService;
         private final LookupResponseMapper lookupResponseMapper;
         private final LookupResponseImageMapper lookupResponseImageMapper;
+        private final HtmlSanitizer htmlSanitizer;
 
         public record VariantAggregate(int variantCount, int totalStock, int lowStockVariantCount,
                         BigDecimal minPrice, BigDecimal maxPrice) {
@@ -325,7 +327,7 @@ public class ProductResponseMapper {
                                 .coffeeVariety(coffeeVariety)
                                 .altitude(cd.getAltitude())
                                 .harvestYear(cd.getHarvestYear())
-                                .story(story)
+                                .story(htmlSanitizer.sanitize(story))
                                 .roastLevel(roastLevel)
                                 .build();
         }
