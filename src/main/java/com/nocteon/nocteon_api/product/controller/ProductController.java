@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -26,11 +27,14 @@ import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.product.dto.request.ProductFilterRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductMediaRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductRequest;
+import com.nocteon.nocteon_api.product.dto.request.ProductTagRequest;
 import com.nocteon.nocteon_api.product.dto.response.DashboardProductResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductOptionOptionResponse;
+import com.nocteon.nocteon_api.product.dto.response.ProductTagResponseDashboard;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
 import com.nocteon.nocteon_api.product.service.ProductService;
+import com.nocteon.nocteon_api.product.service.ProductTagService;
 import com.nocteon.nocteon_api.common.service.RichTextImageService;
 
 import jakarta.validation.Valid;
@@ -44,6 +48,7 @@ public class ProductController {
 
         private final ProductService productService;
         private final RichTextImageService richTextImageService;
+        private final ProductTagService productTagService;
 
         // =========================
         // Public
@@ -200,6 +205,41 @@ public class ProductController {
                                 ApiResponse.success(
                                                 productService.uploadMedia(slug, media, files),
                                                 "Media uploaded"));
+        }
+
+        // =========================
+        // Tags (FE-10)
+        // =========================
+
+        @GetMapping("/dashboard/product-tags")
+        @PreAuthorize("hasAuthority('product:read')")
+        public ResponseEntity<ApiResponse<List<ProductTagResponseDashboard>>> getTags() {
+                return ResponseEntity.ok(
+                                ApiResponse.success(productTagService.getTags(), "Tags retrieved"));
+        }
+
+        @PostMapping("/dashboard/product-tags")
+        @PreAuthorize("hasAuthority('product:create')")
+        public ResponseEntity<ApiResponse<ProductTagResponseDashboard>> createTag(
+                        @Valid @RequestBody ProductTagRequest request) {
+                return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(
+                                productTagService.createTag(request), "Tag created"));
+        }
+
+        @PutMapping("/dashboard/product-tags/{id}")
+        @PreAuthorize("hasAuthority('product:update')")
+        public ResponseEntity<ApiResponse<ProductTagResponseDashboard>> renameTag(
+                        @PathVariable Long id,
+                        @Valid @RequestBody ProductTagRequest request) {
+                return ResponseEntity.ok(ApiResponse.success(
+                                productTagService.renameTag(id, request), "Tag updated"));
+        }
+
+        @DeleteMapping("/dashboard/product-tags/{id}")
+        @PreAuthorize("hasAuthority('product:delete')")
+        public ResponseEntity<ApiResponse<Void>> deleteTag(@PathVariable Long id) {
+                productTagService.deleteTag(id);
+                return ResponseEntity.ok(ApiResponse.success(null, "Tag deleted"));
         }
 
         @DeleteMapping("/dashboard/products/media/{mediaId}")

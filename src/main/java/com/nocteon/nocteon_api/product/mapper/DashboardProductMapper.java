@@ -31,6 +31,7 @@ public class DashboardProductMapper {
         private final CoffeeDetailsRepository coffeeDetailsRepository;
         private final ProductResponseMapper productResponseMapper;
         private final HtmlSanitizer htmlSanitizer;
+        private final ProductTagMapper productTagMapper;
 
         public DashboardProductResponse buildDashboardResponse(Product product) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
@@ -152,6 +153,7 @@ public class DashboardProductMapper {
                                 .tastingNotes(tastingNotes)
                                 .pairings(pairings)
                                 .brewingMethods(brewingMethods)
+                                .tags(productTagMapper.toSummaries(product.getTags(), language))
                                 .ogImageUrl(product.getOgImageUrl())
                                 .build();
         }

@@ -67,6 +67,7 @@ public class ProductMutationService {
     private final ProductRelationService productRelationService;
     private final ProductIndexingService productIndexingService;
     private final HtmlSanitizer htmlSanitizer;
+    private final ProductTagService productTagService;
 
     @Transactional
     public DashboardProductResponse create(ProductRequest request, List<MultipartFile> files) {
@@ -108,6 +109,7 @@ public class ProductMutationService {
 
         productRelationService.attachTastingNotes(product, request.getTastingNoteSlugs());
         productRelationService.attachPairings(product, request.getPairingSlugs());
+        productTagService.replaceTags(product, request.getTagSlugs());
         productRelationService.saveBrewingMethods(product, request.getBrewingMethods());
         productMediaService.saveMedia(product, request.getMedia(), files);
 
@@ -144,6 +146,7 @@ public class ProductMutationService {
         productCoffeeDetailsService.replaceCoffeeDetails(product, request.getProductType(), request.getCoffeeDetails());
         productRelationService.replaceTastingNotes(product, request.getTastingNoteSlugs());
         productRelationService.replacePairings(product, request.getPairingSlugs());
+        productTagService.replaceTags(product, request.getTagSlugs());
         productRelationService.replaceBrewingMethods(product, request.getBrewingMethods());
         productMediaService.replaceMedia(product, request.getMedia(), files);
 

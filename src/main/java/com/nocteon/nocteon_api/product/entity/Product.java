@@ -122,6 +122,17 @@ public class Product extends SoftDeletableEntity {
         @BatchSize(size = 30)
         private List<Pairing> pairings = new ArrayList<>();
 
+        /**
+         * Merchandising labels (FE-10). Batched for the same reason as the other collections: the
+         * detail response reads them, and anything walking many products must not pay one SELECT
+         * per product. Never read by the list projection.
+         */
+        @ManyToMany(fetch = FetchType.LAZY)
+        @JoinTable(name = "product_tag_links", joinColumns = @JoinColumn(name = "product_id"), inverseJoinColumns = @JoinColumn(name = "tag_id"))
+        @Builder.Default
+        @BatchSize(size = 30)
+        private Set<ProductTag> tags = new HashSet<>();
+
         // BrewingMethod
         @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
         @Builder.Default

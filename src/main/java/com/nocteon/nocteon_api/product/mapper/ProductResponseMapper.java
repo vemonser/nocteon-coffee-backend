@@ -65,6 +65,7 @@ public class ProductResponseMapper {
         private final LookupResponseMapper lookupResponseMapper;
         private final LookupResponseImageMapper lookupResponseImageMapper;
         private final HtmlSanitizer htmlSanitizer;
+        private final ProductTagMapper productTagMapper;
 
         public record VariantAggregate(int variantCount, int totalStock, int lowStockVariantCount,
                         BigDecimal minPrice, BigDecimal maxPrice) {
@@ -283,6 +284,7 @@ public class ProductResponseMapper {
                                 .averageRating(averageRating)
                                 .reviewCount(reviewCount)
                                 .recentReviews(recentReviews)
+                                .tags(productTagMapper.toSummaries(product.getTags(), language))
                                 .build();
         }
 

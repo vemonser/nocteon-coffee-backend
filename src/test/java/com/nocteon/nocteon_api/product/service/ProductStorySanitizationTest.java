@@ -57,6 +57,7 @@ class ProductStorySanitizationTest {
     @Mock private ProductResponseMapper productResponseMapper;
     @Mock private DashboardProductMapper dashboardProductMapper;
     @Mock private ProductVariantRepository productVariantRepository;
+    @Mock private ProductTagService productTagService;
 
     @Spy
     private HtmlSanitizer htmlSanitizer = new HtmlSanitizer(cloudinaryProperties());
@@ -116,7 +117,7 @@ class ProductStorySanitizationTest {
                 categoryRepository, originRepository, farmRepository, helper, productMediaService,
                 productVariantRepository, productResponseMapper, dashboardProductMapper,
                 productVariantService, productCoffeeDetailsService, productRelationService,
-                productIndexingService, htmlSanitizer);
+                productIndexingService, htmlSanitizer, productTagService);
     }
 
     private static ProductRequest request(String story) {

@@ -50,5 +50,8 @@ public class ProductRequest {
     
     private List<String> tastingNoteSlugs;
     private List<String> pairingSlugs;
+
+    /** Merchandising tags by slug (FE-10). An unknown slug is rejected, not dropped. */
+    private List<String> tagSlugs;
     private List<ProductBrewingMethodRequest> brewingMethods;
 }

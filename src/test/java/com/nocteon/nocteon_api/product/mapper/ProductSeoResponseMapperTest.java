@@ -90,7 +90,8 @@ class ProductSeoResponseMapperTest {
                 reviewService,
                 lookupResponseMapper,
                 lookupResponseImageMapper,
-                new HtmlSanitizer(cloudinaryProperties()));
+                new HtmlSanitizer(cloudinaryProperties()),
+                new ProductTagMapper());
     }
 
     @Test
