@@ -355,6 +355,7 @@ public class ProductMutationService {
                     .name(t.getName())
                     .shortDescription(t.getShortDescription())
                     .description(t.getDescription())
+                    .story(t.getStory())
                     .build());
         }
         productTranslationRepository.saveAll(translations);
@@ -367,6 +368,7 @@ public class ProductMutationService {
                         existing.setName(t.getName());
                         existing.setShortDescription(t.getShortDescription());
                         existing.setDescription(t.getDescription());
+                        existing.setStory(t.getStory());
                         productTranslationRepository.save(existing);
                     }, () -> productTranslationRepository.save(ProductTranslation.builder()
                             .product(product)
@@ -374,6 +376,7 @@ public class ProductMutationService {
                             .name(t.getName())
                             .shortDescription(t.getShortDescription())
                             .description(t.getDescription())
+                            .story(t.getStory())
                             .build()));
         }
     }

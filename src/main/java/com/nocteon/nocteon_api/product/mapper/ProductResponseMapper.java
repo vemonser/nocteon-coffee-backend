@@ -299,12 +299,23 @@ public class ProductResponseMapper {
 
                 RoastLevelSummary roastLevel = buildRoastLevel(cd, language);
 
+                // The story is per language now; the coffee_details column is the
+                // pre-migration fallback.
+                String story = cd.getProduct() != null
+                                ? cd.getProduct().getTranslations().stream()
+                                                .filter(t -> t.getLanguage().equals(language))
+                                                .map(ProductTranslation::getStory)
+                                                .filter(java.util.Objects::nonNull)
+                                                .findFirst()
+                                                .orElse(cd.getStory())
+                                : cd.getStory();
+
                 return CoffeeDetailsResponse.builder()
                                 .processingMethod(processingMethod)
                                 .coffeeVariety(coffeeVariety)
                                 .altitude(cd.getAltitude())
                                 .harvestYear(cd.getHarvestYear())
-                                .story(cd.getStory())
+                                .story(story)
                                 .roastLevel(roastLevel)
                                 .build();
         }

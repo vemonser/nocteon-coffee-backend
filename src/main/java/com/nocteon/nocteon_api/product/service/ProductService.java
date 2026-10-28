@@ -81,6 +81,7 @@ public class ProductService {
      * @return the requested page of cards; the response shape is identical either way, only
      *         the ordering and the page membership differ
      */
+    @Transactional(readOnly = true)
     public PageResponse<ProductCardResponse> getAll(ProductFilterRequest filter) {
         return semanticProductSearch.rank(filter)
                 .orElseGet(() -> keywordSearch(filter));
@@ -242,6 +243,7 @@ public class ProductService {
         return dashboardProductMapper.buildDashboardResponse(product);
     }
 
+    @Transactional(readOnly = true)
     public ProductResponse getBySlug(String slug) {
         String language = LocaleContextHolder.getLocale().getLanguage();
 

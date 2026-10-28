@@ -38,4 +38,8 @@ public class ProductTranslation extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String description;
+
+    /** The long-form story, per language (the product page's editorial block). */
+    @Column(columnDefinition = "TEXT")
+    private String story;
 }

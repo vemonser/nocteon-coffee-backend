@@ -8,6 +8,7 @@ import org.springframework.data.annotation.Version;
 
 import com.nocteon.nocteon_api.common.entity.SoftDeletableEntity;
 
+import org.hibernate.annotations.BatchSize;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -50,6 +51,7 @@ public class ProductVariant extends SoftDeletableEntity {
 
     @ManyToMany
     @JoinTable(name = "variant_option_values", joinColumns = @JoinColumn(name = "variant_id"), inverseJoinColumns = @JoinColumn(name = "option_value_id"))
+    @BatchSize(size = 30)
     private Set<ProductOptionValue> optionValues = new HashSet<>();
 
     @Column(name = "stock_quantity", nullable = false)

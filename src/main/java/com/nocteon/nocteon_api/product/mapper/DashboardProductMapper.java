@@ -38,6 +38,7 @@ public class DashboardProductMapper {
                                                 .name(t.getName())
                                                 .shortDescription(t.getShortDescription())
                                                 .description(t.getDescription())
+                                                .story(t.getStory())
                                                 .build())
                                 .toList();
 

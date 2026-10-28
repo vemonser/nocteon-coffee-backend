@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -24,6 +25,7 @@ import com.nocteon.nocteon_api.product.dto.request.ProductTranslationRequest;
 import com.nocteon.nocteon_api.product.dto.response.DashboardProductResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
 import com.nocteon.nocteon_api.product.entity.Product;
+import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.enums.ProductType;
 import com.nocteon.nocteon_api.product.mapper.DashboardProductMapper;
 import com.nocteon.nocteon_api.product.mapper.ProductResponseMapper;
@@ -179,6 +181,36 @@ class ProductMutationServiceReindexTest {
         commit();
 
         verify(productIndexingService).upsertById(99L);
+    }
+
+    @Test
+    void createPersistsTheStoryInsideTheTranslation() {
+        ProductRequest request = request();
+        ProductTranslationRequest en = translation("en", "Yirgacheffe");
+        en.setStory("Grown at 2,000 m by the Kebele smallholders.");
+        request.setTranslations(List.of(en));
+        Product saved = product(99L, "yirgacheffe");
+
+        when(categoryRepository.findBySlug("single-origin"))
+                .thenReturn(Optional.of(Category.builder().build()));
+        when(originRepository.findBySlug("ethiopia"))
+                .thenReturn(Optional.of(Origin.builder().build()));
+        when(helper.generateUniqueSlug(eq("Yirgacheffe"), any())).thenReturn("yirgacheffe");
+        when(productRepository.save(any(Product.class))).thenReturn(saved);
+        when(productRepository.findBySlug(eq("yirgacheffe"))).thenReturn(Optional.of(saved));
+        when(dashboardProductMapper.buildDashboardResponse(any(Product.class)))
+                .thenReturn(DashboardProductResponse.builder().build());
+
+        beginTransaction();
+        service.create(request, List.of());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ProductTranslation>> captor = ArgumentCaptor.forClass(List.class);
+        verify(productTranslationRepository).saveAll(captor.capture());
+        assertThat(captor.getValue())
+                .singleElement()
+                .extracting(ProductTranslation::getStory)
+                .isEqualTo("Grown at 2,000 m by the Kebele smallholders.");
     }
 
     // --- update -------------------------------------------------------------------------------
