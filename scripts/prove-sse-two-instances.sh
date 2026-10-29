@@ -56,12 +56,18 @@ echo "[1/6] building application image (docker compose build app)"
 docker compose build app
 
 echo "[1/6] tagging built image as ${IMAGE_TAG}"
-IMAGE_ID="$(docker compose images -q app | head -n 1)"
-if [[ -z "${IMAGE_ID}" ]]; then
+# The image compose builds is named `nocteon-backend-app:latest`. Prefer that
+# tag: `docker compose images -q` can report a stale digest that no longer
+# exists (a rebuilt image leaves the old id behind), and `docker tag` then fails.
+IMAGE_REF="nocteon-backend-app:latest"
+if ! docker image inspect "${IMAGE_REF}" >/dev/null 2>&1; then
+    IMAGE_REF="$(docker compose images -q app 2>/dev/null | head -n 1)"
+fi
+if [[ -z "${IMAGE_REF}" ]]; then
     echo "FAIL: could not resolve the image produced by 'docker compose build app'" >&2
     exit 1
 fi
-docker tag "${IMAGE_ID}" "${IMAGE_TAG}"
+docker tag "${IMAGE_REF}" "${IMAGE_TAG}"
 export SSE_PROOF_IMAGE="${IMAGE_TAG}"
 
 # ── 2. make sure db + redis are up ─────────────────────────────────────────────
