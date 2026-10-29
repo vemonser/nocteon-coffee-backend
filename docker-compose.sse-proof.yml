@@ -1,0 +1,58 @@
+# Override used by scripts/prove-sse-two-instances.sh.
+#
+# Adds two extra app containers (app-a on :8081, app-b on :8082) on top of the
+# base docker-compose.yml, reusing the same db/redis services and the same env.
+# The image is supplied by the script (the one `docker compose build app` produced),
+# so this file never builds anything itself.
+services:
+  app-a:
+    image: ${SSE_PROOF_IMAGE:-nocteon-api:sse-proof}
+    container_name: nocteon-sse-a
+    ports:
+      - "8081:8080"
+    env_file:
+      - .env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-nocteon_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+      AI_ENABLED: "false"
+      AI_SEARCH_ENABLED: "false"
+      AI_CHATBOT_ENABLED: "false"
+      MAIL_SCHEDULING_ENABLED: "false"
+      NOTIFICATIONS_STREAM_TRANSPORT: "redis"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  app-b:
+    image: ${SSE_PROOF_IMAGE:-nocteon-api:sse-proof}
+    container_name: nocteon-sse-b
+    ports:
+      - "8082:8080"
+    env_file:
+      - .env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-nocteon_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+      AI_ENABLED: "false"
+      AI_SEARCH_ENABLED: "false"
+      AI_CHATBOT_ENABLED: "false"
+      MAIL_SCHEDULING_ENABLED: "false"
+      NOTIFICATIONS_STREAM_TRANSPORT: "redis"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
