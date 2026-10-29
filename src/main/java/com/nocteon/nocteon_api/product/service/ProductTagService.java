@@ -18,6 +18,7 @@ import com.nocteon.nocteon_api.journal.dto.response.TranslationResponseDashboard
 import com.nocteon.nocteon_api.product.dto.request.ProductTagRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductTagTranslationRequest;
 import com.nocteon.nocteon_api.product.dto.response.ProductTagResponseDashboard;
+import com.nocteon.nocteon_api.product.dto.response.summary.ProductTagSummary;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.entity.ProductTag;
 import com.nocteon.nocteon_api.product.entity.ProductTagTranslation;
@@ -45,6 +46,29 @@ public class ProductTagService {
     public List<ProductTagResponseDashboard> getTags() {
         return tagRepository.findAllWithTranslations().stream()
                 .map(ProductTagService::toResponse)
+                .toList();
+    }
+
+    /**
+     * FE-STOREFRONT: the tags the public catalogue can filter by, already localized. The dashboard
+     * endpoint returns the full translation set; this one resolves the name so the storefront does
+     * not have to.
+     */
+    @Transactional(readOnly = true)
+    public List<ProductTagSummary> getTagSummaries(String language) {
+        return tagRepository.findAllWithTranslations().stream()
+                .map(tag -> ProductTagSummary.builder()
+                        .slug(tag.getSlug())
+                        .name(tag.getTranslations().stream()
+                                .filter(t -> t.getLanguage().equals(language))
+                                .map(ProductTagTranslation::getName)
+                                .findFirst()
+                                .orElseGet(() -> tag.getTranslations().stream()
+                                        .filter(t -> t.getLanguage().equals("en"))
+                                        .map(ProductTagTranslation::getName)
+                                        .findFirst()
+                                        .orElse(tag.getSlug())))
+                        .build())
                 .toList();
     }
 

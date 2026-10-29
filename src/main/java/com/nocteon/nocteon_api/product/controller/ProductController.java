@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -33,6 +34,7 @@ import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductOptionOptionResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductTagResponseDashboard;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
+import com.nocteon.nocteon_api.product.dto.response.summary.ProductTagSummary;
 import com.nocteon.nocteon_api.product.service.ProductService;
 import com.nocteon.nocteon_api.product.service.ProductTagService;
 import com.nocteon.nocteon_api.common.service.RichTextImageService;
@@ -73,6 +75,19 @@ public class ProductController {
                                 ApiResponse.success(
                                                 productService.getBySlug(slug),
                                                 "Product retrieved"));
+        }
+
+        /**
+         * FE-STOREFRONT: the public tag vocabulary, localized, so the storefront can render a
+         * filter without a dashboard session. Gated on nothing — tags are public metadata.
+         */
+        @GetMapping("/product-tags")
+        public ResponseEntity<ApiResponse<List<ProductTagSummary>>> getPublicTags() {
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                productTagService.getTagSummaries(
+                                                        LocaleContextHolder.getLocale().getLanguage()),
+                                                "Tags retrieved"));
         }
 
         @GetMapping("/products/available-options")
