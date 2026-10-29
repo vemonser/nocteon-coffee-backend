@@ -53,5 +53,12 @@ public class ProductRequest {
 
     /** Merchandising tags by slug (FE-10). An unknown slug is rejected, not dropped. */
     private List<String> tagSlugs;
+
+    /**
+     * "You may also like" by slug (FE-11), in display order. At most six; a self-reference or an
+     * unknown slug is rejected rather than silently dropped.
+     */
+    @Size(max = 6, message = "{validation.relatedProducts.size}")
+    private List<String> relatedProductSlugs;
     private List<ProductBrewingMethodRequest> brewingMethods;
 }

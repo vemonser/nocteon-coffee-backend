@@ -29,6 +29,8 @@ import com.nocteon.nocteon_api.product.enums.ProductType;
 import com.nocteon.nocteon_api.product.repository.CoffeeDetailsRepository;
 import com.nocteon.nocteon_api.product.repository.ProductBrewingMethodRepository;
 import com.nocteon.nocteon_api.product.repository.ProductMediaRepository;
+import com.nocteon.nocteon_api.product.entity.ProductRelation;
+import com.nocteon.nocteon_api.product.repository.ProductRelationRepository;
 import com.nocteon.nocteon_api.product.repository.ProductTranslationRepository;
 import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
 import com.nocteon.nocteon_api.review.repository.ReviewRepository;
@@ -62,6 +64,8 @@ class ProductSeoResponseMapperTest {
     @Mock
     private CoffeeDetailsRepository coffeeDetailsRepository;
     @Mock
+    private ProductRelationRepository productRelationRepository;
+    @Mock
     private ReviewRepository reviewRepository;
     @Mock
     private ReviewService reviewService;
@@ -91,7 +95,8 @@ class ProductSeoResponseMapperTest {
                 lookupResponseMapper,
                 lookupResponseImageMapper,
                 new HtmlSanitizer(cloudinaryProperties()),
-                new ProductTagMapper());
+                new ProductTagMapper(),
+                productRelationRepository);
     }
 
     @Test
@@ -154,6 +159,46 @@ class ProductSeoResponseMapperTest {
 
         assertThat(response.getMetaTitle()).isEqualTo("Yirgacheffe");
         assertThat(response.getMetaDescription()).isEqualTo("A floral Ethiopian coffee.");
+    }
+
+    @Test
+    @DisplayName("related products come back as ready-to-render cards")
+    void exposesRelatedProductsAsCards() {
+        Product product = product(null);
+        stubReads(product);
+        stubMedia(media(1L, PRIMARY_IMAGE, MediaType.IMAGE, true, 0));
+
+        com.nocteon.nocteon_api.category.entity.Category category =
+                com.nocteon.nocteon_api.category.entity.Category.builder().slug("coffee").build();
+        com.nocteon.nocteon_api.product.entity.Product related =
+                com.nocteon.nocteon_api.product.entity.Product.builder()
+                        .id(9L)
+                        .slug("kenya-nyeri")
+                        .category(category)
+                        .productType(ProductType.COFFEE)
+                        .isActive(true)
+                        .build();
+        related.getTranslations().add(ProductTranslation.builder()
+                .product(related).language("en").name("Kenya Nyeri").build());
+        related.getMedia().add(media(11L, SECOND_IMAGE, MediaType.IMAGE, true, 0));
+        related.getVariants().add(com.nocteon.nocteon_api.product.entity.ProductVariant.builder()
+                .id(90L)
+                .product(related)
+                .sku("KEN-250")
+                .price(new java.math.BigDecimal("600.00"))
+                .isActive(true)
+                .optionValues(java.util.Set.of())
+                .build());
+        when(productRelationRepository.findByProductIdOrderByPosition(1L)).thenReturn(List.of(
+                ProductRelation.builder().product(product).relatedProduct(related).position(0).build()));
+
+        ProductResponse response = mapper.buildDetailResponse(product, "en");
+
+        assertThat(response.getRelatedProducts()).hasSize(1);
+        assertThat(response.getRelatedProducts().get(0).getSlug()).isEqualTo("kenya-nyeri");
+        assertThat(response.getRelatedProducts().get(0).getName()).isEqualTo("Kenya Nyeri");
+        assertThat(response.getRelatedProducts().get(0).getPrimaryImageUrl()).isEqualTo(SECOND_IMAGE);
+        assertThat(response.getRelatedProducts().get(0).getMinPrice()).isEqualByComparingTo("600.00");
     }
 
     @Test

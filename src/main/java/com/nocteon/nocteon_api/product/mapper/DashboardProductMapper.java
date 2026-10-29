@@ -15,9 +15,13 @@ import com.nocteon.nocteon_api.product.dto.response.ProductBrewingMethodResponse
 import com.nocteon.nocteon_api.product.dto.response.ProductMediaResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductTranslationResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductVariantResponse;
+import com.nocteon.nocteon_api.product.dto.response.summary.RelatedProductSummary;
 import com.nocteon.nocteon_api.product.entity.CoffeeDetails;
+import com.nocteon.nocteon_api.product.entity.ProductMedia;
+import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.repository.CoffeeDetailsRepository;
+import com.nocteon.nocteon_api.product.repository.ProductRelationRepository;
 import com.nocteon.nocteon_api.product.repository.ProductBrewingMethodRepository;
 import com.nocteon.nocteon_api.product.repository.ProductTranslationRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +36,7 @@ public class DashboardProductMapper {
         private final ProductResponseMapper productResponseMapper;
         private final HtmlSanitizer htmlSanitizer;
         private final ProductTagMapper productTagMapper;
+        private final ProductRelationRepository productRelationRepository;
 
         public DashboardProductResponse buildDashboardResponse(Product product) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
@@ -154,7 +159,35 @@ public class DashboardProductMapper {
                                 .pairings(pairings)
                                 .brewingMethods(brewingMethods)
                                 .tags(productTagMapper.toSummaries(product.getTags(), language))
+                                .relatedProducts(relatedSummaries(product, language))
                                 .ogImageUrl(product.getOgImageUrl())
                                 .build();
+        }
+
+        /**
+         * FE-11: the related products as the wizard renders them — localized name plus a
+         * thumbnail. Read inside the transaction; the collection is {@code @BatchSize}d, so six
+         * entries cost the same handful of statements however many products are opened.
+         */
+        private List<RelatedProductSummary> relatedSummaries(Product product, String language) {
+                return productRelationRepository.findByProductIdOrderByPosition(product.getId()).stream()
+                                .map(relation -> relation.getRelatedProduct())
+                                .map(related -> RelatedProductSummary.builder()
+                                                .slug(related.getSlug())
+                                                .name(related.getTranslations().stream()
+                                                                .filter(t -> t.getLanguage().equals(language))
+                                                                .map(ProductTranslation::getName)
+                                                                .findFirst()
+                                                                .orElse(related.getSlug()))
+                                                .primaryImageUrl(related.getMedia().stream()
+                                                                .filter(ProductMedia::isPrimary)
+                                                                .map(ProductMedia::getUrl)
+                                                                .findFirst()
+                                                                .orElseGet(() -> related.getMedia().stream()
+                                                                                .map(ProductMedia::getUrl)
+                                                                                .findFirst()
+                                                                                .orElse(null)))
+                                                .build())
+                                .toList();
         }
 }

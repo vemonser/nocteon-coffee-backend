@@ -263,6 +263,10 @@ public class ProductService {
         return productMutationService.update(slug, request, files);
     }
 
+    public DashboardProductResponse duplicate(String slug) {
+        return productMutationService.duplicate(slug);
+    }
+
     public DashboardProductResponse toggleActive(String slug, boolean active) {
         return productMutationService.toggleActive(slug, active);
     }

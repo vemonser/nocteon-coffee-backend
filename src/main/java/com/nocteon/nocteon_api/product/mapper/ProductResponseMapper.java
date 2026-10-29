@@ -41,6 +41,7 @@ import com.nocteon.nocteon_api.product.enums.ProductType;
 import com.nocteon.nocteon_api.product.repository.CoffeeDetailsRepository;
 import com.nocteon.nocteon_api.product.repository.ProductBrewingMethodRepository;
 import com.nocteon.nocteon_api.product.repository.ProductMediaRepository;
+import com.nocteon.nocteon_api.product.repository.ProductRelationRepository;
 import com.nocteon.nocteon_api.product.repository.ProductTranslationRepository;
 import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
 import com.nocteon.nocteon_api.review.dto.response.ReviewResponse;
@@ -66,6 +67,7 @@ public class ProductResponseMapper {
         private final LookupResponseImageMapper lookupResponseImageMapper;
         private final HtmlSanitizer htmlSanitizer;
         private final ProductTagMapper productTagMapper;
+        private final ProductRelationRepository productRelationRepository;
 
         public record VariantAggregate(int variantCount, int totalStock, int lowStockVariantCount,
                         BigDecimal minPrice, BigDecimal maxPrice) {
@@ -285,6 +287,10 @@ public class ProductResponseMapper {
                                 .reviewCount(reviewCount)
                                 .recentReviews(recentReviews)
                                 .tags(productTagMapper.toSummaries(product.getTags(), language))
+                                .relatedProducts(productRelationRepository
+                                                .findByProductIdOrderByPosition(product.getId()).stream()
+                                                .map(relation -> buildListResponse(relation.getRelatedProduct(), language))
+                                                .toList())
                                 .build();
         }
 

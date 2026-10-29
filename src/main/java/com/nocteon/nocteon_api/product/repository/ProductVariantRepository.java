@@ -126,6 +126,14 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
 
     boolean existsBySku(String sku);
 
+    /**
+     * SKUs are unique across trashed variants too, and {@code existsBySku} cannot see them
+     * ({@code @SQLRestriction}). FE-12 uses this so a copy never collides with a row it cannot
+     * read.
+     */
+    @Query(value = "SELECT EXISTS (SELECT 1 FROM product_variants WHERE sku = :sku)", nativeQuery = true)
+    boolean existsBySkuIncludingDeleted(@Param("sku") String sku);
+
     void deleteByProductId(Long productId);
 
     /**

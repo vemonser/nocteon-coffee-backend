@@ -257,6 +257,15 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
 
         boolean existsBySlug(String slug);
 
+        /**
+         * The slug column is unique across trashed rows too, and the derived {@code existsBySlug}
+         * cannot see them ({@code @SQLRestriction}). FE-12 needs the honest answer: a copy that
+         * lands on a trashed product's slug would fail on the constraint instead of trying the
+         * next candidate.
+         */
+        @Query(value = "SELECT EXISTS (SELECT 1 FROM products WHERE slug = :slug)", nativeQuery = true)
+        boolean existsBySlugIncludingDeleted(@Param("slug") String slug);
+
     @Query("SELECT COUNT(p) FROM Product p WHERE p.category.id = :categoryId")
     long countByCategoryId(@Param("categoryId") Long categoryId);
 

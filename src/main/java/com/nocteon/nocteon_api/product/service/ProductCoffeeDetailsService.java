@@ -68,6 +68,24 @@ public class ProductCoffeeDetailsService {
                         .build());
     }
 
+    /**
+     * FE-12: the duplicate keeps the same coffee attributes (roast, processing, variety, altitude,
+     * harvest year and the legacy story column). Read-only copy — the source is untouched.
+     */
+    @Transactional
+    public void copyCoffeeDetails(Product source, Product target) {
+        coffeeDetailsRepository.findByProductId(source.getId()).ifPresent(cd ->
+                coffeeDetailsRepository.save(CoffeeDetails.builder()
+                        .product(target)
+                        .processingMethod(cd.getProcessingMethod())
+                        .coffeeVariety(cd.getCoffeeVariety())
+                        .roastLevel(cd.getRoastLevel())
+                        .altitude(cd.getAltitude())
+                        .harvestYear(cd.getHarvestYear())
+                        .story(cd.getStory())
+                        .build()));
+    }
+
     @Transactional
     public void replaceCoffeeDetails(Product product, ProductType productType, CoffeeDetailsRequest coffeeDetails) {
         coffeeDetailsRepository.deleteByProductId(product.getId());

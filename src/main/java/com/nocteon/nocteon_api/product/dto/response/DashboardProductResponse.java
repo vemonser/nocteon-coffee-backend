@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 
 import com.nocteon.nocteon_api.product.dto.response.summary.ProductTagSummary;
+import com.nocteon.nocteon_api.product.dto.response.summary.RelatedProductSummary;
 import com.nocteon.nocteon_api.product.enums.ProductType;
 
 import lombok.Builder;
@@ -43,6 +44,9 @@ public class DashboardProductResponse {
 
     /** Merchandising tags by slug and localized name (FE-10). */
     private List<ProductTagSummary> tags;
+
+    /** "You may also like" (FE-11), in display order. */
+    private List<RelatedProductSummary> relatedProducts;
 
     /** The admin's own choice, nullable: empty means "use the primary image". */
     private String ogImageUrl;
