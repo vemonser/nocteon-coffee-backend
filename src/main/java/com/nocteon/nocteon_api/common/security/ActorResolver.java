@@ -15,10 +15,12 @@ import com.nocteon.nocteon_api.auth.security.UserPrincipal;
  * test, the payment webhook) is honestly labelled {@code system} instead of
  * guessing.
  *
- * <p>This returns a display label, not an audit actor: an audit row stores the
- * user id and e-mail as two columns and must keep them null for a system action
- * (see {@link AuditActor}), so it never records the string {@code system} as an
- * e-mail.
+ * <p>{@link #currentActor()} returns a display label for the row's own
+ * {@code actor} column ({@code inventory_movements.actor}, built by hand).
+ * {@link #currentAuditActor()} returns the two fields an audit row stores —
+ * the user id AND the e-mail — and resolves to {@link AuditActor#NONE} rather
+ * than the string {@code system}, because an audit row must keep both columns
+ * null for a system action (see {@link AuditActor}).
  */
 public final class ActorResolver {
 
@@ -29,16 +31,29 @@ public final class ActorResolver {
 
     /** The signed-in admin's e-mail, or {@code system}. */
     public static String currentActor() {
+        AuditActor actor = currentAuditActor();
+        return actor.userEmail() == null ? SYSTEM : actor.userEmail();
+    }
+
+    /**
+     * The signed-in admin, for an audit row.
+     *
+     * <p>Same source as {@link #currentActor()}, resolved through
+     * {@link AuditActor#of(UserPrincipal)} so both halves (id and e-mail) come
+     * from one place. A caller with no authenticated {@link UserPrincipal} — a
+     * scheduler, an anonymous request, the payment webhook — records no actor
+     * at all instead of borrowing one from a thread that no longer represents
+     * the acting person.
+     */
+    public static AuditActor currentAuditActor() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null) {
-            return SYSTEM;
+            return AuditActor.NONE;
         }
         Object principal = authentication.getPrincipal();
-        if (principal instanceof UserPrincipal userPrincipal
-                && userPrincipal.getUser() != null
-                && userPrincipal.getUser().getEmail() != null) {
-            return userPrincipal.getUser().getEmail();
+        if (principal instanceof UserPrincipal userPrincipal) {
+            return AuditActor.of(userPrincipal);
         }
-        return SYSTEM;
+        return AuditActor.NONE;
     }
 }

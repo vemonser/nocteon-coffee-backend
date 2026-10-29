@@ -130,7 +130,8 @@ class CheckoutStockBehaviourTest {
      */
     private com.nocteon.nocteon_api.product.service.InventoryMovementService inventoryService() {
         return new com.nocteon.nocteon_api.product.service.InventoryMovementService(
-                variantRepository, movementRepository);
+                variantRepository, movementRepository,
+                mock(com.nocteon.nocteon_api.audit.service.AuditLogService.class));
     }
 
     @BeforeEach
@@ -166,7 +167,8 @@ class CheckoutStockBehaviourTest {
                         mock(com.nocteon.nocteon_api.order.repository.OrderStatusHistoryRepository.class),
                         mock(com.nocteon.nocteon_api.order.service.OrderQueryService.class),
                         variantRepository,
-                        eventPublisher()),
+                        eventPublisher(),
+                        mock(com.nocteon.nocteon_api.audit.service.AuditLogService.class)),
                 variantRepository, paymentRepository);
 
         // Shared scaffolding: a cheap cart well below the free-shipping line.

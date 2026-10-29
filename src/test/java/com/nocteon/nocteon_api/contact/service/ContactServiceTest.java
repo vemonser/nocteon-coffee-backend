@@ -43,6 +43,9 @@ class ContactServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @org.mockito.Mock
+    private com.nocteon.nocteon_api.audit.service.AuditLogService auditLogService;
+
     @InjectMocks
     private ContactService contactService;
 

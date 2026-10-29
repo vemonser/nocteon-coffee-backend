@@ -99,13 +99,17 @@ public class AuthController {
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(
             @CookieValue(name = "refreshToken", required = false) String rawRefreshToken,
-            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @AuthenticationPrincipal UserPrincipal principal) {
         String accessToken = null;
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             accessToken = authHeader.substring(7);
         }
-        authService.logout(rawRefreshToken, accessToken);
+        // The principal is null when the access token has already expired: the
+        // session still ends, and the audit row is simply not written, because
+        // nobody can be named.
+        authService.logout(rawRefreshToken, accessToken, principal);
 
         ResponseCookie expiredCookie = ResponseCookie.from("refreshToken", "")
                 .httpOnly(true)

@@ -112,6 +112,9 @@ class ProductMutationServiceReindexTest {
     @Mock
     private ProductTagService productTagService;
 
+    @org.mockito.Mock
+    private com.nocteon.nocteon_api.audit.service.AuditLogService auditLogService;
+
     @InjectMocks
     private ProductMutationService service;
 

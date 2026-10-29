@@ -1,12 +1,18 @@
 package com.nocteon.nocteon_api.product.service;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.AuditLogService;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductVariantNotFoundException;
+import com.nocteon.nocteon_api.common.security.ActorResolver;
+import com.nocteon.nocteon_api.common.security.AuditActor;
 import com.nocteon.nocteon_api.common.exception.product.InvalidStockAdjustmentException;
 import com.nocteon.nocteon_api.common.exception.product.StockAdjustmentReasonRequiredException;
 import com.nocteon.nocteon_api.product.entity.InventoryMovement;
@@ -48,6 +54,7 @@ public class InventoryMovementService {
 
     private final ProductVariantRepository variantRepository;
     private final InventoryMovementRepository movementRepository;
+    private final AuditLogService auditLogService;
 
     /** The pair of numbers a caller may need (the low-stock notification does). */
     public record StockChange(Long variantId, int before, int after, int delta) {
@@ -115,6 +122,10 @@ public class InventoryMovementService {
 
         record(variantId, before, after, InventoryMovementReason.MANUAL_ADJUSTMENT,
                 reason.trim(), actor, InventoryMovementSource.MANUAL, null);
+        // The audit row and the movement describe ONE change: same before/after,
+        // same reason, same transaction. The movement is the per-variant ledger;
+        // the audit row is the "who did this on purpose" the audit page searches.
+        auditManualAdjustment(variant, before, after, reason.trim());
         return new StockChange(variantId, before, after, delta);
     }
 
@@ -184,6 +195,34 @@ public class InventoryMovementService {
     }
 
     // ─── the one write ───────────────────────────────────────────────────────
+
+    /**
+     * The audit row for a hand-made stock change.
+     *
+     * <p>Separate from the movement on purpose: the movement is the variant's
+     * ledger (it also records orders and returns, with no human behind them),
+     * while this row is the deliberate act — an admin typed a reason and changed
+     * a number the store sells on. The actor comes from the security context,
+     * because the row must carry the id AND the e-mail; the movement keeps the
+     * display label it is given.
+     */
+    private void auditManualAdjustment(ProductVariant variant, int before, int after, String reason) {
+        Map<String, Object> oldValues = new LinkedHashMap<>();
+        oldValues.put("stockQuantity", before);
+
+        Map<String, Object> newValues = new LinkedHashMap<>();
+        newValues.put("stockQuantity", after);
+        newValues.put("delta", after - before);
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("reason", reason);
+        metadata.put("reasonCode", InventoryMovementReason.MANUAL_ADJUSTMENT.name());
+
+        AuditActor actor = ActorResolver.currentAuditActor();
+        auditLogService.logSuccess(AuditAction.PRODUCT_STOCK_ADJUST, actor.userId(), actor.userEmail(),
+                "ProductVariant", variant.getId(), variant.getSku(),
+                null, null, oldValues, newValues, metadata);
+    }
 
     private void record(Long variantId, int before, int after, InventoryMovementReason reason,
             String reasonNote, String actor, InventoryMovementSource source, Long sourceId) {

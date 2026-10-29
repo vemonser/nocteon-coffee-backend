@@ -156,6 +156,14 @@ public class UserService {
         refreshTokenRepository.deleteByUserId(user.getId());
         userRepository.save(user);
 
+        // The record of the change, not of the password: no hash, no token, no
+        // old value ever reaches the audit row.
+        AuditActor auditActor = AuditActor.of(principal);
+        java.util.Map<String, Object> metadata = new java.util.LinkedHashMap<>();
+        metadata.put("sessionsRevoked", true);
+        auditLogService.logSuccess(AuditAction.PASSWORD_CHANGE, auditActor.userId(), auditActor.userEmail(),
+                "User", user.getId(), null, null, null, null, null, metadata);
+
         log.info("Password changed for user: {}", user.getEmail());
     }
 
