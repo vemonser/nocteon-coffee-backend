@@ -13,7 +13,9 @@ import lombok.Setter;
 @Builder
 public class ReviewResponse {
     private Long id;
+    private Long userId;
     private String username;
+    private String userFullName;
     private String avatarUrl;
     private Integer rating;
     private String comment;
