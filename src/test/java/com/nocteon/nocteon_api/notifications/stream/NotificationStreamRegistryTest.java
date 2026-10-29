@@ -28,7 +28,8 @@ class NotificationStreamRegistryTest {
     private static final long USER_A = 700_001L;
     private static final long USER_B = 700_002L;
 
-    private final NotificationStreamRegistry registry = new NotificationStreamRegistry(60_000L);
+    private final NotificationStreamRegistry registry =
+            new NotificationStreamRegistry(60_000L, NotificationBroadcaster.localOnly());
 
     private static NotificationResponse notification(long id) {
         return NotificationResponse.builder()

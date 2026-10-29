@@ -69,8 +69,12 @@
   - `notification` — the same `NotificationResponse` object the list endpoint returns (no `ApiResponse` envelope), pushed when a notification row is created for this user.
   - `unread-count` — the number itself (`data: 3`), sent with each `notification` and after mark read/unread, read-all, and delete.
   - `heartbeat` — `{"timestamp": "..."}` every `nocteon.notifications.stream.heartbeat-ms` (default 25 s) so proxies do not cut an idle stream.
-- **Delivery**: single-instance in-memory registry (`NotificationStreamRegistry`). Emitters are removed on completion, timeout and write failure. Publishing is deferred to after-commit, so a rolled-back fan-out never announces a notification.
-- **Config**: `nocteon.notifications.stream.timeout-ms` (default 1800000), `nocteon.notifications.stream.heartbeat-ms` (default 25000).
+- **Delivery**: the emitters stay in an in-memory registry (`NotificationStreamRegistry`) and that registry remains the only owner of them. Publishing is deferred to after-commit, so a rolled-back fan-out never announces a notification.
+  - With more than one instance, the batch is also published on Redis pub/sub (`nocteon:notifications:stream`) and every instance fans it out to its own emitters. A request that lands on instance B can therefore reach a stream attached to instance A.
+  - An instance always emits locally first, synchronously, and only then publishes; its own message comes back on the subscription and is dropped by `origin`, so nothing is delivered twice.
+  - If Redis is unavailable the local emit still happens, the publish is dropped after one warning, and the transaction that created the notification is unaffected. Other instances fall back to the client's poll.
+- **Config**: `nocteon.notifications.stream.timeout-ms` (default 1800000), `nocteon.notifications.stream.heartbeat-ms` (default 25000), `nocteon.notifications.stream.transport` (`redis` default, or `local` for a single-instance deployment; env `NOTIFICATIONS_STREAM_TRANSPORT`).
+- **Operations**: every instance must point at the same Redis database. Pub/sub is fire-and-forget, so an instance that is restarting misses the events published while it was down; its clients catch up on the next poll. Nothing is stored on the channel. See DECISIONS.md for the channel design and what was deliberately left out (Redis Cluster, keyspace notifications, channel auth).
 - **Fallback**: the dashboard keeps its 60 s `unread-count` poll; the stream only removes latency.
 
 ### GET /api/dashboard/nav-counts

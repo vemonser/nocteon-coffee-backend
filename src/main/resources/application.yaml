@@ -247,6 +247,14 @@ nocteon:
       # Keep-alive so a proxy does not cut an idle stream. Must stay well below
       # the usual 60s idle timeout. Tests set this to a few hundred ms.
       heartbeat-ms: ${NOTIFICATIONS_STREAM_HEARTBEAT_MS:25000}
+      # How a notification batch reaches an emitter attached to another instance:
+      #   redis → publish on pub/sub, every instance fans out to its own emitters.
+      #           Required for two or more instances behind a load balancer.
+      #   local → in-process only; correct for a single instance, and what a test or
+      #           a broker-less environment uses.
+      # Single-instance behaviour is identical either way; the property changes reach,
+      # not payloads. The channel design is explained in DECISIONS.md.
+      transport: ${NOTIFICATIONS_STREAM_TRANSPORT:redis}
   ai:
     enabled: ${AI_ENABLED:true}
     search-enabled: ${AI_SEARCH_ENABLED:true}
