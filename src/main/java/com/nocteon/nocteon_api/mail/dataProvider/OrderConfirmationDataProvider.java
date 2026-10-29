@@ -1,8 +1,11 @@
 package com.nocteon.nocteon_api.mail.dataProvider;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Component;
 
 import com.nocteon.nocteon_api.mail.enums.EmailType;
@@ -18,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 public class OrderConfirmationDataProvider implements EmailTemplateDataProvider {
 
     private final OrderRepository orderRepository;
+    private final MessageSource messageSource;
 
     @Override
     public EmailType supports() {
@@ -43,6 +47,17 @@ public class OrderConfirmationDataProvider implements EmailTemplateDataProvider 
         params.put("recipientEmail", order.getUser() != null ? order.getUser().getEmail() : null);
         params.put("orderId", order.getId());
         params.put("orderNumber", order.getOrderNumber());
+        // Brevo answers 4xx "subject is required" when a template send carries
+        // no subject, and the template's own subject does not satisfy it. The
+        // caller's locale wins; a customer checkout and an admin resend each
+        // get the sentence in their own language.
+        Locale locale = LocaleContextHolder.getLocale();
+        params.put(
+                "subject",
+                messageSource.getMessage(
+                        "email.orderConfirmation.subject",
+                        new Object[] { order.getOrderNumber() },
+                        locale));
         params.put("total", order.getTotalAmount() != null ? order.getTotalAmount().toString() : "0.00");
         params.put("items", order.getItems().stream().map(this::mapItem).toList());
         return params;
