@@ -189,7 +189,12 @@ class AuditLogQueryIntegrationTest {
 
     @Test
     void actionContainsIsCaseInsensitiveAndMatchesTheMiddle() throws Exception {
-        mockMvc.perform(asAuditor(get("/api/dashboard/audit-logs")).param("action", "LOG"))
+        // The actor filter is part of the assertion, not scenery: USER_LOGIN rows are
+        // written by every real sign-in now, so an unfiltered "LOG" search on a database
+        // that has seen traffic would count rows this test never created.
+        mockMvc.perform(asAuditor(get("/api/dashboard/audit-logs"))
+                        .param("action", "LOG")
+                        .param("actor", ACTOR_EMAIL))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content.length()").value(1))
                 .andExpect(jsonPath("$.data.content[0].action").value("USER_LOGIN"))

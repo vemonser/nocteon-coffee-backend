@@ -59,6 +59,9 @@ class OrderServiceTest {
     @Mock private StoreSettingsService storeSettingsService;
     @Mock private ShippingZoneService shippingZoneService;
 
+    @org.mockito.Mock
+    private com.nocteon.nocteon_api.audit.service.AuditLogService auditLogService;
+
     @InjectMocks
     private OrderStatusService orderStatusService;
 

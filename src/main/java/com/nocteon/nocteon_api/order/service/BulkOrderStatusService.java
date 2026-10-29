@@ -153,7 +153,7 @@ public class BulkOrderStatusService {
 
                 try {
                         perRow.executeWithoutResult(
-                                        status -> orderStatusService.updateStatus(id, rowRequest, actor));
+                                        status -> orderStatusService.updateStatusForAdmin(id, rowRequest, actor));
 
                         return BulkStatusResultResponse.builder()
                                         .id(id)

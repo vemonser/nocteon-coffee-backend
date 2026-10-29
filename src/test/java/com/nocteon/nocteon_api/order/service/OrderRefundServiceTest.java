@@ -47,6 +47,9 @@ class OrderRefundServiceTest {
     @Mock private PaymentRepository paymentRepository;
     @Mock private PaymentService paymentService;
 
+    @org.mockito.Mock
+    private com.nocteon.nocteon_api.audit.service.AuditLogService auditLogService;
+
     @InjectMocks
     private OrderRefundService orderRefundService;
 

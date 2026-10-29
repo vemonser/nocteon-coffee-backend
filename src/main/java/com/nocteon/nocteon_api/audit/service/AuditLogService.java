@@ -58,6 +58,14 @@ public class AuditLogService {
         }
     }
 
+    /**
+     * The row for an action that HAPPENED.
+     *
+     * <p>Joins the caller's transaction (default propagation), so the row and
+     * the change it describes commit or roll back together: a call that is
+     * refused after this write — or rolled back by an outer transaction — leaves
+     * no row claiming the change was made.
+     */
     @Transactional
     public void logSuccess(AuditAction action, Long userId, String userEmail, String entityType, Long entityId, String entitySlug,
                            String ipAddress, String userAgent, Map<String, Object> oldValues, Map<String, Object> newValues,
@@ -65,6 +73,22 @@ public class AuditLogService {
         log(action, userId, userEmail, entityType, entityId, entitySlug, ipAddress, userAgent, oldValues, newValues, metadata, true, null);
     }
 
+    /**
+     * The row for an action that was REFUSED.
+     *
+     * <p>Joins the caller's transaction, like {@link #logSuccess} — and the caller
+     * only keeps it because a refusal CHANGES nothing: the refusing service marks
+     * its refusal exceptions as {@code noRollbackFor}, so the transaction commits
+     * with the refusal row as its only write.
+     *
+     * <p>That is deliberate. Writing this row in a second transaction
+     * ({@code REQUIRES_NEW}) would need a second pooled connection while the first
+     * one is still held by the refusing transaction; a burst of concurrent failures
+     * — a credential-stuffing run against {@code /login} is the realistic one —
+     * could then exhaust the pool with connections waiting on connections. The
+     * asymmetry the log needs (a SUCCESS row rolls back with its change) costs
+     * nothing here: nothing but this row was written.
+     */
     @Transactional
     public void logFailure(AuditAction action, Long userId, String userEmail, String entityType, Long entityId, String entitySlug,
                            String ipAddress, String userAgent, Map<String, Object> oldValues, Map<String, Object> newValues,

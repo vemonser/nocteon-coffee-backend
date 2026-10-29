@@ -213,7 +213,7 @@ public class OrderController {
                         @AuthenticationPrincipal UserPrincipal principal) {
                 return ResponseEntity.ok(
                                 ApiResponse.success(
-                                orderStatusService.updateStatus(id, request, actorOf(principal)),
+                                orderStatusService.updateStatusForAdmin(id, request, actorOf(principal)),
                                 "Order status updated"));
         }
 

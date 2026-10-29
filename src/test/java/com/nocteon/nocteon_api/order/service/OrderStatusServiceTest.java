@@ -43,6 +43,9 @@ class OrderStatusServiceTest {
     @Mock private ProductVariantRepository variantRepository;
     @Mock private ApplicationEventPublisher eventPublisher;
 
+    @org.mockito.Mock
+    private com.nocteon.nocteon_api.audit.service.AuditLogService auditLogService;
+
     @InjectMocks
     private OrderStatusService orderStatusService;
 

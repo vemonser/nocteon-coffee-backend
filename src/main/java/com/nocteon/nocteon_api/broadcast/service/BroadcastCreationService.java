@@ -2,12 +2,16 @@ package com.nocteon.nocteon_api.broadcast.service;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.AuditLogService;
 import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.auth.enums.Role;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
@@ -23,6 +27,8 @@ import com.nocteon.nocteon_api.broadcast.repository.BroadcastRecipientRepository
 import com.nocteon.nocteon_api.broadcast.repository.BroadcastRepository;
 import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.common.security.ActorResolver;
+import com.nocteon.nocteon_api.common.security.AuditActor;
 import com.nocteon.nocteon_api.mail.entity.EmailLog;
 import com.nocteon.nocteon_api.mail.enums.EmailStatus;
 import com.nocteon.nocteon_api.mail.enums.EmailType;
@@ -46,6 +52,7 @@ public class BroadcastCreationService {
     private final NewsletterSubscriberRepository subscriberRepository;
     private final TransactionalEmailService transactionalEmailService;
     private final EmailLogRepository emailLogRepository;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public BroadcastResponse createBroadcast(CreateBroadcastRequest request) {
@@ -192,6 +199,21 @@ public class BroadcastCreationService {
         // stays PENDING; one that ran is COMPLETED.
         broadcast.setStatus(BroadcastStatus.COMPLETED);
         broadcastRepository.save(broadcast);
+
+        // "Who pressed send, when, and how many addresses it reached." The recipient
+        // list itself is NOT copied here: it can be thousands of rows, and the
+        // broadcast's own recipients table is where it lives.
+        Map<String, Object> newValues = new LinkedHashMap<>();
+        newValues.put("status", BroadcastStatus.COMPLETED.name());
+        newValues.put("sentCount", sent);
+        newValues.put("failedCount", failed);
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("totalRecipients", recipients.size());
+
+        AuditActor actor = ActorResolver.currentAuditActor();
+        auditLogService.logSuccess(AuditAction.BROADCAST_SEND, actor.userId(), actor.userEmail(),
+                "Broadcast", broadcast.getId(), null, null, null, null, newValues, metadata);
 
         log.info("Broadcast {} sent: {} sent, {} failed", broadcast.getId(), sent, failed);
     }

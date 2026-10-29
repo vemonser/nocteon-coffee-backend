@@ -2,13 +2,19 @@ package com.nocteon.nocteon_api.product.service;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.nocteon.nocteon_api.ai.service.ProductIndexingService;
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.AuditLogService;
 import com.nocteon.nocteon_api.category.entity.Category;
 import com.nocteon.nocteon_api.category.repository.CategoryRepository;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidProductTypeException;
@@ -19,6 +25,8 @@ import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException
 import com.nocteon.nocteon_api.common.exception.notFound.ProductNotFoundException;
 import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.security.ActorResolver;
+import com.nocteon.nocteon_api.common.security.AuditActor;
 import com.nocteon.nocteon_api.common.transaction.AfterCommit;
 import com.nocteon.nocteon_api.farm.entity.Farm;
 import com.nocteon.nocteon_api.farm.repository.FarmRepository;
@@ -69,6 +77,7 @@ public class ProductMutationService {
     private final ProductIndexingService productIndexingService;
     private final HtmlSanitizer htmlSanitizer;
     private final ProductTagService productTagService;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public DashboardProductResponse create(ProductRequest request, List<MultipartFile> files) {
@@ -119,9 +128,12 @@ public class ProductMutationService {
         // Registered last, so the hook fires once every relation is on the product: the indexer
         // re-reads it after the commit and would otherwise embed a product with no translations.
         scheduleIndexUpsert(product.getId(), slug);
-        return dashboardProductMapper.buildDashboardResponse(
-                productRepository.findBySlug(slug)
-                        .orElseThrow(ProductNotFoundException::new));
+        Product saved = productRepository.findBySlug(slug)
+                .orElseThrow(ProductNotFoundException::new);
+        // The audit row is written in this transaction: a create that fails afterwards
+        // (the index upsert, a constraint) leaves no row claiming the product exists.
+        auditCreate(saved, englishName, null);
+        return dashboardProductMapper.buildDashboardResponse(saved);
     }
 
     @Transactional
@@ -132,6 +144,12 @@ public class ProductMutationService {
 
         Product product = productRepository.findBySlug(slug)
                 .orElseThrow(ProductNotFoundException::new);
+
+        // The BEFORE, read before anything is overwritten. The audit row then carries only the
+        // fields this save actually changed — an edit that touched the description must not
+        // report a new price.
+        Map<String, Object> before = productFields(product);
+        Map<String, Map<String, Object>> variantsBefore = variantFields(product);
 
         product.setCategory(categoryRepository.findBySlug(request.getCategorySlug())
                 .orElseThrow(CategoryNotFoundException::new));
@@ -155,6 +173,7 @@ public class ProductMutationService {
 
         productRepository.save(product);
         log.info("Product updated with slug: {}", slug);
+        auditUpdate(product, before, variantsBefore);
         scheduleIndexUpsert(product.getId(), slug);
         return dashboardProductMapper.buildDashboardResponse(product);
     }
@@ -209,6 +228,7 @@ public class ProductMutationService {
 
         productRepository.save(copy);
         log.info("Product duplicated: {} -> {}", slug, copySlug);
+        auditCreate(copy, englishNameOf(source), source.getSlug());
         scheduleIndexUpsert(copy.getId(), copySlug);
         return dashboardProductMapper.buildDashboardResponse(copy);
     }
@@ -325,8 +345,16 @@ public class ProductMutationService {
     public DashboardProductResponse toggleActive(String slug, boolean active) {
         Product product = productRepository.findBySlug(slug)
                 .orElseThrow(ProductNotFoundException::new);
+        boolean before = product.isActive();
         product.setActive(active);
         productRepository.save(product);
+        if (before != active) {
+            Map<String, Object> oldValues = new LinkedHashMap<>();
+            oldValues.put("isActive", before);
+            Map<String, Object> newValues = new LinkedHashMap<>();
+            newValues.put("isActive", active);
+            audit(AuditAction.PRODUCT_TOGGLE_ACTIVE, product, oldValues, newValues, null);
+        }
         scheduleIndexUpsert(product.getId(), slug);
         return dashboardProductMapper.buildDashboardResponse(product);
     }
@@ -370,6 +398,15 @@ public class ProductMutationService {
         product.softDelete();
         productRepository.save(product);
         log.info("Product soft deleted: {}", slug);
+
+        // "Who trashed this product" — the row keeps the slug so the question is
+        // answerable after the product is filtered out of every listing.
+        Map<String, Object> oldValues = new LinkedHashMap<>();
+        oldValues.put("deletedAt", null);
+        Map<String, Object> newValues = new LinkedHashMap<>();
+        newValues.put("deletedAt", product.getDeletedAt().toString());
+        audit(AuditAction.PRODUCT_DELETE, product, oldValues, newValues, null);
+
         scheduleIndexRemoval(slug);
     }
 
@@ -500,6 +537,173 @@ public class ProductMutationService {
                 && request.getCoffeeDetails() != null) {
             throw new InvalidProductTypeException();
         }
+    }
+
+    // ─── the audit rows ─────────────────────────────────────────────────────
+
+    /**
+     * The fields a save can change, as a flat map.
+     *
+     * <p>Deliberately small: the values the detail drawer can render and an
+     * operator can read — the name, the lookups by slug, the two flags and the
+     * social image. Not the description (rich text, kilobytes), not the media,
+     * not the relations: those are not what "who changed this product" asks.
+     */
+    private static Map<String, Object> productFields(Product product) {
+        return productFields(product, englishNameOf(product));
+    }
+
+    /** The English name, from the loaded translations (null when the product has none yet). */
+    private static String englishNameOf(Product product) {
+        if (product.getTranslations() == null) {
+            return null;
+        }
+        return product.getTranslations().stream()
+                .filter(t -> "en".equals(t.getLanguage()))
+                .map(ProductTranslation::getName)
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * The same fields, with the name the CALLER knows.
+     *
+     * <p>A product that was just created has its translations saved through their own
+     * repository, so its in-memory collection is still the empty set it was built with —
+     * reading the name from there would record null in the one row that should say what
+     * was created. The create and duplicate paths pass the name they already have.
+     */
+    private static Map<String, Object> productFields(Product product, String name) {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("name", name);
+        fields.put("categorySlug", product.getCategory() == null ? null : product.getCategory().getSlug());
+        fields.put("originSlug", product.getOrigin() == null ? null : product.getOrigin().getSlug());
+        fields.put("farmSlug", product.getFarm() == null ? null : product.getFarm().getSlug());
+        fields.put("productType", product.getProductType() == null ? null : product.getProductType().name());
+        fields.put("featured", product.isFeatured());
+        fields.put("isActive", product.isActive());
+        fields.put("ogImageUrl", product.getOgImageUrl());
+        return fields;
+    }
+
+    /**
+     * The price and the barcode of each live variant, keyed by SKU.
+     *
+     * <p>These two are the variant facts a product edit is worth remembering for
+     * (a price is money, a barcode identifies a box). The stock number is NOT
+     * duplicated here: it has its own row in {@code inventory_movements}, and two
+     * records of one number would eventually disagree.
+     *
+     * <p>Prices are normalised through {@code stripTrailingZeros} so {@code 650}
+     * and {@code 650.00} are the same price and not a "change".
+     */
+    private static Map<String, Map<String, Object>> variantFields(Product product) {
+        Map<String, Map<String, Object>> variants = new LinkedHashMap<>();
+        if (product.getVariants() == null) {
+            return variants;
+        }
+        for (ProductVariant variant : product.getVariants()) {
+            Map<String, Object> fields = new LinkedHashMap<>();
+            fields.put("price", variant.getPrice() == null
+                    ? null
+                    : variant.getPrice().stripTrailingZeros().toPlainString());
+            fields.put("barcode", variant.getBarcode());
+            variants.put(variant.getSku(), fields);
+        }
+        return variants;
+    }
+
+    /** The old/new pair for the keys whose value differs; nothing for the keys that did not move. */
+    private static Diff diff(Map<String, Object> before, Map<String, Object> after) {
+        Map<String, Object> oldValues = new LinkedHashMap<>();
+        Map<String, Object> newValues = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : after.entrySet()) {
+            if (!Objects.equals(before.get(entry.getKey()), entry.getValue())) {
+                oldValues.put(entry.getKey(), before.get(entry.getKey()));
+                newValues.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return new Diff(oldValues, newValues);
+    }
+
+    /** The same, one level down: per SKU, the variant fields that changed. */
+    private static Diff diffVariants(Map<String, Map<String, Object>> before,
+            Map<String, Map<String, Object>> after) {
+        Map<String, Object> oldValues = new LinkedHashMap<>();
+        Map<String, Object> newValues = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<String, Object>> entry : after.entrySet()) {
+            Map<String, Object> was = before.get(entry.getKey());
+            if (was == null) {
+                oldValues.put(entry.getKey(), null);
+                newValues.put(entry.getKey(), entry.getValue());
+                continue;
+            }
+            Diff fieldDiff = diff(was, entry.getValue());
+            if (!fieldDiff.newValues().isEmpty()) {
+                oldValues.put(entry.getKey(), fieldDiff.oldValues());
+                newValues.put(entry.getKey(), fieldDiff.newValues());
+            }
+        }
+        for (Map.Entry<String, Map<String, Object>> entry : before.entrySet()) {
+            if (!after.containsKey(entry.getKey())) {
+                oldValues.put(entry.getKey(), entry.getValue());
+                newValues.put(entry.getKey(), null);
+            }
+        }
+        return new Diff(oldValues, newValues);
+    }
+
+    /** The old/new halves of one change. Empty means "nothing differed". */
+    private record Diff(Map<String, Object> oldValues, Map<String, Object> newValues) {
+    }
+
+    private void auditCreate(Product product, String name, String duplicatedFrom) {
+        Map<String, Object> newValues = productFields(product, name);
+        Map<String, Object> metadata = null;
+        if (duplicatedFrom != null) {
+            // A copy is a create, but the reader deserves to know where it came from.
+            metadata = new LinkedHashMap<>();
+            metadata.put("duplicatedFrom", duplicatedFrom);
+        }
+        audit(AuditAction.PRODUCT_CREATE, product, null, newValues, metadata);
+    }
+
+    private void auditUpdate(Product product, Map<String, Object> before,
+            Map<String, Map<String, Object>> variantsBefore) {
+        Diff fields = diff(before, productFields(product));
+        Diff variants = diffVariants(variantsBefore, variantFields(product));
+        boolean variantChanged = !variants.oldValues().isEmpty() || !variants.newValues().isEmpty();
+
+        Map<String, Object> newValues = new LinkedHashMap<>(fields.newValues());
+        Map<String, Object> oldValues = new LinkedHashMap<>(fields.oldValues());
+        if (variantChanged) {
+            // Under "variants", keyed by SKU, so the drawer shows the price or barcode
+            // change next to the field changes rather than in a second row.
+            oldValues.put("variants", variants.oldValues());
+            newValues.put("variants", variants.newValues());
+        }
+
+        audit(AuditAction.PRODUCT_UPDATE, product,
+                emptyToNull(oldValues), emptyToNull(newValues), null);
+    }
+
+    private static Map<String, Object> emptyToNull(Map<String, Object> values) {
+        return values.isEmpty() ? null : values;
+    }
+
+    /**
+     * One audit row for this product, with the acting admin as its actor.
+     *
+     * <p>Written in the caller's transaction (the create/update/delete it
+     * describes), so a rolled-back save leaves no row. No principal — a seed, a
+     * scheduled job, a test — records no actor rather than the string "system".
+     */
+    private void audit(AuditAction action, Product product, Map<String, Object> oldValues,
+            Map<String, Object> newValues, Map<String, Object> metadata) {
+        AuditActor actor = ActorResolver.currentAuditActor();
+        auditLogService.logSuccess(action, actor.userId(), actor.userEmail(),
+                "Product", product.getId(), product.getSlug(),
+                null, null, oldValues, newValues, metadata);
     }
 
     /**

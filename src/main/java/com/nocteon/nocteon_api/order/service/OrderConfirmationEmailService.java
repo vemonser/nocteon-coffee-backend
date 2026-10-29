@@ -1,13 +1,19 @@
 package com.nocteon.nocteon_api.order.service;
 
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.AuditLogService;
 import com.nocteon.nocteon_api.common.exception.notFound.OrderNotFoundException;
+import com.nocteon.nocteon_api.common.security.ActorResolver;
+import com.nocteon.nocteon_api.common.security.AuditActor;
 import com.nocteon.nocteon_api.mail.entity.EmailLog;
 import com.nocteon.nocteon_api.mail.enums.EmailStatus;
 import com.nocteon.nocteon_api.mail.enums.EmailType;
@@ -48,6 +54,7 @@ public class OrderConfirmationEmailService {
     private final EmailLogRepository emailLogRepository;
     private final TransactionalEmailService transactionalEmailService;
     private final MessageSource messageSource;
+    private final AuditLogService auditLogService;
 
     /** What happened, in the words the toast shows. */
     public record ResendOutcome(Long orderId, String recipientEmail, EmailStatus status, String message) {
@@ -55,6 +62,11 @@ public class OrderConfirmationEmailService {
 
     /**
      * Send the confirmation again, now.
+     *
+     * <p>The resend is an audited action in its own right (support pressed the
+     * button, today, for this order): the row joins this transaction, so a send
+     * that rolled back afterwards leaves no row claiming it. Only the recipient
+     * and the outcome are recorded — never the message body or any token.
      *
      * @param orderId the order
      * @return the status the log row ended in, and the backend's own message
@@ -80,9 +92,30 @@ public class OrderConfirmationEmailService {
                 .map(EmailLog::getStatus)
                 .orElse(EmailStatus.PENDING);
 
+        auditResend(order, recipient, status, previous + 1);
+
         log.info("Order {} confirmation resent to {} (status {})", orderId, recipient, status);
 
         return new ResendOutcome(orderId, recipient, status, message(status, recipient));
+    }
+
+    /**
+     * "Who sent this order's confirmation again, to which address, and what did the
+     * provider say." A read of the order and a PUT of the resend are the only things
+     * on this path; the row itself is one insert.
+     */
+    private void auditResend(Order order, String recipient, EmailStatus status, long resendNumber) {
+        Map<String, Object> newValues = new LinkedHashMap<>();
+        newValues.put("recipientEmail", recipient);
+        newValues.put("emailStatus", status.name());
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("resendNumber", resendNumber);
+        metadata.put("orderNumber", order.getOrderNumber());
+
+        AuditActor actor = ActorResolver.currentAuditActor();
+        auditLogService.logSuccess(AuditAction.ORDER_CONFIRMATION_RESEND, actor.userId(), actor.userEmail(),
+                "Order", order.getId(), order.getOrderNumber(), null, null, null, newValues, metadata);
     }
 
     /**

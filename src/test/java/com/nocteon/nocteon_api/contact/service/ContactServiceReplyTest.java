@@ -31,6 +31,9 @@ class ContactServiceReplyTest {
     @Mock
     private TransactionalEmailService transactionalEmailService;
 
+    @org.mockito.Mock
+    private com.nocteon.nocteon_api.audit.service.AuditLogService auditLogService;
+
     @InjectMocks
     private ContactService contactService;
 

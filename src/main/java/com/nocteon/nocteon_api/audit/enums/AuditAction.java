@@ -33,6 +33,10 @@ public enum AuditAction {
     ORDER_PAYMENT_RETRY,
     ORDER_PAYMENT_WEBHOOK,
     ORDER_CANCEL,
+    /** The money went back: a refund the gateway accepted and the store recorded. */
+    ORDER_REFUND,
+    /** The order confirmation was sent again by hand (support pressed the button). */
+    ORDER_CONFIRMATION_RESEND,
 
     // Promo codes
     PROMO_CODE_CREATE,
@@ -54,6 +58,8 @@ public enum AuditAction {
     PRODUCT_MEDIA_DELETE,
     PRODUCT_TOGGLE_ACTIVE,
     PRODUCT_TOGGLE_FEATURED,
+    /** A variant's stock was changed by hand, with the admin's reason (FE-13). */
+    PRODUCT_STOCK_ADJUST,
 
     // Categories / Lookups
     CATEGORY_CREATE,
@@ -83,6 +89,8 @@ public enum AuditAction {
     // Broadcast
     BROADCAST_CREATE,
     BROADCAST_DELETE,
+    /** The broadcast was actually sent to its recipients. */
+    BROADCAST_SEND,
 
     // Newsletter
     NEWSLETTER_SUBSCRIBE,

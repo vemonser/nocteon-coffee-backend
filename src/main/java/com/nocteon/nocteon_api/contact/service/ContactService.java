@@ -16,11 +16,15 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.AuditLogService;
 import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.BaseApiException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidContactReplyException;
 import com.nocteon.nocteon_api.common.exception.notFound.ContactMessageNotFoundException;
+import com.nocteon.nocteon_api.common.security.ActorResolver;
+import com.nocteon.nocteon_api.common.security.AuditActor;
 import com.nocteon.nocteon_api.contact.dto.request.ContactRequest;
 import com.nocteon.nocteon_api.contact.dto.response.ContactResponse;
 import com.nocteon.nocteon_api.contact.dto.response.ContactStatsResponse;
@@ -40,6 +44,7 @@ public class ContactService {
     private final ContactMessageRepository contactMessageRepository;
     private final TransactionalEmailService transactionalEmailService;
     private final EmailLogRepository emailLogRepository;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public ContactResponse submit(ContactRequest request, String ip) {
@@ -134,7 +139,20 @@ public class ContactService {
     public void delete(Long id) {
         ContactMessage message = contactMessageRepository.findById(id)
                 .orElseThrow(() -> new ContactMessageNotFoundException());
+
+        // The message is gone after this; the audit row is the only remaining record
+        // of WHICH message an admin destroyed (the subject and the sender, not the
+        // body — a deleted enquiry is still somebody's private words).
+        java.util.Map<String, Object> oldValues = new java.util.LinkedHashMap<>();
+        oldValues.put("email", message.getEmail());
+        oldValues.put("subject", message.getSubject());
+        oldValues.put("status", message.getStatus() == null ? null : message.getStatus().name());
+
         contactMessageRepository.delete(message);
+
+        AuditActor actor = ActorResolver.currentAuditActor();
+        auditLogService.logSuccess(AuditAction.CONTACT_DELETE, actor.userId(), actor.userEmail(),
+                "ContactMessage", id, null, null, null, oldValues, null, null);
     }
 
     @Transactional

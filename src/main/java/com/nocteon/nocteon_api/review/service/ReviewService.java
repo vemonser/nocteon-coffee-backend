@@ -20,11 +20,15 @@ import org.springframework.stereotype.Service;
 import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.auth.entity.UserProfile;
 import com.nocteon.nocteon_api.auth.security.UserPrincipal;
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.AuditLogService;
 import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.ReviewNotFoundException;
 import com.nocteon.nocteon_api.common.exception.product.DuplicateReviewException;
+import com.nocteon.nocteon_api.common.security.ActorResolver;
+import com.nocteon.nocteon_api.common.security.AuditActor;
 import com.nocteon.nocteon_api.notifications.event.ReviewCreatedEvent;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.entity.ProductMedia;
@@ -51,6 +55,7 @@ public class ReviewService {
         private final ProductRepository productRepository;
         private final ApplicationEventPublisher eventPublisher;
         private final OrderRepository orderRepository;
+        private final AuditLogService auditLogService;
 
         @Transactional
         public ReviewResponse create(ReviewRequest request, UserPrincipal principal) {
@@ -291,9 +296,11 @@ public class ReviewService {
                         if (review == null) {
                                 continue;
                         }
+                        ReviewStatus before = review.getStatus();
                         review.setStatus(approved ? ReviewStatus.APPROVED : ReviewStatus.PENDING);
                         reviewRepository.save(review);
                         updated++;
+                        auditModeration(review, before);
                 }
                 log.info("Bulk approval: {} reviews set to approved={}", updated, approved);
                 return updated;
@@ -303,8 +310,10 @@ public class ReviewService {
                 Review review = reviewRepository.findById(reviewId)
                                 .orElseThrow(ReviewNotFoundException::new);
 
+                ReviewStatus before = review.getStatus();
                 review.setStatus(approved ? ReviewStatus.APPROVED : ReviewStatus.PENDING);
                 review = reviewRepository.save(review);
+                auditModeration(review, before);
                 log.info("Review {} approval set to {}", reviewId, approved);
                 return buildResponse(review);
         }
@@ -314,8 +323,10 @@ public class ReviewService {
                 Review review = reviewRepository.findById(reviewId)
                                 .orElseThrow(ReviewNotFoundException::new);
 
+                ReviewStatus before = review.getStatus();
                 review.setStatus(ReviewStatus.REJECTED);
                 review = reviewRepository.save(review);
+                auditRejection(review, before);
                 log.info("Review {} rejected", reviewId);
                 return buildResponse(review);
         }
@@ -325,8 +336,12 @@ public class ReviewService {
                 Review review = reviewRepository
                                 .findByIdAndUserId(reviewId, principal.getUserId())
                                 .orElseThrow(ReviewNotFoundException::new);
+                ReviewStatus before = review.getStatus();
                 review.softDelete();
                 reviewRepository.save(review);
+                // The author removed their own review: the row names the author as the
+                // actor, which is what makes it distinguishable from a moderation delete.
+                auditDelete(review, before, AuditActor.of(principal), true);
                 log.info("Review {} deleted by user {}", reviewId, principal.getUserId());
         }
 
@@ -334,8 +349,78 @@ public class ReviewService {
         public void adminDelete(Long reviewId) {
                 Review review = reviewRepository.findById(reviewId)
                                 .orElseThrow(ReviewNotFoundException::new);
+                ReviewStatus before = review.getStatus();
                 review.softDelete();
                 reviewRepository.save(review);
+                auditDelete(review, before, ActorResolver.currentAuditActor(), false);
+        }
+
+        // ─── the audit rows ──────────────────────────────────────────────────
+
+        /**
+         * Moderation is the reason an audit log exists: "who approved/rejected this
+         * review, and what was it before". One row per review — a bulk approve of
+         * twenty reviews is twenty decisions, each answerable on its own.
+         */
+        private void auditModeration(Review review, ReviewStatus before) {
+                ReviewStatus after = review.getStatus();
+                if (before == after) {
+                        // Re-approving an approved review changes nothing; a row would
+                        // claim a decision nobody made.
+                        return;
+                }
+                AuditAction action = after == ReviewStatus.APPROVED
+                                ? AuditAction.REVIEW_APPROVE
+                                : AuditAction.REVIEW_UPDATE;
+                Map<String, Object> oldValues = new LinkedHashMap<>();
+                oldValues.put("status", before.name());
+                Map<String, Object> newValues = new LinkedHashMap<>();
+                newValues.put("status", after.name());
+
+                audit(action, review, oldValues, newValues, null, ActorResolver.currentAuditActor());
+        }
+
+        private void auditRejection(Review review, ReviewStatus before) {
+                Map<String, Object> oldValues = new LinkedHashMap<>();
+                oldValues.put("status", before.name());
+                Map<String, Object> newValues = new LinkedHashMap<>();
+                newValues.put("status", ReviewStatus.REJECTED.name());
+
+                audit(AuditAction.REVIEW_REJECT, review, oldValues, newValues, null,
+                                ActorResolver.currentAuditActor());
+        }
+
+        private void auditDelete(Review review, ReviewStatus before, AuditActor actor, boolean byAuthor) {
+                Map<String, Object> oldValues = new LinkedHashMap<>();
+                oldValues.put("status", before.name());
+                oldValues.put("deletedAt", null);
+
+                Map<String, Object> newValues = new LinkedHashMap<>();
+                newValues.put("deletedAt", review.getDeletedAt() == null ? null : review.getDeletedAt().toString());
+
+                Map<String, Object> metadata = new LinkedHashMap<>();
+                metadata.put("byAuthor", byAuthor);
+
+                audit(AuditAction.REVIEW_DELETE, review, oldValues, newValues, metadata, actor);
+        }
+
+        /**
+         * One row, in the caller's transaction. The product is referenced by ID only:
+         * reading its slug would initialise a lazy relation once per review, and a
+         * bulk approve of twenty reviews must not become forty queries.
+         */
+        private void audit(AuditAction action, Review review, Map<String, Object> oldValues,
+                        Map<String, Object> newValues, Map<String, Object> metadata, AuditActor actor) {
+                Map<String, Object> withProduct = metadata == null
+                                ? new LinkedHashMap<>()
+                                : new LinkedHashMap<>(metadata);
+                if (review.getProduct() != null) {
+                        withProduct.put("productId", review.getProduct().getId());
+                }
+
+                auditLogService.logSuccess(action, actor.userId(), actor.userEmail(),
+                                "Review", review.getId(), null,
+                                null, null, oldValues, newValues, withProduct);
         }
 
 
