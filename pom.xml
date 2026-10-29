@@ -35,6 +35,7 @@
 		<lombok.mapstruct-binding.version>0.2.0</lombok.mapstruct-binding.version>
 		<cloudinary.version>1.39.0</cloudinary.version>
 		<spring-ai.version>2.0.1</spring-ai.version>
+		<openpdf.version>2.4.0</openpdf.version>
 
 	</properties>
 	<dependencyManagement>
@@ -217,6 +218,24 @@
 			<groupId>org.bouncycastle</groupId>
 			<artifactId>bcprov-jdk18on</artifactId>
 			<version>1.80</version>
+		</dependency>
+		<!--
+			FE-16: the invoice PDF.
+
+			OpenPDF (the maintained iText 5 fork) and not a headless browser: the
+			invoice is a fixed A4 document with a handful of tables, so an engine
+			that launches Chromium needs a browser in the image, a process pool and
+			seconds per download to draw what six tables draw in milliseconds.
+
+			It is the PDF writer; the Arabic shaping is NOT hand-rolled. OpenPDF's
+			ColumnText/BidiLine shape Arabic when a cell is drawn with
+			RUN_DIRECTION_RTL, which is why the renderer sets that per cell instead of
+			reversing strings. See DECISIONS.md.
+		-->
+		<dependency>
+			<groupId>com.github.librepdf</groupId>
+			<artifactId>openpdf</artifactId>
+			<version>${openpdf.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

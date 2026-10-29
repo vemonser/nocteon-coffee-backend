@@ -9,10 +9,23 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import com.nocteon.nocteon_api.mail.entity.EmailLog;
+import com.nocteon.nocteon_api.mail.enums.EmailType;
 
 public interface EmailLogRepository extends JpaRepository<EmailLog, Long> {
 
     Optional<EmailLog> findByIdempotencyKey(String idempotencyKey);
+
+    /**
+     * How many times an e-mail of this type was queued for this entity.
+     *
+     * <p>FE-16: a manual resend of an order confirmation takes its own row (the
+     * automatic one keeps its single key), so the next resend needs the count to
+     * pick a key nobody has used.
+     */
+    long countByRelatedEntityTypeAndRelatedEntityIdAndEmailType(
+            String relatedEntityType,
+            Long relatedEntityId,
+            EmailType emailType);
 
     /** The email rows for a set of entities — one query for a whole page. */
     List<EmailLog> findByRelatedEntityTypeAndRelatedEntityIdIn(

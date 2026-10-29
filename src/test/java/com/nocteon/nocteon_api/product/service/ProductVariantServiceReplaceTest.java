@@ -57,7 +57,10 @@ class ProductVariantServiceReplaceTest {
         when(optionValueRepository.findAllById(List.of(101L)))
                 .thenReturn(List.of(optionValue(101L)));
 
-        ProductVariantService service = new ProductVariantService(variantRepository, optionValueRepository);
+        ProductVariantService service = new ProductVariantService(variantRepository, optionValueRepository,
+                        new com.nocteon.nocteon_api.product.service.InventoryMovementService(
+                                variantRepository,
+                                org.mockito.Mockito.mock(com.nocteon.nocteon_api.product.repository.InventoryMovementRepository.class)));
         service.replaceVariants(product, List.of(
                 request("YIR-250", "700.00", 100L),
                 request("YIR-500", "900.00", 101L)));
@@ -86,7 +89,10 @@ class ProductVariantServiceReplaceTest {
         when(variantRepository.findByProductId(1L)).thenReturn(List.of());
         when(variantRepository.findBySku("TAKEN")).thenReturn(Optional.of(variant(other, 99L, "TAKEN", "1.00")));
 
-        ProductVariantService service = new ProductVariantService(variantRepository, optionValueRepository);
+        ProductVariantService service = new ProductVariantService(variantRepository, optionValueRepository,
+                        new com.nocteon.nocteon_api.product.service.InventoryMovementService(
+                                variantRepository,
+                                org.mockito.Mockito.mock(com.nocteon.nocteon_api.product.repository.InventoryMovementRepository.class)));
 
         assertThatThrownBy(() -> service.replaceVariants(product, List.of(request("TAKEN", "5.00", 100L))))
                 .isInstanceOf(DuplicateSkuException.class);

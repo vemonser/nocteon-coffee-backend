@@ -106,6 +106,7 @@ class CheckoutStockBehaviourTest {
     @Mock private CartItemRepository cartItemRepository;
     @Mock private AddressRepository addressRepository;
     @Mock private ProductVariantRepository variantRepository;
+    @Mock private com.nocteon.nocteon_api.product.repository.InventoryMovementRepository movementRepository;
     @Mock private PaymentService paymentService;
     @Mock private StoreSettingsService storeSettingsService;
     @Mock private ShippingZoneService shippingZoneService;
@@ -122,6 +123,16 @@ class CheckoutStockBehaviourTest {
     private PromoCodeService realPromoCodeService;
     private com.nocteon.nocteon_api.order.service.UnpaidOrderExpiryService expiryService;
 
+    /**
+     * FE-13: the stock ledger the order paths now write through. Built over the
+     * mocked repositories, so a consumption still goes through the real recording
+     * code instead of a stub that would hide a missing row.
+     */
+    private com.nocteon.nocteon_api.product.service.InventoryMovementService inventoryService() {
+        return new com.nocteon.nocteon_api.product.service.InventoryMovementService(
+                variantRepository, movementRepository);
+    }
+
     @BeforeEach
     void setUp() {
         // createOrder registers a post-commit callback; without an active
@@ -136,7 +147,7 @@ class CheckoutStockBehaviourTest {
 
         orderService = new OrderService(
                 orderRepository, orderItemRepository, cartRepository, cartItemRepository,
-                addressRepository, variantRepository, paymentService, realPromoCodeService(),
+                addressRepository, variantRepository, inventoryService(), paymentService, realPromoCodeService(),
                 eventPublisher(), storeSettingsService, shippingZoneService,
                 new OrderQueryService(orderRepository, paymentRepository,
                         mock(com.nocteon.nocteon_api.order.service.OrderRefundService.class)),
@@ -144,7 +155,8 @@ class CheckoutStockBehaviourTest {
                 entityManager);
 
         realPaymentService = new PaymentService(
-                new RestTemplate(), paymentRepository, orderRepository, variantRepository, eventPublisher());
+                new RestTemplate(), paymentRepository, orderRepository, variantRepository,
+                inventoryService(), eventPublisher());
         ReflectionTestUtils.setField(realPaymentService, "hmacSecret", HMAC_SECRET);
 
         expiryService = new com.nocteon.nocteon_api.order.service.UnpaidOrderExpiryService(
