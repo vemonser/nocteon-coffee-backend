@@ -10,23 +10,38 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.nocteon.nocteon_api.audit.entity.AuditLog;
-import com.nocteon.nocteon_api.audit.enums.AuditAction;
 
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
+    /**
+     * The audit page's query.
+     *
+     * <p>Every filter is optional: a null argument means "no filter on this
+     * column", so the dashboard can send only the ones the reader filled in.
+     *
+     * <p>{@code actionPattern} is a LIKE pattern over the action NAME (the
+     * column stores the enum's name), so "product" finds every PRODUCT_* row.
+     * {@code actorId} is compared exactly; {@code actorEmailPattern} is a LIKE
+     * pattern over the stored email and is only supplied for a text actor.
+     *
+     * <p>The ORDER BY is applied from the pageable (see
+     * {@code AuditLogService#stablePageable}), which appends the id so paging
+     * stays stable when two rows share a microsecond timestamp.
+     */
     @Query("""
             SELECT a FROM AuditLog a
-            WHERE (:userId IS NULL OR a.userId = :userId)
-            AND (:action IS NULL OR a.action = :action)
+            WHERE (:actionPattern IS NULL OR LOWER(CAST(a.action AS string)) LIKE :actionPattern)
+            AND (:actorId IS NULL OR a.userId = :actorId)
+            AND (:actorEmailPattern IS NULL OR LOWER(COALESCE(a.userEmail, '')) LIKE :actorEmailPattern)
             AND (:entityType IS NULL OR a.entityType = :entityType)
             AND (:entityId IS NULL OR a.entityId = :entityId)
             AND a.createdAt >= :since
             AND a.createdAt <= :until
-            ORDER BY a.createdAt DESC
             """)
-    Page<AuditLog> findAllFiltered(
-            @Param("userId") Long userId,
-            @Param("action") AuditAction action,
+    Page<AuditLog> search(
+            @Param("actionPattern") String actionPattern,
+            @Param("actorId") Long actorId,
+            @Param("actorEmailPattern") String actorEmailPattern,
             @Param("entityType") String entityType,
             @Param("entityId") Long entityId,
             @Param("since") Instant since,

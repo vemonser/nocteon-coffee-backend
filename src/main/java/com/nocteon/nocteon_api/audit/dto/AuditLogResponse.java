@@ -1,9 +1,7 @@
 package com.nocteon.nocteon_api.audit.dto;
 
 import java.time.Instant;
-import java.util.Map;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nocteon.nocteon_api.audit.entity.AuditLog;
 import com.nocteon.nocteon_api.audit.enums.AuditAction;
 
@@ -13,6 +11,19 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * One audit row, as the dashboard reads it.
+ *
+ * <p>{@code oldValues}, {@code newValues} and {@code metadata} are returned as
+ * the STORED JSON TEXT — verbatim, not parsed and re-serialised. Re-serialising
+ * was lossy: a value that failed to parse came back as {@code null}, and even a
+ * valid one lost its key order and its number spelling (1.10 became 1.1). The
+ * audit page pretty-prints the text for reading and shows the same text on
+ * copy, so what an auditor sees is exactly what was recorded.
+ *
+ * <p>Only columns that exist on {@code public.audit_logs} are exposed. There is
+ * no username column, so the actor is {@code userId} + {@code userEmail}.
+ */
 @Getter
 @Setter
 @Builder
@@ -29,15 +40,17 @@ public class AuditLogResponse {
     private String entitySlug;
     private String ipAddress;
     private String userAgent;
-    private Map<String, Object> oldValues;
-    private Map<String, Object> newValues;
-    private Map<String, Object> metadata;
+    /** Raw stored JSON, or null when the row recorded no old values. */
+    private String oldValues;
+    /** Raw stored JSON, or null when the row recorded no new values. */
+    private String newValues;
+    /** Raw stored JSON, or null when the row recorded no metadata. */
+    private String metadata;
     private boolean success;
     private String errorMessage;
     private Instant createdAt;
 
     public static AuditLogResponse fromEntity(AuditLog log) {
-        ObjectMapper mapper = new ObjectMapper();
         return AuditLogResponse.builder()
                 .id(log.getId())
                 .userId(log.getUserId())
@@ -48,24 +61,12 @@ public class AuditLogResponse {
                 .entitySlug(log.getEntitySlug())
                 .ipAddress(log.getIpAddress())
                 .userAgent(log.getUserAgent())
-                .oldValues(parseJson(log.getOldValues(), mapper))
-                .newValues(parseJson(log.getNewValues(), mapper))
-                .metadata(parseJson(log.getMetadata(), mapper))
+                .oldValues(log.getOldValues())
+                .newValues(log.getNewValues())
+                .metadata(log.getMetadata())
                 .success(log.isSuccess())
                 .errorMessage(log.getErrorMessage())
                 .createdAt(log.getCreatedAt())
                 .build();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> parseJson(String json, ObjectMapper mapper) {
-        if (json == null || json.isBlank()) {
-            return null;
-        }
-        try {
-            return mapper.readValue(json, Map.class);
-        } catch (Exception e) {
-            return null;
-        }
     }
 }
