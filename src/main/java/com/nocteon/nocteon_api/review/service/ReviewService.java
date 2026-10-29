@@ -347,7 +347,9 @@ public class ReviewService {
 
                 return ReviewResponse.builder()
                                 .id(review.getId())
+                                .userId(review.getUser().getId())
                                 .username(review.getUser().getUsername())
+                                .userFullName(profile != null ? profile.getFullName() : null)
                                 .avatarUrl(profile != null ? profile.getAvatarUrl() : null)
                                 .rating(review.getRating())
                                 .comment(review.getComment())
