@@ -65,6 +65,10 @@ class DashboardListQueryBudgetTest {
     private PairingService pairingService;
     @Autowired
     private ProductService productService;
+    @Autowired
+    private com.nocteon.nocteon_api.product.repository.ProductRepository productRepository;
+    @Autowired
+    private com.nocteon.nocteon_api.review.service.ReviewService reviewService;
 
     @DynamicPropertySource
     static void jwtKeys(DynamicPropertyRegistry registry) {
@@ -144,6 +148,56 @@ class DashboardListQueryBudgetTest {
     @Test
     void products() {
         long n = statements(() -> productService.getAllDashboard(new ProductFilterRequest()));
-        assertBudget("products", n, 16);
+        assertBudget("products", n, 17);
+    }
+
+    /**
+     * FE-14: the card's rating aggregate is ONE grouped query for the page.
+     *
+     * <p>The measured property is the batch: the aggregate for one product id
+     * and for a whole page of them must cost the same number of statements. A
+     * per-card implementation would cost N, which is what the products list
+     * (paginated, and budgeted in {@link #products()}) must never do.
+     */
+    @Test
+    void theRatingAggregateCostsOneQueryPerPage() {
+        var reviewService = this.reviewService;
+        var ids = productRepository.findAll().stream()
+                .map(com.nocteon.nocteon_api.product.entity.Product::getId)
+                .limit(20)
+                .toList();
+        org.assertj.core.api.Assertions.assertThat(ids).isNotEmpty();
+
+        long one = statements(() -> reviewService.ratingSummariesByProductIds(ids.subList(0, 1)));
+        long many = statements(() -> reviewService.ratingSummariesByProductIds(ids));
+
+        System.out.printf("QUERY-BUDGET productRatings 1 id %3d statements, %d ids %3d statements%n",
+                one, ids.size(), many);
+        org.assertj.core.api.Assertions.assertThat(many)
+                .as("the rating aggregate must be grouped for the page, not queried per product")
+                .isEqualTo(one)
+                .isEqualTo(1L);
+    }
+
+    /**
+     * The products page as a whole: a twenty-row page may cost a constant more
+     * than a one-row page (the extra batched collections), but never one
+     * statement per row.
+     */
+    @Test
+    void productsPageCostDoesNotGrowPerRow() {
+        ProductFilterRequest single = new ProductFilterRequest();
+        single.setSize(1);
+        ProductFilterRequest page = new ProductFilterRequest();
+        page.setSize(20);
+
+        long oneRow = statements(() -> productService.getAllDashboard(single));
+        long twentyRows = statements(() -> productService.getAllDashboard(page));
+
+        System.out.printf("QUERY-BUDGET products 1 row %3d statements, 20 rows %3d statements%n",
+                oneRow, twentyRows);
+        org.assertj.core.api.Assertions.assertThat(twentyRows)
+                .as("the products page must not query per row (rating aggregate included)")
+                .isLessThanOrEqualTo(oneRow + 8);
     }
 }

@@ -49,6 +49,7 @@ import com.nocteon.nocteon_api.product.repository.ProductOptionValueRepository;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
 import com.nocteon.nocteon_api.product.repository.specification.ProductSpecifications;
+import com.nocteon.nocteon_api.review.service.ReviewService;
 import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
 import lombok.RequiredArgsConstructor;
@@ -66,6 +67,8 @@ public class ProductService {
     private final ProductMutationService productMutationService;
     private final ProductOptionValueRepository productOptionValueRepository;
     private final SemanticProductSearch semanticProductSearch;
+    /** FE-14: the ONE definition of a counted review, reused for the card rating. */
+    private final ReviewService reviewService;
 
     /**
      * The public catalog listing. Answers with vector-similarity ranking when the caller opts
@@ -225,12 +228,16 @@ public class ProductService {
 
         Page<Product> page = findDashboardPage(filter);
 
-        Map<Long, Object[]> aggregates = aggregateMap(
-                page.getContent().stream().map(Product::getId).toList());
+        List<Long> productIds = page.getContent().stream().map(Product::getId).toList();
+
+        Map<Long, Object[]> aggregates = aggregateMap(productIds);
+
+        // FE-14: one grouped query for the whole page, never one per row.
+        Map<Long, ReviewService.RatingSummary> ratings = reviewService.ratingSummariesByProductIds(productIds);
 
         return PageResponse.of(
                 page.map(p -> productResponseMapper.buildListResponse(
-                        p, language, toAggregate(aggregates.get(p.getId())))));
+                        p, language, toAggregate(aggregates.get(p.getId())), ratings.get(p.getId()))));
     }
 
     public long getActiveCount() {

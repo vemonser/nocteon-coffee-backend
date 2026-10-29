@@ -17,6 +17,29 @@ Base path: `/api`. Auth: dashboard endpoints require authentication + authority.
   - `minPrice`, `maxPrice` (enabled variants)
   - existing fields unchanged.
 
+### FE-14 — rating aggregate
+
+`ProductCardResponse` also carries, on `GET /api/dashboard/products`:
+
+| Field           | Type       | Meaning |
+| --------------- | ---------- | ------- |
+| `averageRating` | `number\|null` | Average rating of the product's **counted** reviews, rounded to one decimal (HALF_UP). `null` when no review is counted — never `0.0`. |
+| `reviewCount`   | `number`   | How many counted reviews the average is built from. `0` when there are none. |
+
+- A **counted review** is the reviews page's definition, reused verbatim:
+  `deleted_at IS NULL AND status = 'APPROVED'`. Pending and soft-deleted
+  reviews are excluded, so this column and the reviews page can never
+  disagree.
+- Computed with **one grouped query per page**
+  (`ReviewRepository.findApprovedRatingAggregatesByProductIds`), never one
+  query per row; the page-level statement count does not grow with page size
+  (see `DashboardListQueryBudgetTest`).
+- These two fields are populated on the **dashboard** list only. The public
+  catalogue lists (`GET /api/products`, `/api/categories/{slug}/products`,
+  origin/farm lists) still return `averageRating: null` and
+  `reviewCount: null` — not computed there, so a client must treat null as
+  "not available" rather than "no reviews".
+
 ## Product options (dashboard)
 
 ### GET /api/dashboard/product-options

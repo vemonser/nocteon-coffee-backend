@@ -87,6 +87,10 @@ class ProductServiceSemanticTest {
     @Mock
     private HybridRanker hybridRanker;
 
+    /** FE-14: the dashboard card's rating aggregate; untouched on the semantic path. */
+    @Mock
+    private com.nocteon.nocteon_api.review.service.ReviewService reviewService;
+
     private ProductService service;
 
     /**
@@ -110,7 +114,8 @@ class ProductServiceSemanticTest {
                         productRepository,
                         productOptionValueRepository,
                         productResponseMapper,
-                        productVariantRepository));
+                        productVariantRepository),
+                reviewService);
     }
 
     /**

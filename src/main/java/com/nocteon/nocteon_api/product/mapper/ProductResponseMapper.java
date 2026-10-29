@@ -74,10 +74,24 @@ public class ProductResponseMapper {
         }
 
         public ProductCardResponse buildListResponse(Product product, String language) {
-                return buildListResponse(product, language, null);
+                return buildListResponse(product, language, null, null);
         }
 
         public ProductCardResponse buildListResponse(Product product, String language, VariantAggregate aggregate) {
+                return buildListResponse(product, language, aggregate, null);
+        }
+
+        /**
+         * The card a LIST renders.
+         *
+         * <p>{@code rating} is null when the caller did not load the aggregate
+         * (the public catalogue lists, which never ask for it): the two fields
+         * then stay null and a client hides the rating column instead of
+         * printing "0.0 / 0". The dashboard list loads it for the WHOLE page in
+         * one query — see {@code ReviewService.ratingSummariesByProductIds}.
+         */
+        public ProductCardResponse buildListResponse(Product product, String language, VariantAggregate aggregate,
+                        ReviewService.RatingSummary rating) {
                 Set<ProductTranslation> translations = product.getTranslations();
 
                 ProductTranslation translation = translations.stream()
@@ -145,6 +159,8 @@ public class ProductResponseMapper {
                                 .variantsCount(variantCount)
                                 .totalStock(totalStock)
                                 .lowStockVariantCount(lowStockVariantCount)
+                                .averageRating(rating != null ? rating.averageRating() : null)
+                                .reviewCount(rating != null ? rating.reviewCount() : null)
                                 .build();
         }
 

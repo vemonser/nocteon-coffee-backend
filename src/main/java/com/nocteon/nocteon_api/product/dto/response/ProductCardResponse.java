@@ -40,4 +40,12 @@ public class ProductCardResponse {
     private Integer totalStock;
     private Integer lowStockVariantCount;
 
+    /**
+     * FE-14: the average of the product's COUNTED reviews (not soft-deleted,
+     * APPROVED), rounded to one decimal, or null when nothing is counted.
+     */
+    private Double averageRating;
+    /** FE-14: how many reviews the average is built from (0 when none). */
+    private Integer reviewCount;
+
 }
