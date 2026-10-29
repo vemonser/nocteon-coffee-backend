@@ -1,6 +1,9 @@
 package com.nocteon.nocteon_api.order.controller;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,6 +30,7 @@ import com.nocteon.nocteon_api.order.dto.request.CreateRefundRequest;
 import com.nocteon.nocteon_api.order.dto.request.OrderFilterRequest;
 import com.nocteon.nocteon_api.order.dto.request.UpdateOrderStatusRequest;
 import com.nocteon.nocteon_api.order.dto.request.UpdateShipmentRequest;
+import com.nocteon.nocteon_api.order.dto.response.OrderConfirmationResendResponse;
 import com.nocteon.nocteon_api.order.dto.response.OrderNoteResponse;
 import com.nocteon.nocteon_api.order.dto.response.OrderPaymentDetailsResponse;
 import com.nocteon.nocteon_api.order.dto.response.OrderPaymentResponse;
@@ -38,6 +42,8 @@ import com.nocteon.nocteon_api.order.dto.response.OrderStatusHistoryResponse;
 import com.nocteon.nocteon_api.order.entity.OrderRefund;
 import com.nocteon.nocteon_api.payment.dto.request.PaymobCallbackRequest;
 import com.nocteon.nocteon_api.order.entity.OrderStatusHistory;
+import com.nocteon.nocteon_api.order.service.OrderConfirmationEmailService;
+import com.nocteon.nocteon_api.order.service.OrderInvoiceService;
 import com.nocteon.nocteon_api.order.service.OrderNoteService;
 import com.nocteon.nocteon_api.order.service.OrderQueryService;
 import com.nocteon.nocteon_api.order.service.OrderRefundService;
@@ -66,6 +72,8 @@ public class OrderController {
         private final OrderShipmentService orderShipmentService;
         private final OrderRefundService orderRefundService;
         private final OrderStatsService orderStatsService;
+        private final OrderInvoiceService orderInvoiceService;
+        private final OrderConfirmationEmailService orderConfirmationEmailService;
         private final RateLimiterService rateLimiterService;
         private final ClientIpResolver clientIpResolver;
 
@@ -286,6 +294,65 @@ public class OrderController {
                                 ApiResponse.success(
                                 orderRefundService.getRefunds(id),
                                 "Order refunds retrieved"));
+        }
+
+        /**
+         * The invoice of an order, as a PDF.
+         *
+         * <p>Drawn from the order's own stored prices, so it says what was sold
+         * for what, on the day it was sold. {@code lang=ar} renders the Arabic
+         * document (right-to-left, an embedded Unicode font), anything else the
+         * English one.
+         *
+         * <p>The response is the FILE, not the JSON envelope the rest of the API
+         * speaks: a browser saves what a {@code ResponseEntity<byte[]>} carries,
+         * and wrapping the bytes in {@code ApiResponse} would make every client
+         * base64-decode a PDF.
+         */
+        @GetMapping("/dashboard/orders/{id}/invoice")
+        @PreAuthorize("hasAuthority('order:read')")
+        public ResponseEntity<byte[]> getInvoice(
+                        @PathVariable Long id,
+                        @RequestParam(name = "lang", required = false, defaultValue = "en") String lang,
+                        @AuthenticationPrincipal UserPrincipal principal) {
+
+                OrderInvoiceService.InvoiceDocument invoice = orderInvoiceService.invoice(id, lang, principal);
+
+                return ResponseEntity.ok()
+                                .contentType(MediaType.APPLICATION_PDF)
+                                .header(HttpHeaders.CONTENT_DISPOSITION,
+                                                ContentDisposition.attachment()
+                                                                .filename(invoice.filename())
+                                                                .build()
+                                                                .toString())
+                                .contentLength(invoice.content().length)
+                                .body(invoice.content());
+        }
+
+        /**
+         * Send the order confirmation again.
+         *
+         * <p>Reuses the transactional e-mail plumbing: a fresh {@code email_log}
+         * row is written, the send is attempted inline, and the message returned
+         * is the one the dashboard shows — the backend's own sentence, already in
+         * the caller's language.
+         */
+        @PostMapping("/dashboard/orders/{id}/confirmation-email")
+        @PreAuthorize("hasAuthority('order:update')")
+        public ResponseEntity<com.nocteon.nocteon_api.common.dto.ApiResponse<OrderConfirmationResendResponse>> resendConfirmation(
+                        @PathVariable Long id) {
+
+                OrderConfirmationEmailService.ResendOutcome outcome = orderConfirmationEmailService
+                                .resendConfirmation(id);
+
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                OrderConfirmationResendResponse.builder()
+                                                                .orderId(outcome.orderId())
+                                                                .recipientEmail(outcome.recipientEmail())
+                                                                .emailStatus(outcome.status())
+                                                                .build(),
+                                                outcome.message()));
         }
 
         // ─── mapping ───────────────────────────────────────────────────────────
