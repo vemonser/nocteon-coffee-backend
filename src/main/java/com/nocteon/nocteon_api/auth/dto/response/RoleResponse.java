@@ -30,6 +30,11 @@ public class RoleResponse {
 
     private List<String> permissions; // slug format: "resource:action"
 
+    /** Permission diff returned by PUT /api/dashboard/roles/{name}. Null otherwise. */
+    private List<String> granted;
+    private List<String> revoked;
+    private List<String> sensitiveGranted;
+
     public static RoleResponse fromRole(Role role, long userCount, long permissionCount) {
         RoleResponse response = new RoleResponse();
         response.name = role.name();

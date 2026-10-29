@@ -30,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 public class RoleController {
 
     private final RoleService roleService;
+    private final java.util.List<String> sensitivePermissions;
 
     @GetMapping
     @PreAuthorize("hasAuthority('user:read') or hasAuthority('role:read')")
@@ -58,8 +59,36 @@ public class RoleController {
     @PutMapping("/{name}")
     @PreAuthorize("hasAuthority('role:manage')")
     public ResponseEntity<ApiResponse<RoleResponse>> update(@PathVariable String name, @RequestBody @Valid UpdateRoleRequest request) {
+        com.nocteon.nocteon_api.auth.entity.RoleEntity before = roleService.getRole(name);
+        java.util.Set<String> beforePerms = new java.util.HashSet<>(before.getPermissions());
+
         var role = roleService.update(name, request.getDescription(), request.getPermissions(), null);
-        return ResponseEntity.ok(ApiResponse.success(toResponse(role), "Role updated successfully"));
+        RoleResponse response = toResponse(role);
+
+        // Permission diff for the editor: what was granted/revoked by this update.
+        // Computed against the role's permission set captured before the save.
+        java.util.List<String> granted = new java.util.ArrayList<>();
+        java.util.List<String> revoked = new java.util.ArrayList<>();
+        java.util.Set<String> afterPerms = new java.util.HashSet<>(role.getPermissions());
+        if (request.getPermissions() != null) {
+            for (String perm : afterPerms) {
+                if (!beforePerms.contains(perm)) granted.add(perm);
+            }
+            for (String perm : beforePerms) {
+                if (!afterPerms.contains(perm)) revoked.add(perm);
+            }
+            granted.sort(java.util.Comparator.naturalOrder());
+            revoked.sort(java.util.Comparator.naturalOrder());
+        }
+        java.util.List<String> sensitiveGranted = new java.util.ArrayList<>();
+        for (String perm : granted) {
+            if (sensitivePermissions.contains(perm)) sensitiveGranted.add(perm);
+        }
+        response.setGranted(granted);
+        response.setRevoked(revoked);
+        response.setSensitiveGranted(sensitiveGranted);
+
+        return ResponseEntity.ok(ApiResponse.success(response, "Role updated successfully"));
     }
 
     @DeleteMapping("/{name}")
