@@ -24,12 +24,14 @@ import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.ratelimit.RateLimiterService;
 import com.nocteon.nocteon_api.common.util.ClientIpResolver;
+import com.nocteon.nocteon_api.order.dto.request.BulkUpdateOrderStatusRequest;
 import com.nocteon.nocteon_api.order.dto.request.CreateOrderNoteRequest;
 import com.nocteon.nocteon_api.order.dto.request.CreateOrderRequest;
 import com.nocteon.nocteon_api.order.dto.request.CreateRefundRequest;
 import com.nocteon.nocteon_api.order.dto.request.OrderFilterRequest;
 import com.nocteon.nocteon_api.order.dto.request.UpdateOrderStatusRequest;
 import com.nocteon.nocteon_api.order.dto.request.UpdateShipmentRequest;
+import com.nocteon.nocteon_api.order.dto.response.BulkStatusResultResponse;
 import com.nocteon.nocteon_api.order.dto.response.OrderConfirmationResendResponse;
 import com.nocteon.nocteon_api.order.dto.response.OrderNoteResponse;
 import com.nocteon.nocteon_api.order.dto.response.OrderPaymentDetailsResponse;
@@ -42,6 +44,7 @@ import com.nocteon.nocteon_api.order.dto.response.OrderStatusHistoryResponse;
 import com.nocteon.nocteon_api.order.entity.OrderRefund;
 import com.nocteon.nocteon_api.payment.dto.request.PaymobCallbackRequest;
 import com.nocteon.nocteon_api.order.entity.OrderStatusHistory;
+import com.nocteon.nocteon_api.order.service.BulkOrderStatusService;
 import com.nocteon.nocteon_api.order.service.OrderConfirmationEmailService;
 import com.nocteon.nocteon_api.order.service.OrderInvoiceService;
 import com.nocteon.nocteon_api.order.service.OrderNoteService;
@@ -68,6 +71,7 @@ public class OrderController {
         private final OrderService orderService;
         private final OrderQueryService orderQueryService;
         private final OrderStatusService orderStatusService;
+        private final BulkOrderStatusService bulkOrderStatusService;
         private final OrderNoteService orderNoteService;
         private final OrderShipmentService orderShipmentService;
         private final OrderRefundService orderRefundService;
@@ -206,6 +210,36 @@ public class OrderController {
                                 ApiResponse.success(
                                 orderStatusService.updateStatus(id, request, actorOf(principal)),
                                 "Order status updated"));
+        }
+
+        /**
+         * Change the status of MANY orders in one call (FE-18b).
+         *
+         * <p>The dashboard's bulk bar used to send one request per row,
+         * sequentially, because only the single-order endpoint existed. This
+         * is the same operation for a batch: the same state machine, the same
+         * history row, the same permission — and one transaction PER ROW, so a
+         * refusal later in the batch cannot undo a change that already
+         * committed.
+         *
+         * <p>The answer is the standard envelope carrying one result per id
+         * (in the order sent). A refused or unknown order is a {@code 200}
+         * with {@code success=false} and the server's own sentence: it is one
+         * row's outcome, not the failure of the call. The call itself fails
+         * (400) only for a body the endpoint cannot use — no ids, more than
+         * 100 ids, no status.
+         */
+        @PutMapping("/dashboard/orders/bulk-status")
+        @PreAuthorize("hasAuthority('order:update')")
+        public ResponseEntity<ApiResponse<List<BulkStatusResultResponse>>> bulkUpdateStatus(
+                        @Valid @RequestBody BulkUpdateOrderStatusRequest request,
+                        @AuthenticationPrincipal UserPrincipal principal) {
+
+                List<BulkStatusResultResponse> results = bulkOrderStatusService
+                                .bulkUpdate(request, actorOf(principal));
+
+                return ResponseEntity.ok(
+                                ApiResponse.success(results, "Order statuses updated"));
         }
 
         /** The internal notes of an order, newest first. */
