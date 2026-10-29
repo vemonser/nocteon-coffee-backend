@@ -19,19 +19,34 @@ import com.nocteon.nocteon_api.notifications.dto.NotificationResponse;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * In-memory registry of the dashboard's server-sent-event subscribers.
+ * Registry of the dashboard's server-sent-event subscribers, for this process only.
  *
- * <p>This deployment is a single instance, so a process-local registry is enough: the
- * notification rows are still the source of truth, and the stream is only a delivery
- * shortcut that saves the bell a 60-second poll. The client keeps polling, so a
- * dropped emitter costs latency, never correctness.
+ * <p><b>Ownership.</b> The {@code Map<userId, Set<SseEmitter>>} stays here and here
+ * only: a connection lives in the process that accepted it, so this class is the only
+ * code that may write to an emitter. Other instances reach those emitters through
+ * {@link NotificationBroadcaster} and {@link #deliverLocal}, never by owning state.
+ *
+ * <p><b>Delivery.</b> A publish fans out locally first (synchronously, exactly as
+ * before) and then, best effort, asks the broadcaster to announce the same batch to
+ * the other instances. Two consequences worth knowing:
+ * <ul>
+ *   <li>a single instance behaves exactly as it did when this was the whole story —
+ *       same events, same payloads, same order, and a broker outage costs nothing;</li>
+ *   <li>an emitter on another instance receives the batch through the subscription that
+ *       {@code RedisNotificationStreamSubscriber} drives, which is why the event carries
+ *       the publisher's id and the publisher's own echo is dropped. Otherwise every
+ *       local emitter would see each event twice.</li>
+ * </ul>
+ *
+ * <p>The notification row is still the source of truth and the client still polls, so a
+ * dropped batch costs latency, never correctness.
  *
  * <p>Threading: every mutation goes through a {@link ConcurrentHashMap} of
  * {@link ConcurrentHashMap#newKeySet()} sets, and each emitter's writes are
- * serialized on the emitter itself, because a fan-out (notification thread) and a
- * heartbeat (scheduler thread) can target the same emitter at the same time. A send
- * that throws is treated as a dead client and removed immediately, so no registry
- * entry outlives its connection.
+ * serialized on the emitter itself, because a fan-out (fan-out thread, request thread
+ * or the pub/sub dispatch thread) and a heartbeat (scheduler thread) can target the
+ * same emitter at the same time. A send that throws is treated as a dead client and
+ * removed immediately, so no registry entry outlives its connection.
  *
  * <p>Publishing is deferred to after-commit whenever a transaction is active. The
  * notification row is inserted inside the fan-out transaction; pushing before that
@@ -52,10 +67,13 @@ public class NotificationStreamRegistry {
 
     private final Map<Long, Set<SseEmitter>> subscribers = new ConcurrentHashMap<>();
     private final long timeoutMs;
+    private final NotificationBroadcaster broadcaster;
 
     public NotificationStreamRegistry(
-            @Value("${nocteon.notifications.stream.timeout-ms:1800000}") long timeoutMs) {
+            @Value("${nocteon.notifications.stream.timeout-ms:1800000}") long timeoutMs,
+            NotificationBroadcaster broadcaster) {
         this.timeoutMs = timeoutMs;
+        this.broadcaster = broadcaster;
     }
 
     /**
@@ -84,12 +102,7 @@ public class NotificationStreamRegistry {
         return emitter;
     }
 
-    /** False when nobody is listening, so callers can skip the unread-count query. */
-    public boolean hasSubscribers(Long userId) {
-        Set<SseEmitter> emitters = subscribers.get(userId);
-        return emitters != null && !emitters.isEmpty();
-    }
-
+    /** Emitters registered in this process. Never widened to other instances. */
     public int subscriberCount(Long userId) {
         Set<SseEmitter> emitters = subscribers.get(userId);
         return emitters == null ? 0 : emitters.size();
@@ -101,27 +114,57 @@ public class NotificationStreamRegistry {
     }
 
     /**
+     * True when somebody might be listening to this user: an emitter here, or — with
+     * the cross-instance transport on — an emitter this process cannot see. Callers use
+     * it to skip the unread-count query for a REST-only client, not to decide delivery.
+     */
+    public boolean mayHaveSubscribers(Long userId) {
+        return hasSubscribers(userId) || broadcaster.isCrossInstance();
+    }
+
+    /** Emitters registered in this process only; the strict, local answer. */
+    public boolean hasSubscribers(Long userId) {
+        Set<SseEmitter> emitters = subscribers.get(userId);
+        return emitters != null && !emitters.isEmpty();
+    }
+
+    /**
      * Pushes a newly created notification and the resulting unread count. Called from
      * the single creation path, after the row exists.
      */
     public void publishNotification(Long userId, NotificationResponse notification, long unreadCount) {
-        runAfterCommit(() -> {
-            emit(userId, EVENT_NOTIFICATION, notification);
-            emit(userId, EVENT_UNREAD_COUNT, unreadCount);
-        });
+        announceAfterCommit(userId, List.of(
+                new NotificationFrame(EVENT_NOTIFICATION, notification),
+                new NotificationFrame(EVENT_UNREAD_COUNT, unreadCount)));
     }
 
     /**
      * Pushes only the count, for operations that change it without creating a row
-     * (mark read / unread, read-all, delete). Keeps a second tab's badge honest.
+     * (mark read / unread, read-all, delete). Keeps a second tab's badge honest — and,
+     * through the broadcaster, a tab attached to another instance.
      */
     public void publishUnreadCount(Long userId, long unreadCount) {
-        runAfterCommit(() -> emit(userId, EVENT_UNREAD_COUNT, unreadCount));
+        announceAfterCommit(userId, List.of(new NotificationFrame(EVENT_UNREAD_COUNT, unreadCount)));
     }
 
     /**
-     * Heartbeat so reverse proxies do not treat an idle stream as dead. The interval
-     * is configurable because a 25-second wait is not testable in a unit test.
+     * Emits a batch to the emitters registered here. The only entry point for a batch
+     * that came from another instance, and the local half of every publish.
+     *
+     * <p>Frames are emitted in list order on the calling thread, which is what keeps
+     * {@code notification} ahead of its own {@code unread-count}.
+     */
+    public void deliverLocal(Long userId, List<NotificationFrame> frames) {
+        for (NotificationFrame frame : frames) {
+            emit(userId, frame.name(), frame.data());
+        }
+    }
+
+    /**
+     * Heartbeat so reverse proxies do not treat an idle stream as dead. Deliberately
+     * not broadcast: every instance keeps its own connections warm, and a heartbeat
+     * that travelled through Redis would be pure noise. The interval is configurable
+     * because a 25-second wait is not testable in a unit test.
      */
     @Scheduled(fixedDelayString = "${nocteon.notifications.stream.heartbeat-ms:25000}")
     public void heartbeat() {
@@ -130,6 +173,14 @@ public class NotificationStreamRegistry {
         for (Long userId : List.copyOf(subscribers.keySet())) {
             emit(userId, EVENT_HEARTBEAT, Map.of("timestamp", timestamp));
         }
+    }
+
+    private void announceAfterCommit(Long userId, List<NotificationFrame> frames) {
+        List<NotificationFrame> batch = List.copyOf(frames);
+        runAfterCommit(() -> {
+            deliverLocal(userId, batch);
+            broadcaster.broadcast(userId, batch);
+        });
     }
 
     private void runAfterCommit(Runnable action) {
@@ -153,7 +204,12 @@ public class NotificationStreamRegistry {
         }
     }
 
-    private void send(SseEmitter emitter, Long userId, String event, Object data) {
+    /**
+     * One write to one emitter. {@code protected} so a test can observe the frames
+     * without a servlet container: a bare {@link SseEmitter} buffers sends until a
+     * handler exists, so the only other way to see them is real HTTP.
+     */
+    protected void send(SseEmitter emitter, Long userId, String event, Object data) {
         try {
             synchronized (emitter) {
                 emitter.send(SseEmitter.event().name(event).data(data));

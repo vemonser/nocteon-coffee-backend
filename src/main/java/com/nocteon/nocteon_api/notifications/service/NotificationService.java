@@ -194,11 +194,15 @@ public class NotificationService {
 
     /**
      * Pushes the new unread count to this user's live streams, so a second tab's
-     * badge does not wait for its next poll. Skipped entirely when nobody is
+     * badge does not wait for its next poll. Skipped entirely when nobody can be
      * listening, so the count query is not paid for by REST-only clients.
+     *
+     * <p>"Nobody" must mean nobody anywhere: with the cross-instance transport on,
+     * this instance cannot see the emitters attached to its peers, and skipping the
+     * push because the local set is empty is exactly the bug this feature fixes.
      */
     private void publishUnreadCount(Long userId) {
-        if (!streamRegistry.hasSubscribers(userId)) return;
+        if (!streamRegistry.mayHaveSubscribers(userId)) return;
         streamRegistry.publishUnreadCount(
                 userId, notificationRepository.countByRecipientUserIdAndReadAtIsNull(userId));
     }
