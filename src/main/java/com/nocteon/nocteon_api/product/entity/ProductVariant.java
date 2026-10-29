@@ -43,6 +43,14 @@ public class ProductVariant extends SoftDeletableEntity {
     @Column(length = 150, nullable = false, unique = true)
     private String sku;
 
+    /**
+     * FE-15: the scannable GTIN / EAN / UPC of this variant. Optional, and unique when set —
+     * blank input is stored as {@code null}, so "no barcode" has a single representation and a
+     * partial unique index (V20) still allows any number of variants without one.
+     */
+    @Column(length = 64)
+    private String barcode;
+
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
 

@@ -16,6 +16,8 @@ import lombok.Setter;
 public class ProductVariantResponse {
     private Long id;
     private String sku;
+    /** FE-15: the variant's barcode, or {@code null} when it has none. Unique when set. */
+    private String barcode;
     private BigDecimal price;
     private BigDecimal compareAtPrice;
     private BigDecimal costPrice;

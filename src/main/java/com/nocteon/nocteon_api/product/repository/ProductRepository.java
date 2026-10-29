@@ -86,13 +86,32 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
        
         
 
+        /**
+         * The dashboard products list: the paginated rows and their unpaged count.
+         *
+         * <p>FE-15: {@code search} reaches the variant identifiers too — barcode and SKU — so an
+         * admin holding a bag can paste its code and land on the product the variant belongs to.
+         * The clause is an {@code EXISTS} rather than a join on {@code variants}: a join returns
+         * the product once per variant (a three-variant coffee three times), which inflates the
+         * page and forces the count query to un-multiply rows the database already multiplied. The
+         * title and slug branches are untouched, so today's matches are unchanged.
+         *
+         * <p>{@code :search} is a ready-made LIKE pattern ({@link
+         * com.nocteon.nocteon_api.common.repository.SearchPatterns#like} — lower-cased and
+         * wildcarded), which is why only the columns are lowered here.
+         */
         @Query(value = """
                         SELECT DISTINCT p FROM Product p
                         LEFT JOIN p.translations t
                         LEFT JOIN p.category c
                         LEFT JOIN FETCH p.pairings
                         WHERE (:search IS NULL OR COALESCE(:search, '') = ''
-                               OR  LOWER(t.name) LIKE :search)
+                               OR  LOWER(t.name) LIKE :search
+                               OR  EXISTS (
+                                       SELECT 1 FROM ProductVariant v
+                                       WHERE v.product = p
+                                         AND (LOWER(v.barcode) LIKE :search
+                                              OR LOWER(v.sku) LIKE :search)))
                         AND (:categorySlug IS NULL OR c.slug = :categorySlug)
                         AND (:productType IS NULL OR p.productType = :productType)
                         AND (:isActive IS NULL OR p.isActive = :isActive)
@@ -107,7 +126,12 @@ public interface ProductRepository extends JpaRepository<Product, Long>,JpaSpeci
                         LEFT JOIN p.translations t
                         LEFT JOIN p.category c
                         WHERE (:search IS NULL OR COALESCE(:search, '') = ''
-                               OR  LOWER(t.name) LIKE :search)
+                               OR  LOWER(t.name) LIKE :search
+                               OR  EXISTS (
+                                       SELECT 1 FROM ProductVariant v
+                                       WHERE v.product = p
+                                         AND (LOWER(v.barcode) LIKE :search
+                                              OR LOWER(v.sku) LIKE :search)))
                         AND (:categorySlug IS NULL OR c.slug = :categorySlug)
                         AND (:productType IS NULL OR p.productType = :productType)
                         AND (:isActive IS NULL OR p.isActive = :isActive)

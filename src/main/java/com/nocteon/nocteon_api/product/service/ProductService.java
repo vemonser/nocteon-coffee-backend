@@ -244,6 +244,32 @@ public class ProductService {
         return productRepository.countByIsActiveTrue();
     }
 
+    /**
+     * FE-15: the barcodes of the variants of these products, keyed by product id, for the products
+     * CSV export.
+     *
+     * <p>The list rows carry no variants (only their count), so the export would otherwise have to
+     * read every product detail to print one column — one request and one query per row. This is
+     * the single query that answers it for a whole page, which is why it lives here rather than in
+     * the export itself.
+     *
+     * <p>Products with no barcoded variant are simply absent from the map: a missing key and an
+     * empty list mean the same thing to the caller, and omitting the row keeps the response small.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, List<String>> getVariantBarcodes(List<Long> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<Long, List<String>> barcodes = new LinkedHashMap<>();
+        for (Object[] row : productVariantRepository.findBarcodesByProductIds(productIds)) {
+            Long productId = ((Number) row[0]).longValue();
+            barcodes.computeIfAbsent(productId, id -> new ArrayList<>()).add((String) row[1]);
+        }
+        return barcodes;
+    }
+
     @Transactional(readOnly = true)
     public DashboardProductResponse getDashboardBySlug(String slug) {
         Product product = productRepository.findBySlug(slug)

@@ -362,6 +362,7 @@ public class ProductResponseMapper {
                                 .map(v -> ProductVariantResponse.builder()
                                                 .id(v.getId())
                                                 .sku(v.getSku())
+                                                .barcode(v.getBarcode())
                                                 .price(v.getPrice())
                                                 .compareAtPrice(v.getCompareAtPrice())
                                                 .costPrice(v.getCostPrice())
