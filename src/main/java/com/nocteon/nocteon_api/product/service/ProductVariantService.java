@@ -14,6 +14,7 @@ import com.nocteon.nocteon_api.common.exception.notFound.ProductOptionNotFoundEx
 import com.nocteon.nocteon_api.common.exception.invalid.FieldValidationException;
 import com.nocteon.nocteon_api.common.exception.product.OptionNotApplicableException;
 import com.nocteon.nocteon_api.common.dto.ApiFieldError;
+import com.nocteon.nocteon_api.common.exception.product.DuplicateBarcodeException;
 import com.nocteon.nocteon_api.common.exception.product.DuplicateSkuException;
 
 import com.nocteon.nocteon_api.product.dto.request.ProductVariantRequest;
@@ -38,11 +39,13 @@ public class ProductVariantService {
     @Transactional
     public void saveVariants(Product product, List<ProductVariantRequest> requests) {
         assertNoDuplicateCombinations(requests);
+        assertNoDuplicateBarcodes(requests);
 
         for (ProductVariantRequest v : requests) {
             if (productVariantRepository.existsBySku(v.getSku())) {
                 throw new DuplicateSkuException();
             }
+            assertBarcodeIsFree(normalizeBarcode(v.getBarcode()), null);
             productVariantRepository.save(buildVariant(product, v));
         }
     }
@@ -50,6 +53,7 @@ public class ProductVariantService {
     @Transactional
     public void replaceVariants(Product product, List<ProductVariantRequest> requests) {
         assertNoDuplicateCombinations(requests);
+        assertNoDuplicateBarcodes(requests);
 
         // Update in place by SKU instead of delete-and-recreate. `order_items` references
         // product_variants, so deleting a variant that has ever been ordered fails on the
@@ -62,6 +66,11 @@ public class ProductVariantService {
 
         for (ProductVariantRequest v : requests) {
             ProductVariant existing = existingBySku.remove(v.getSku());
+            // The barcode check excludes the row this request is updating: a variant keeping its
+            // own barcode must not collide with itself.
+            assertBarcodeIsFree(
+                    normalizeBarcode(v.getBarcode()),
+                    existing != null ? existing.getId() : null);
             if (existing != null) {
                 applyRequest(existing, product, v);
                 productVariantRepository.save(existing);
@@ -88,6 +97,7 @@ public class ProductVariantService {
         variant.setCompareAtPrice(v.getCompareAtPrice());
         variant.setCostPrice(v.getCostPrice());
         variant.setImageUrl(normalizeImageUrl(v.getImageUrl()));
+        variant.setBarcode(normalizeBarcode(v.getBarcode()));
         variant.setStockQuantity(v.getStockQuantity());
         variant.setReorderThreshold(v.getReorderThreshold() != null ? v.getReorderThreshold() : 5);
         variant.setActive(v.getIsActive() != null ? v.getIsActive() : true);
@@ -113,12 +123,49 @@ public class ProductVariantService {
         }
     }
 
+    /**
+     * FE-15: two barcodes inside one request must already collide, before either row is written.
+     *
+     * <p>The database would catch it too (the partial unique index), but only at flush time, as a
+     * {@code DataIntegrityViolationException} the admin reads as "something went wrong" — this
+     * turns it into the same 409 the rest of the duplicate cases answer with, and names the field.
+     */
+    private void assertNoDuplicateBarcodes(List<ProductVariantRequest> requests) {
+        Set<String> seen = new HashSet<>();
+
+        for (ProductVariantRequest v : requests) {
+            String barcode = normalizeBarcode(v.getBarcode());
+            if (barcode != null && !seen.add(barcode)) {
+                throw new DuplicateBarcodeException();
+            }
+        }
+    }
+
+    /**
+     * Rejects a barcode another variant already owns. {@code ownVariantId} is the row the request
+     * updates — it is allowed to keep its own value — and {@code null} on the create path.
+     *
+     * <p>The lookup includes trashed variants: their rows survive a delete, so the value is still
+     * taken in the database, and the partial unique index would reject the insert anyway.
+     */
+    private void assertBarcodeIsFree(String barcode, Long ownVariantId) {
+        if (barcode == null) {
+            return;
+        }
+        productVariantRepository.findIdByBarcodeIncludingDeleted(barcode)
+                .filter(ownerId -> !ownerId.equals(ownVariantId))
+                .ifPresent(ownerId -> {
+                    throw new DuplicateBarcodeException();
+                });
+    }
+
     private ProductVariant buildVariant(Product product, ProductVariantRequest v) {
         Set<ProductOptionValue> optionValues = resolveOptionValues(v.getOptionValueIds(), product);
 
         return ProductVariant.builder()
                 .product(product)
                 .sku(v.getSku())
+                .barcode(normalizeBarcode(v.getBarcode()))
                 .price(v.getPrice())
                 .imageUrl(normalizeImageUrl(v.getImageUrl()))
                 .stockQuantity(v.getStockQuantity())
@@ -127,6 +174,11 @@ public class ProductVariantService {
                 .compareAtPrice(v.getCompareAtPrice())
                 .isActive(v.getIsActive() != null ? v.getIsActive() : true)
                 .optionValues(optionValues)
+                // `product_variants.version` is NOT NULL, and the field carries Spring Data's
+                // @Version (not jakarta.persistence's), so Hibernate writes NULL for a fresh row
+                // instead of seeding 0 — the insert fails on the constraint. The same value the
+                // duplicate path already sets, and the same one the column defaults to.
+                .version(0L)
                 .build();
     }
 
@@ -155,5 +207,19 @@ public class ProductVariantService {
      */
     private static String normalizeImageUrl(String url) {
         return url == null || url.isBlank() ? null : url.trim();
+    }
+
+    /**
+     * FE-15: whitespace is trimmed and a blank value becomes {@code null}.
+     *
+     * <p>One representation for "no barcode" is what lets the partial unique index accept any
+     * number of variants without one — {@code ''} is a real value to a unique index, so a form
+     * that posted it would let exactly one barcode-less variant through and reject the second.
+     *
+     * <p>The value is otherwise kept exactly as given: a GTIN checksum is a validation concern,
+     * and a catalog also holds internal codes (Code 128, ITF-14) a checksum would reject.
+     */
+    private static String normalizeBarcode(String barcode) {
+        return barcode == null || barcode.isBlank() ? null : barcode.trim();
     }
 }

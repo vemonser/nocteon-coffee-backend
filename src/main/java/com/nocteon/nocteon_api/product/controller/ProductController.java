@@ -126,6 +126,25 @@ public class ProductController {
                                                 "Active products count retrieved"));
         }
 
+        /**
+         * FE-15: the barcodes of the variants of these products, for the products CSV export.
+         *
+         * <p>Read-only and gated exactly like the list it serves ({@code product:read}): it exposes
+         * nothing the dashboard detail does not already return, one column of one relation. The
+         * export walks the filtered list pages and asks for this map once, instead of reading every
+         * product detail for one column.
+         */
+        @GetMapping("/dashboard/products/variant-barcodes")
+        @PreAuthorize("hasAuthority('product:read')")
+        public ResponseEntity<ApiResponse<java.util.Map<Long, List<String>>>> getVariantBarcodes(
+                        @RequestParam(name = "productIds", required = false) List<Long> productIds) {
+
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                productService.getVariantBarcodes(productIds),
+                                                "Variant barcodes retrieved"));
+        }
+
         @GetMapping("/dashboard/products/{slug}")
         @PreAuthorize("hasAuthority('product:read')")
         public ResponseEntity<ApiResponse<DashboardProductResponse>> getDashboardBySlug(

@@ -79,6 +79,39 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
 
     Optional<ProductVariant> findBySku(String sku);
 
+    /**
+     * FE-15: the id of the variant that already owns {@code barcode}, <em>including soft-deleted
+     * rows</em>.
+     *
+     * <p>Native and unfiltered on purpose, for the same reason {@link #existsBySkuIncludingDeleted}
+     * is: {@code @SQLRestriction} hides a trashed variant, but its row (and therefore its barcode)
+     * is still in the column and still occupies the partial unique index. Answering "is this free"
+     * from the filtered view would report it as free and then fail on the index with a 500.
+     *
+     * <p>The id comes back rather than a boolean so an update can exclude the variant that is
+     * keeping its own barcode.
+     */
+    @Query(value = "SELECT v.id FROM product_variants v WHERE v.barcode = :barcode LIMIT 1", nativeQuery = true)
+    Optional<Long> findIdByBarcodeIncludingDeleted(@Param("barcode") String barcode);
+
+    /**
+     * FE-15: the barcodes of every variant of these products, ordered, for the products CSV
+     * export.
+     *
+     * <p>One query for a whole page instead of one product-detail read per row: the export needs
+     * nothing else from the variant, so loading the entities (with their option values) just to
+     * print one string would be the N+1 the rest of the catalogue list avoids. Trashed variants
+     * are excluded by {@code @SQLRestriction}, which is what the dashboard list shows too.
+     */
+    @Query("""
+            SELECT v.product.id, v.barcode
+            FROM ProductVariant v
+            WHERE v.product.id IN :productIds
+              AND v.barcode IS NOT NULL
+            ORDER BY v.product.id, v.id
+            """)
+    List<Object[]> findBarcodesByProductIds(@Param("productIds") List<Long> productIds);
+
     @Modifying
     @Query(value = "DELETE FROM variant_option_values WHERE option_value_id = :valueId", nativeQuery = true)
     void removeValueFromVariants(@Param("valueId") Long valueId);

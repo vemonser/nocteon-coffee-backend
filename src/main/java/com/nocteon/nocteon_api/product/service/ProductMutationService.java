@@ -270,6 +270,9 @@ public class ProductMutationService {
                     .compareAtPrice(v.getCompareAtPrice())
                     .costPrice(v.getCostPrice())
                     .imageUrl(v.getImageUrl())
+                    // FE-15: the barcode is deliberately NOT copied. It identifies one physical
+                    // box, and the partial unique index would reject the second row that claims
+                    // it — the copy has to be labelled by the admin who prints its label.
                     .stockQuantity(0)
                     .reservedQuantity(0)
                     .reorderThreshold(v.getReorderThreshold())

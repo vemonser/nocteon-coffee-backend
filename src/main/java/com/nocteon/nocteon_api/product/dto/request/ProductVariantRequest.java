@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -18,6 +19,14 @@ public class ProductVariantRequest {
 
     @NotBlank(message = "{validation.sku.notBlank}")
     private String sku;
+
+    /**
+     * FE-15: optional barcode. Unique across every variant when set; blank is stored as
+     * {@code null}. The value is accepted as given (no GTIN checksum here) but trimmed and
+     * capped at the column length.
+     */
+    @Size(max = 64, message = "{validation.barcode.size}")
+    private String barcode;
 
     @NotNull
     @DecimalMin(value = "0.01", message = "{validation.price.min}")
