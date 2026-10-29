@@ -24,6 +24,8 @@ import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
 import com.nocteon.nocteon_api.product.enums.MediaType;
 import com.nocteon.nocteon_api.product.enums.ProductType;
+import com.nocteon.nocteon_api.product.entity.ProductRelation;
+import com.nocteon.nocteon_api.product.repository.ProductRelationRepository;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import com.nocteon.nocteon_api.product.repository.ProductTagRepository;
 import com.nocteon.nocteon_api.product.service.ProductService;
@@ -47,6 +49,8 @@ class ProductDuplicateIntegrationTest {
     private ProductService productService;
     @Autowired
     private ProductRepository productRepository;
+    @Autowired
+    private ProductRelationRepository productRelationRepository;
     @Autowired
     private ProductTagRepository tagRepository;
     @Autowired
@@ -99,7 +103,8 @@ class ProductDuplicateIntegrationTest {
         assertThat(copy.getMedia()).filteredOn(ProductMedia::isPrimary).hasSize(1);
 
         assertThat(copy.getTags()).extracting(ProductTag::getSlug).containsExactly(tag.getSlug());
-        assertThat(copy.getRelatedProducts()).extracting(Product::getSlug)
+        assertThat(productRelationRepository.findByProductIdOrderByPosition(copy.getId()))
+                .extracting(r -> r.getRelatedProduct().getSlug())
                 .containsExactly(related.getSlug());
 
         // The source is untouched.
@@ -186,10 +191,14 @@ class ProductDuplicateIntegrationTest {
         if (tag != null) {
             product.getTags().add(tag);
         }
-        if (related != null) {
-            product.getRelatedProducts().add(related);
-        }
         productRepository.save(product);
+        if (related != null) {
+            productRelationRepository.save(ProductRelation.builder()
+                    .product(product)
+                    .relatedProduct(related)
+                    .position(0)
+                    .build());
+        }
         return product;
     }
 

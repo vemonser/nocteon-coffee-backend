@@ -29,6 +29,8 @@ import com.nocteon.nocteon_api.product.enums.ProductType;
 import com.nocteon.nocteon_api.product.repository.CoffeeDetailsRepository;
 import com.nocteon.nocteon_api.product.repository.ProductBrewingMethodRepository;
 import com.nocteon.nocteon_api.product.repository.ProductMediaRepository;
+import com.nocteon.nocteon_api.product.entity.ProductRelation;
+import com.nocteon.nocteon_api.product.repository.ProductRelationRepository;
 import com.nocteon.nocteon_api.product.repository.ProductTranslationRepository;
 import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
 import com.nocteon.nocteon_api.review.repository.ReviewRepository;
@@ -62,6 +64,8 @@ class ProductSeoResponseMapperTest {
     @Mock
     private CoffeeDetailsRepository coffeeDetailsRepository;
     @Mock
+    private ProductRelationRepository productRelationRepository;
+    @Mock
     private ReviewRepository reviewRepository;
     @Mock
     private ReviewService reviewService;
@@ -91,7 +95,8 @@ class ProductSeoResponseMapperTest {
                 lookupResponseMapper,
                 lookupResponseImageMapper,
                 new HtmlSanitizer(cloudinaryProperties()),
-                new ProductTagMapper());
+                new ProductTagMapper(),
+                productRelationRepository);
     }
 
     @Test
@@ -184,7 +189,8 @@ class ProductSeoResponseMapperTest {
                 .isActive(true)
                 .optionValues(java.util.Set.of())
                 .build());
-        product.getRelatedProducts().add(related);
+        when(productRelationRepository.findByProductIdOrderByPosition(1L)).thenReturn(List.of(
+                ProductRelation.builder().product(product).relatedProduct(related).position(0).build()));
 
         ProductResponse response = mapper.buildDetailResponse(product, "en");
 

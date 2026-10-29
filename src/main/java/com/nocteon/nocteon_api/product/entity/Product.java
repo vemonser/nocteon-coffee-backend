@@ -30,7 +30,6 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.OrderBy;
-import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -133,18 +132,6 @@ public class Product extends SoftDeletableEntity {
         @Builder.Default
         @BatchSize(size = 30)
         private Set<ProductTag> tags = new HashSet<>();
-
-        /**
-         * FE-11: "You may also like", curated and ordered. A different axis from
-         * {@link #pairings} — that is what the coffee is drunk with, this is what else to look at.
-         * {@code @OrderColumn} is what makes the admin's order survive a reload.
-         */
-        @ManyToMany(fetch = FetchType.LAZY)
-        @JoinTable(name = "product_relations", joinColumns = @JoinColumn(name = "product_id"), inverseJoinColumns = @JoinColumn(name = "related_product_id"))
-        @OrderColumn(name = "position")
-        @Builder.Default
-        @BatchSize(size = 30)
-        private List<Product> relatedProducts = new ArrayList<>();
 
         // BrewingMethod
         @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)

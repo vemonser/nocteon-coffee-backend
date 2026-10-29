@@ -3,6 +3,7 @@ package com.nocteon.nocteon_api.product;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -16,20 +17,24 @@ import com.nocteon.nocteon_api.NocteonApiApplication;
 import com.nocteon.nocteon_api.category.entity.Category;
 import com.nocteon.nocteon_api.category.repository.CategoryRepository;
 import com.nocteon.nocteon_api.product.entity.Product;
+import com.nocteon.nocteon_api.product.entity.ProductRelation;
 import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
 import com.nocteon.nocteon_api.product.enums.ProductType;
+import com.nocteon.nocteon_api.product.repository.ProductRelationRepository;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
+import com.nocteon.nocteon_api.product.service.ProductRelationService;
 import com.nocteon.nocteon_api.support.TestJwtKeys;
 
 import jakarta.persistence.EntityManager;
 
 /**
- * FE-11: the ordered relation survives a round trip through the database.
+ * FE-11: the ordered relation survives a round trip through the database, and re-picking the
+ * order actually rewrites it.
  *
- * <p>{@code @OrderColumn} is the whole reason a "You may also like" block can be curated: without
- * it Hibernate returns whatever order the join table happens to give. A mocked service test cannot
- * see the difference, so this one writes the rows, drops the persistence context and reads them
+ * <p>The reorder case is the one that broke the first implementation: an ordered collection
+ * updates positions in place and collides on the primary key as soon as two entries swap. The
+ * service replaces the rows instead, and these tests write, drop the persistence context and read
  * back — which is exactly what the wizard does between a save and a reload.
  */
 @SpringBootTest(classes = NocteonApiApplication.class, webEnvironment = SpringBootTest.WebEnvironment.NONE)
@@ -38,6 +43,10 @@ class ProductRelationsPersistenceTest {
 
     @Autowired
     private ProductRepository productRepository;
+    @Autowired
+    private ProductRelationRepository productRelationRepository;
+    @Autowired
+    private ProductRelationService productRelationService;
     @Autowired
     private CategoryRepository categoryRepository;
     @Autowired
@@ -49,26 +58,42 @@ class ProductRelationsPersistenceTest {
     }
 
     @Test
-    void keepsThePositionColumnOrderAcrossAReload() {
+    void keepsTheOrderTheAdminPicked() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         Category category = persistCategory("relations-" + suffix);
         Product first = persistProduct(category, "rel-first-" + suffix);
         Product second = persistProduct(category, "rel-second-" + suffix);
         Product third = persistProduct(category, "rel-third-" + suffix);
         Product owner = persistProduct(category, "rel-owner-" + suffix);
+        entityManager.flush();
 
-        owner.getRelatedProducts().add(second);
-        owner.getRelatedProducts().add(third);
-        owner.getRelatedProducts().add(first);
-        productRepository.save(owner);
+        productRelationService.replaceRelatedProducts(
+                owner, List.of(second.getSlug(), third.getSlug(), first.getSlug()));
         entityManager.flush();
         entityManager.clear();
 
-        Product reloaded = productRepository.findBySlug(owner.getSlug()).orElseThrow();
-
-        assertThat(reloaded.getRelatedProducts())
-                .extracting(Product::getSlug)
+        assertThat(slugsOf(owner))
                 .containsExactly(second.getSlug(), third.getSlug(), first.getSlug());
+    }
+
+    @Test
+    void reorderingTheSameProductsRewritesThePositions() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        Category category = persistCategory("relations-order-" + suffix);
+        Product first = persistProduct(category, "ord-first-" + suffix);
+        Product second = persistProduct(category, "ord-second-" + suffix);
+        Product owner = persistProduct(category, "ord-owner-" + suffix);
+        entityManager.flush();
+
+        productRelationService.replaceRelatedProducts(owner, List.of(first.getSlug(), second.getSlug()));
+        entityManager.flush();
+
+        // Re-pick the order: same two products, swapped.
+        productRelationService.replaceRelatedProducts(owner, List.of(second.getSlug(), first.getSlug()));
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(slugsOf(owner)).containsExactly(second.getSlug(), first.getSlug());
     }
 
     @Test
@@ -77,17 +102,23 @@ class ProductRelationsPersistenceTest {
         Category category = persistCategory("relations-clear-" + suffix);
         Product related = persistProduct(category, "rel-target-" + suffix);
         Product owner = persistProduct(category, "rel-owner2-" + suffix);
-        owner.getRelatedProducts().add(related);
-        productRepository.save(owner);
         entityManager.flush();
 
-        owner.getRelatedProducts().clear();
-        productRepository.save(owner);
+        productRelationService.replaceRelatedProducts(owner, List.of(related.getSlug()));
+        entityManager.flush();
+
+        productRelationService.replaceRelatedProducts(owner, List.of());
         entityManager.flush();
         entityManager.clear();
 
-        assertThat(productRepository.findBySlug(owner.getSlug()).orElseThrow().getRelatedProducts())
-                .isEmpty();
+        assertThat(slugsOf(owner)).isEmpty();
+    }
+
+    private List<String> slugsOf(Product owner) {
+        return productRelationRepository.findByProductIdOrderByPosition(owner.getId()).stream()
+                .map(ProductRelation::getRelatedProduct)
+                .map(Product::getSlug)
+                .toList();
     }
 
     private Category persistCategory(String slug) {

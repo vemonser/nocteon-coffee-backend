@@ -21,6 +21,7 @@ import com.nocteon.nocteon_api.product.entity.ProductMedia;
 import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.repository.CoffeeDetailsRepository;
+import com.nocteon.nocteon_api.product.repository.ProductRelationRepository;
 import com.nocteon.nocteon_api.product.repository.ProductBrewingMethodRepository;
 import com.nocteon.nocteon_api.product.repository.ProductTranslationRepository;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,7 @@ public class DashboardProductMapper {
         private final ProductResponseMapper productResponseMapper;
         private final HtmlSanitizer htmlSanitizer;
         private final ProductTagMapper productTagMapper;
+        private final ProductRelationRepository productRelationRepository;
 
         public DashboardProductResponse buildDashboardResponse(Product product) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
@@ -168,7 +170,8 @@ public class DashboardProductMapper {
          * entries cost the same handful of statements however many products are opened.
          */
         private List<RelatedProductSummary> relatedSummaries(Product product, String language) {
-                return product.getRelatedProducts().stream()
+                return productRelationRepository.findByProductIdOrderByPosition(product.getId()).stream()
+                                .map(relation -> relation.getRelatedProduct())
                                 .map(related -> RelatedProductSummary.builder()
                                                 .slug(related.getSlug())
                                                 .name(related.getTranslations().stream()

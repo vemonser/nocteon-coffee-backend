@@ -203,7 +203,9 @@ public class ProductMutationService {
         productRelationService.replaceBrewingMethods(copy, brewingMethodRequests(source));
         productTagService.replaceTags(copy, source.getTags().stream().map(t -> t.getSlug()).toList());
         productRelationService.replaceRelatedProducts(copy,
-                source.getRelatedProducts().stream().map(Product::getSlug).toList());
+                productRelationService.relatedProductsOf(source.getId()).stream()
+                        .map(Product::getSlug)
+                        .toList());
 
         productRepository.save(copy);
         log.info("Product duplicated: {} -> {}", slug, copySlug);
@@ -213,6 +215,10 @@ public class ProductMutationService {
 
     private String uniqueCopySlug(String sourceSlug) {
         String base = sourceSlug + "-copy";
+        // Two admins duplicating the same product at the same moment would both pass the
+        // existence check and one would fail on the unique index; the advisory lock is the same
+        // mechanism the tag and lookup services use.
+        helper.acquireNameLock("product", "slug", base);
         String candidate = base;
         int counter = 2;
         while (productRepository.existsBySlugIncludingDeleted(candidate)) {
@@ -221,8 +227,15 @@ public class ProductMutationService {
         return candidate;
     }
 
+    /**
+     * {@code sku} is {@code varchar(150)}: a source SKU near the limit would overflow once
+     * {@code -copy} (and possibly {@code -2}) is appended, failing on the column instead of the
+     * index. The base is trimmed so the longest suffix still fits.
+     */
     private static String uniqueCopySku(String sourceSku, java.util.function.Predicate<String> taken) {
-        String base = sourceSku + "-copy";
+        int room = 150 - "-copy-99".length();
+        String trimmed = sourceSku.length() > room ? sourceSku.substring(0, room) : sourceSku;
+        String base = trimmed + "-copy";
         String candidate = base;
         int counter = 2;
         while (taken.test(candidate)) {
