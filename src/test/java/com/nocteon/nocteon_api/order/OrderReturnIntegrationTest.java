@@ -240,7 +240,9 @@ class OrderReturnIntegrationTest {
                 .isInstanceOf(InvalidReturnException.class)
                 .hasMessage("error.return.quantityTooLarge");
 
-        assertThat(returnRepository.count()).isZero();
+        // Scoped to THIS test's order: the table is shared, and a return committed
+        // by another run (or a manual check) must not fail a refusal test.
+        assertThat(returnRepository.findByOrderIdOrderByCreatedAtDescIdDesc(order.getId())).isEmpty();
         assertThat(movementRepository.countByVariantId(variant.getId())).isZero();
     }
 
@@ -270,7 +272,9 @@ class OrderReturnIntegrationTest {
                 .isInstanceOf(InvalidReturnException.class)
                 .hasMessage("error.return.reasonRequired");
 
-        assertThat(returnRepository.count()).isZero();
+        // Scoped to THIS test's order: the table is shared, and a return committed
+        // by another run (or a manual check) must not fail a refusal test.
+        assertThat(returnRepository.findByOrderIdOrderByCreatedAtDescIdDesc(order.getId())).isEmpty();
     }
 
     @Test
@@ -481,7 +485,9 @@ class OrderReturnIntegrationTest {
                 .with(user("read-only").authorities(new SimpleGrantedAuthority("order:read"))))
                 .andExpect(status().isForbidden());
 
-        assertThat(returnRepository.count()).isZero();
+        // Scoped to THIS test's order: the table is shared, and a return committed
+        // by another run (or a manual check) must not fail a refusal test.
+        assertThat(returnRepository.findByOrderIdOrderByCreatedAtDescIdDesc(order.getId())).isEmpty();
     }
 
     @Test
@@ -515,7 +521,9 @@ class OrderReturnIntegrationTest {
                 .with(user(principalOf(admin))))
                 .andExpect(status().isBadRequest());
 
-        assertThat(returnRepository.count()).isZero();
+        // Scoped to THIS test's order: the table is shared, and a return committed
+        // by another run (or a manual check) must not fail a refusal test.
+        assertThat(returnRepository.findByOrderIdOrderByCreatedAtDescIdDesc(order.getId())).isEmpty();
     }
 
     /** A return of ANOTHER order is a 404, not a wrong-order success. */
