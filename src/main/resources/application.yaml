@@ -237,6 +237,16 @@ spring:
         max-document-batch-size: 100
 
 nocteon:
+  notifications:
+    # Server-sent-event notification stream (FE-23).
+    stream:
+      # How long one connection may stay open before the client reconnects. The
+      # client resets its backoff on a successful open, so this is a scheduled
+      # reconnect, not an error path.
+      timeout-ms: ${NOTIFICATIONS_STREAM_TIMEOUT_MS:1800000}
+      # Keep-alive so a proxy does not cut an idle stream. Must stay well below
+      # the usual 60s idle timeout. Tests set this to a few hundred ms.
+      heartbeat-ms: ${NOTIFICATIONS_STREAM_HEARTBEAT_MS:25000}
   ai:
     enabled: ${AI_ENABLED:true}
     search-enabled: ${AI_SEARCH_ENABLED:true}

@@ -1,5 +1,6 @@
 package com.nocteon.nocteon_api.notifications.controller;
 
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.validation.annotation.Validated;
 
 import jakarta.validation.Valid;
@@ -19,6 +21,7 @@ import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.notifications.dto.NotificationIdsRequest;
 import com.nocteon.nocteon_api.notifications.service.NotificationService;
+import com.nocteon.nocteon_api.notifications.stream.NotificationStreamRegistry;
 
 import lombok.RequiredArgsConstructor;
 
@@ -29,6 +32,7 @@ import lombok.RequiredArgsConstructor;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final NotificationStreamRegistry notificationStreamRegistry;
 
     @GetMapping
     @PreAuthorize("hasAuthority('notification:read')")
@@ -57,6 +61,31 @@ public class NotificationController {
     @PreAuthorize("hasAuthority('notification:read')")
     public ApiResponse<Long> getUnreadCount(@AuthenticationPrincipal UserPrincipal principal) {
         return ApiResponse.success(notificationService.getUnreadCount(principal.getUserId()), "Unread count retrieved");
+    }
+
+    /**
+     * Live notification stream (server-sent events).
+     *
+     * <p>Authentication is exactly the REST path: the same {@code JwtAuthFilter} reads
+     * {@code Authorization: Bearer <jwt>} and the same authority ({@code notification:read})
+     * is required. The browser's {@code EventSource} cannot attach a header, so the
+     * dashboard does not use it — it reads the stream with {@code fetch()} and the
+     * normal bearer header instead. No token is accepted in the query string, so a
+     * long-lived credential never lands in a URL, an access log or a Referer header.
+     *
+     * <p>Events: {@code ready} (once), {@code notification} (the list DTO),
+     * {@code unread-count} (the number) and {@code heartbeat}.
+     */
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @PreAuthorize("hasAuthority('notification:read')")
+    public SseEmitter stream(
+            @AuthenticationPrincipal UserPrincipal principal,
+            jakarta.servlet.http.HttpServletResponse response) {
+        // Proxies (nginx and friends) buffer anything that looks like a response body;
+        // both headers opt out so events arrive as they happen rather than at the end.
+        response.setHeader("Cache-Control", "no-cache, no-transform");
+        response.setHeader("X-Accel-Buffering", "no");
+        return notificationStreamRegistry.subscribe(principal.getUserId());
     }
 
     @PostMapping("/{id}/read")

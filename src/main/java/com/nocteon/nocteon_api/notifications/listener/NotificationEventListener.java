@@ -13,7 +13,7 @@ import com.nocteon.nocteon_api.notifications.event.PaymentFailedEvent;
 import com.nocteon.nocteon_api.notifications.event.ReviewCreatedEvent;
 import com.nocteon.nocteon_api.notifications.event.StockChangedEvent;
 import com.nocteon.nocteon_api.notifications.event.UserRegisteredEvent;
-import com.nocteon.nocteon_api.notifications.repository.NotificationRepository;
+import com.nocteon.nocteon_api.notifications.service.NotificationService;
 import com.nocteon.nocteon_api.order.entity.Order;
 import com.nocteon.nocteon_api.order.repository.OrderRepository;
 import com.nocteon.nocteon_api.review.entity.Review;
@@ -32,7 +32,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Slf4j
 public class NotificationEventListener {
 
-    private final NotificationRepository notificationRepository;
+    private final NotificationService notificationService;
     private final UserRepository userRepository;
     private final RoleService roleService;
     private final OrderRepository orderRepository;
@@ -166,8 +166,10 @@ public class NotificationEventListener {
         for (var user : userRepository.findByIsActiveTrue()) {
             if (actorUserId != null && actorUserId.equals(user.getId())) continue;
             if (!roleService.getPermissions(user.getRole()).contains(permission)) continue;
-            notificationRepository.insertIgnore(
-                    user.getId(), type, paramsJson, entityType, entityId);
+            // The single creation path: inserts (idempotently) and pushes to the
+            // recipient's live stream. Never insert here directly — that would be a
+            // second creation path with no realtime push.
+            notificationService.createAndPublish(user.getId(), type, paramsJson, entityType, entityId);
         }
     }
 }

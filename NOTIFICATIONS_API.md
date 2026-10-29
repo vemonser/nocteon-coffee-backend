@@ -60,6 +60,19 @@
 - **Response**: `ApiResponse<Void>`
 - **Errors**: 404 if notification doesn't exist or belongs to someone else
 
+### GET /api/dashboard/notifications/stream
+- **Authority**: `notification:read` (same `JwtAuthFilter` + `Authorization: Bearer <jwt>` as every other dashboard endpoint)
+- **Response**: `text/event-stream`, kept open
+- **Authentication for SSE**: the browser's `EventSource` cannot send headers, so the dashboard does **not** use it. It reads this endpoint with `fetch()` and the normal bearer header, which means no credential ever appears in a query string, an access log or a `Referer`. A `?token=` form is deliberately not supported: it would be a weaker auth path than the REST endpoints for the same data.
+- **Events**
+  - `ready` — once per connection, `{"userId": 42}`. Lets the client leave `connecting` and reset its reconnect backoff.
+  - `notification` — the same `NotificationResponse` object the list endpoint returns (no `ApiResponse` envelope), pushed when a notification row is created for this user.
+  - `unread-count` — the number itself (`data: 3`), sent with each `notification` and after mark read/unread, read-all, and delete.
+  - `heartbeat` — `{"timestamp": "..."}` every `nocteon.notifications.stream.heartbeat-ms` (default 25 s) so proxies do not cut an idle stream.
+- **Delivery**: single-instance in-memory registry (`NotificationStreamRegistry`). Emitters are removed on completion, timeout and write failure. Publishing is deferred to after-commit, so a rolled-back fan-out never announces a notification.
+- **Config**: `nocteon.notifications.stream.timeout-ms` (default 1800000), `nocteon.notifications.stream.heartbeat-ms` (default 25000).
+- **Fallback**: the dashboard keeps its 60 s `unread-count` poll; the stream only removes latency.
+
 ### GET /api/dashboard/nav-counts
 - **Authority**: `isAuthenticated()`
 - **Behavior**: Returns only fields the current user may see (omits field if lacks permission). Fields:
