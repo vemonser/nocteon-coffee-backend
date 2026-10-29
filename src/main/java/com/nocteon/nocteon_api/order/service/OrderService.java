@@ -37,6 +37,7 @@ import com.nocteon.nocteon_api.payment.enums.PaymentStatus;
 import com.nocteon.nocteon_api.payment.service.PaymentService;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
 import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
+import com.nocteon.nocteon_api.product.service.InventoryMovementService;
 import com.nocteon.nocteon_api.promoCode.dto.request.PromoCodeCalculationResult;
 import com.nocteon.nocteon_api.promoCode.entity.PromoCode;
 import com.nocteon.nocteon_api.promoCode.service.PromoCodeService;
@@ -62,6 +63,7 @@ public class OrderService {
         private final CartItemRepository cartItemRepository;
         private final AddressRepository addressRepository;
         private final ProductVariantRepository variantRepository;
+        private final InventoryMovementService inventoryService;
         private final PaymentService paymentService;
         private final PromoCodeService promoCodeService;
         private final ApplicationEventPublisher eventPublisher;
@@ -178,16 +180,22 @@ public class OrderService {
                 }
 
                 // COD orders are confirmed immediately: consume reserved stock.
+                //
+                // The consumption goes through InventoryMovementService, which
+                // writes the stock movement (FE-13) in this same transaction:
+                // an order that fails afterwards leaves neither the consumption
+                // nor a row claiming it happened.
                 if (initialStatus == OrderStatus.CONFIRMED) {
+                        String buyer = principal.getUser() != null ? principal.getUser().getEmail() : "system";
                         for (CartItem cartItem : cart.getItems()) {
                                 ProductVariant variant = cartItem.getProductVariant();
-                                int oldStock = variantRepository.findStockById(variant.getId());
-                                variantRepository.consumeStock(variant.getId(), cartItem.getQuantity());
-                                int newStock = variantRepository.findStockById(variant.getId());
-                                if (oldStock > variant.getReorderThreshold() && newStock <= variant.getReorderThreshold()) {
+                                InventoryMovementService.StockChange change = inventoryService.consumeForOrder(
+                                                variant.getId(), cartItem.getQuantity(), buyer, order.getId());
+                                if (change != null
+                                                && change.crossedReorderThreshold(variant.getReorderThreshold())) {
                                         eventPublisher.publishEvent(new com.nocteon.nocteon_api.notifications.event.StockChangedEvent(
                                                         variant.getId(), variant.getProduct().getSlug(), variant.getSku(),
-                                                        oldStock, newStock, variant.getReorderThreshold()));
+                                                        change.before(), change.after(), variant.getReorderThreshold()));
                                 }
                         }
                 }

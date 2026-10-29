@@ -35,6 +35,7 @@ import com.nocteon.nocteon_api.payment.enums.PaymentStatus;
 import com.nocteon.nocteon_api.payment.repository.PaymentRepository;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
 import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
+import com.nocteon.nocteon_api.product.service.InventoryMovementService;
 
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -61,6 +62,7 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final ProductVariantRepository variantRepository;
+    private final InventoryMovementService inventoryService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -158,15 +160,18 @@ public class PaymentService {
             } else {
                 order.setStatus(OrderStatus.CONFIRMED);
                 order.setPaymentStatus(PaymentStatus.PAID);
+                // The units are consumed through InventoryMovementService, so
+                // the payment writes its stock movement (FE-13) in the same
+                // transaction as the payment row: a webhook that fails half way
+                // leaves neither.
                 order.getItems().forEach(item -> {
                     ProductVariant variant = item.getProductVariant();
-                    int oldStock = variantRepository.findStockById(variant.getId());
-                    variantRepository.consumeStock(variant.getId(), item.getQuantity());
-                    int newStock = variantRepository.findStockById(variant.getId());
-                    if (oldStock > variant.getReorderThreshold() && newStock <= variant.getReorderThreshold()) {
+                    InventoryMovementService.StockChange change = inventoryService.consumeForOrder(
+                            variant.getId(), item.getQuantity(), "system:payment-webhook", order.getId());
+                    if (change != null && change.crossedReorderThreshold(variant.getReorderThreshold())) {
                         eventPublisher.publishEvent(new com.nocteon.nocteon_api.notifications.event.StockChangedEvent(
                                 variant.getId(), variant.getProduct().getSlug(), variant.getSku(),
-                                oldStock, newStock, variant.getReorderThreshold()));
+                                change.before(), change.after(), variant.getReorderThreshold()));
                     }
                 });
                 eventPublisher.publishEvent(new PaymentSucceededEvent(order.getId(), payment.getAmount()));

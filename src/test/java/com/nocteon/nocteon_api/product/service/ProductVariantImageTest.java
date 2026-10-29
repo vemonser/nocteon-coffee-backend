@@ -52,7 +52,10 @@ class ProductVariantImageTest {
                 when(optionValueRepository.findAllById(List.of(100L)))
                                 .thenReturn(List.of(optionValue(100L)));
 
-                ProductVariantService service = new ProductVariantService(variantRepository, optionValueRepository);
+                ProductVariantService service = new ProductVariantService(variantRepository, optionValueRepository,
+                        new com.nocteon.nocteon_api.product.service.InventoryMovementService(
+                                variantRepository,
+                                org.mockito.Mockito.mock(com.nocteon.nocteon_api.product.repository.InventoryMovementRepository.class)));
                 service.replaceVariants(product, List.of(
                                 request("YIR-250", "https://cdn.nocteon.test/variants/250g.jpg")));
 
@@ -69,7 +72,10 @@ class ProductVariantImageTest {
                 when(optionValueRepository.findAllById(List.of(100L)))
                                 .thenReturn(List.of(optionValue(100L)));
 
-                ProductVariantService service = new ProductVariantService(variantRepository, optionValueRepository);
+                ProductVariantService service = new ProductVariantService(variantRepository, optionValueRepository,
+                        new com.nocteon.nocteon_api.product.service.InventoryMovementService(
+                                variantRepository,
+                                org.mockito.Mockito.mock(com.nocteon.nocteon_api.product.repository.InventoryMovementRepository.class)));
                 service.replaceVariants(product, List.of(request("YIR-500", "   ")));
 
                 ArgumentCaptor<ProductVariant> saved = ArgumentCaptor.forClass(ProductVariant.class);

@@ -22,6 +22,7 @@ import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.entity.ProductOptionValue;
 import com.nocteon.nocteon_api.product.entity.ProductVariant;
 import com.nocteon.nocteon_api.product.enums.ProductType;
+import com.nocteon.nocteon_api.common.security.ActorResolver;
 import com.nocteon.nocteon_api.product.repository.ProductOptionValueRepository;
 import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
 
@@ -35,6 +36,7 @@ public class ProductVariantService {
 
     private final ProductVariantRepository productVariantRepository;
     private final ProductOptionValueRepository productOptionValueRepository;
+    private final InventoryMovementService inventoryService;
 
     @Transactional
     public void saveVariants(Product product, List<ProductVariantRequest> requests) {
@@ -72,8 +74,15 @@ public class ProductVariantService {
                     normalizeBarcode(v.getBarcode()),
                     existing != null ? existing.getId() : null);
             if (existing != null) {
+                // FE-13: the form can change the stock figure, and a change of
+                // figure is a movement. The BEFORE is read before applyRequest
+                // overwrites it; a save that only touched the price writes
+                // nothing (see InventoryMovementService.recordProductEdit).
+                int stockBefore = existing.getStockQuantity();
                 applyRequest(existing, product, v);
                 productVariantRepository.save(existing);
+                inventoryService.recordProductEdit(existing.getId(), product.getId(),
+                        stockBefore, existing.getStockQuantity(), ActorResolver.currentActor());
                 continue;
             }
             productVariantRepository.findBySku(v.getSku())

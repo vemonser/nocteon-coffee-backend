@@ -29,12 +29,19 @@ import com.nocteon.nocteon_api.product.dto.request.ProductFilterRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductMediaRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductTagRequest;
+import com.nocteon.nocteon_api.product.dto.request.StockAdjustmentRequest;
 import com.nocteon.nocteon_api.product.dto.response.DashboardProductResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductOptionOptionResponse;
 import com.nocteon.nocteon_api.product.dto.response.ProductTagResponseDashboard;
 import com.nocteon.nocteon_api.product.dto.response.ProductResponse;
+import com.nocteon.nocteon_api.product.dto.response.StockMovementResponse;
 import com.nocteon.nocteon_api.product.dto.response.summary.ProductTagSummary;
+import com.nocteon.nocteon_api.product.entity.InventoryMovement;
+import com.nocteon.nocteon_api.product.enums.InventoryMovementReason;
+import com.nocteon.nocteon_api.product.enums.InventoryMovementSource;
+import com.nocteon.nocteon_api.common.security.ActorResolver;
+import com.nocteon.nocteon_api.product.service.InventoryMovementService;
 import com.nocteon.nocteon_api.product.service.ProductService;
 import com.nocteon.nocteon_api.product.service.ProductTagService;
 import com.nocteon.nocteon_api.common.service.RichTextImageService;
@@ -51,6 +58,7 @@ public class ProductController {
         private final ProductService productService;
         private final RichTextImageService richTextImageService;
         private final ProductTagService productTagService;
+        private final InventoryMovementService inventoryMovementService;
 
         // =========================
         // Public
@@ -143,6 +151,73 @@ public class ProductController {
                                 ApiResponse.success(
                                                 productService.getVariantBarcodes(productIds),
                                                 "Variant barcodes retrieved"));
+        }
+
+        /**
+         * FE-13: the last movements of a variant, newest first.
+         *
+         * <p>Gated like the product detail it hangs off ({@code product:read}): the history of a
+         * stock number is part of reading the product, not a separate privilege.
+         */
+        @GetMapping("/dashboard/products/variants/{variantId}/movements")
+        @PreAuthorize("hasAuthority('product:read')")
+        public ResponseEntity<ApiResponse<List<StockMovementResponse>>> getVariantMovements(
+                        @PathVariable Long variantId,
+                        @RequestParam(name = "limit", required = false, defaultValue = "10") int limit) {
+
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                inventoryMovementService.recent(variantId, limit).stream()
+                                                                .map(ProductController::toMovementResponse)
+                                                                .toList(),
+                                                "Stock movements retrieved"));
+        }
+
+        /**
+         * FE-13: change a variant's stock by hand.
+         *
+         * <p>The reason is REQUIRED — a blank one is refused with 400 before anything is written —
+         * and the row records who did it, from what number to what number, in the same transaction
+         * as the change. {@code product:update}, the authority the product form already needs.
+         */
+        @PostMapping("/dashboard/products/variants/{variantId}/stock-adjustment")
+        @PreAuthorize("hasAuthority('product:update')")
+        public ResponseEntity<ApiResponse<StockMovementResponse>> adjustStock(
+                        @PathVariable Long variantId,
+                        @Valid @RequestBody StockAdjustmentRequest request) {
+
+                InventoryMovementService.StockChange change = inventoryMovementService.adjustManually(
+                                variantId, request.getDelta(), request.getReason(), ActorResolver.currentActor());
+
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                StockMovementResponse.builder()
+                                                                .variantId(change.variantId())
+                                                                .delta(change.delta())
+                                                                .stockBefore(change.before())
+                                                                .stockAfter(change.after())
+                                                                .reason(InventoryMovementReason.MANUAL_ADJUSTMENT)
+                                                                .reasonNote(request.getReason().trim())
+                                                                .actor(ActorResolver.currentActor())
+                                                                .sourceType(InventoryMovementSource.MANUAL)
+                                                                .build(),
+                                                "Stock adjusted"));
+        }
+
+        private static StockMovementResponse toMovementResponse(InventoryMovement movement) {
+                return StockMovementResponse.builder()
+                                .id(movement.getId())
+                                .variantId(movement.getVariantId())
+                                .delta(movement.getDelta())
+                                .stockBefore(movement.getStockBefore())
+                                .stockAfter(movement.getStockAfter())
+                                .reason(movement.getReason())
+                                .reasonNote(movement.getReasonNote())
+                                .actor(movement.getActor())
+                                .sourceType(movement.getSourceType())
+                                .sourceId(movement.getSourceId())
+                                .createdAt(movement.getCreatedAt())
+                                .build();
         }
 
         @GetMapping("/dashboard/products/{slug}")
