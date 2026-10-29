@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.review.repository;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -98,6 +99,34 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
                             AND r.status = 'APPROVED'
                         """)
         Long countByProductSlug(@Param("slug") String slug);
+
+        /**
+         * The rating aggregate for a WHOLE page of products, in one statement.
+         *
+         * <p>The predicate is the same "counted review" definition the product
+         * page uses ({@link #findAverageRatingByProductSlug} and
+         * {@link #countByProductSlug}): not soft-deleted, and APPROVED. The
+         * dashboard column and the reviews page must never disagree about
+         * which reviews exist, so the three queries stay word-for-word
+         * identical — if the definition moves, it moves in all three.
+         *
+         * <p>Grouping by product is what keeps the products list at ONE extra
+         * statement per page: a per-row call would be an N+1, and the list is
+         * paginated (see {@code DashboardListQueryBudgetTest}).
+         *
+         * @return rows of {@code [productId, averageRating, reviewCount]};
+         *         products with no counted review are simply absent
+         */
+        @Query("""
+                            SELECT r.product.id, AVG(r.rating), COUNT(r)
+                            FROM Review r
+                            WHERE r.product.id IN :productIds
+                              AND r.deletedAt IS NULL
+                              AND r.status = 'APPROVED'
+                            GROUP BY r.product.id
+                        """)
+        List<Object[]> findApprovedRatingAggregatesByProductIds(
+                        @Param("productIds") Collection<Long> productIds);
 
         boolean existsByUserIdAndProductSlug(Long userId, String productSlug);
 

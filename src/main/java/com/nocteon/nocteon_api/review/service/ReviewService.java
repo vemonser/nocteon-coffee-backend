@@ -1,7 +1,10 @@
 package com.nocteon.nocteon_api.review.service;
 
 import java.util.HashMap;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -209,6 +212,59 @@ public class ReviewService {
                                 .distribution(distribution)
                                 .build();
         }
+
+        /**
+         * The rating aggregate one product card shows: the average of the
+         * COUNTED reviews, and how many there are.
+         *
+         * <p>{@code averageRating} is null (never 0.0) when nothing is counted:
+         * "no one has reviewed this yet" is not the same fact as "everyone
+         * gave it zero stars". {@code reviewCount} is 0 in that case, so an
+         * "older backend" (a missing field) and "no reviews yet" stay
+         * distinguishable on the client.
+         */
+        public record RatingSummary(Double averageRating, Integer reviewCount) {
+        }
+
+        /**
+         * Rating aggregates for a whole page of products, in ONE query.
+         *
+         * <p>Every requested id gets an answer — products with no counted
+         * review come back as {@code (null, 0)} — so a caller can never print
+         * a missing rating as a blank or as a zero-average, and a page of 20
+         * rows costs exactly one statement instead of twenty.
+         */
+        @Transactional(readOnly = true)
+        public Map<Long, RatingSummary> ratingSummariesByProductIds(Collection<Long> productIds) {
+                if (productIds == null || productIds.isEmpty()) {
+                        return Map.of();
+                }
+
+                Map<Long, RatingSummary> summaries = new HashMap<>();
+                for (Long productId : productIds) {
+                        summaries.put(productId, new RatingSummary(null, 0));
+                }
+
+                for (Object[] row : reviewRepository.findApprovedRatingAggregatesByProductIds(productIds)) {
+                        Long productId = ((Number) row[0]).longValue();
+                        Double average = row[1] == null ? null : roundAverage(((Number) row[1]).doubleValue());
+                        int count = ((Number) row[2]).intValue();
+                        summaries.put(productId, new RatingSummary(average, count));
+                }
+
+                return summaries;
+        }
+
+        /**
+         * One decimal is what the UI shows (4.3), and rounding lives HERE so
+         * every surface renders the same number from the same average.
+         */
+        private static Double roundAverage(double average) {
+                return BigDecimal.valueOf(average)
+                                .setScale(1, RoundingMode.HALF_UP)
+                                .doubleValue();
+        }
+
         @Transactional(readOnly = true)
         public ReviewResponse getDashboardById(Long id) {
                 Review review = reviewRepository.findById(id)
