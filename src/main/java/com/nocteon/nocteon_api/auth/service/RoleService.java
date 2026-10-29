@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.nocteon.nocteon_api.auth.entity.RoleEntity;
 import com.nocteon.nocteon_api.auth.enums.Role;
 import com.nocteon.nocteon_api.auth.repository.RoleRepository;
+import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.audit.service.AuditLogService;
 import com.nocteon.nocteon_api.audit.enums.AuditAction;
@@ -21,6 +22,7 @@ import com.nocteon.nocteon_api.auth.exception.RoleExistsException;
 import com.nocteon.nocteon_api.auth.exception.RoleImmutableException;
 import com.nocteon.nocteon_api.auth.exception.RoleInUseException;
 import com.nocteon.nocteon_api.common.enums.Permission;
+import com.nocteon.nocteon_api.common.security.AuditActor;
 
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -86,7 +88,7 @@ public class RoleService {
     }
 
     @Transactional
-    public RoleEntity create(String name, String description, String cloneFrom) {
+    public RoleEntity create(String name, String description, String cloneFrom, UserPrincipal actor) {
         if (name == null || !NAME_PATTERN.matcher(name).matches()) {
             throw new IllegalArgumentException("Invalid role name");
         }
@@ -108,12 +110,15 @@ public class RoleService {
                 .permissions(perms)
                 .build();
         RoleEntity saved = roleRepository.save(role);
-        auditLogService.logSuccess(AuditAction.ROLE_CREATED, null, null, "Role", null, saved.getName(), null, null, null, null, null);
+        AuditActor auditActor = AuditActor.of(actor);
+        auditLogService.logSuccess(AuditAction.ROLE_CREATED, auditActor.userId(), auditActor.userEmail(),
+                "Role", null, saved.getName(), null, null, null, null, null);
         return saved;
     }
 
     @Transactional
-    public RoleEntity update(String name, String description, List<String> permissions, List<String> sensitivePermissions) {
+    public RoleEntity update(String name, String description, List<String> permissions,
+                             List<String> sensitivePermissions, UserPrincipal actor) {
         RoleEntity role = roleRepository.findWithPermissionsByName(name)
                 .orElseThrow(() -> new RoleNotFoundException());
         boolean system = role.isSystem();
@@ -142,12 +147,14 @@ public class RoleService {
             }
         }
         RoleEntity saved = roleRepository.save(role);
-        auditLogService.logSuccess(AuditAction.ROLE_PERMISSIONS_UPDATED, null, null, "Role", null, saved.getName(), null, null, null, null, null);
+        AuditActor auditActor = AuditActor.of(actor);
+        auditLogService.logSuccess(AuditAction.ROLE_PERMISSIONS_UPDATED, auditActor.userId(), auditActor.userEmail(),
+                "Role", null, saved.getName(), null, null, null, null, null);
         return saved;
     }
 
     @Transactional
-    public void delete(String name) {
+    public void delete(String name, UserPrincipal actor) {
         RoleEntity role = roleRepository.findById(name)
                 .orElseThrow(() -> new RoleNotFoundException());
         if (role.isSystem()) {
@@ -158,7 +165,9 @@ public class RoleService {
             throw new RoleInUseException();
         }
         roleRepository.delete(role);
-        auditLogService.logSuccess(AuditAction.ROLE_DELETED, null, null, "Role", null, name, null, null, null, null, null);
+        AuditActor auditActor = AuditActor.of(actor);
+        auditLogService.logSuccess(AuditAction.ROLE_DELETED, auditActor.userId(), auditActor.userEmail(),
+                "Role", null, name, null, null, null, null, null);
     }
 
     @Transactional

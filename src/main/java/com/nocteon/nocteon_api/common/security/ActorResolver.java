@@ -14,6 +14,11 @@ import com.nocteon.nocteon_api.auth.security.UserPrincipal;
  * need an actor read it here, and a call with no authentication (a scheduler, a
  * test, the payment webhook) is honestly labelled {@code system} instead of
  * guessing.
+ *
+ * <p>This returns a display label, not an audit actor: an audit row stores the
+ * user id and e-mail as two columns and must keep them null for a system action
+ * (see {@link AuditActor}), so it never records the string {@code system} as an
+ * e-mail.
  */
 public final class ActorResolver {
 
