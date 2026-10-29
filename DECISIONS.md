@@ -153,3 +153,41 @@ code said "single instance only".
   `NotificationStreamFanOutTest`, because the point is the callback contract, not
   Postgres.
 - **No migration.** Nothing is stored; the channel is transient.
+
+## AI providers — chat on Groq, embeddings on local Ollama
+
+**Chat.** Groq over its OpenAI-compatible endpoint (`GROQ_API_KEY` → `/openai/v1`),
+with local Ollama (`qwen2.5:3b-instruct`) as the zero-key fallback. Groq has no
+embeddings endpoint, so it is **chat only**.
+
+**Embeddings.** Local Ollama `nomic-embed-text` is the default — even when a
+`GEMINI_API_KEY` is present. Gemini becomes an explicit opt-in: set
+`AI_EMBEDDING_PROVIDER=gemini` (or `spring.ai.model.embedding.text=google-genai`)
+alongside a non-blank `GEMINI_API_KEY`. The zero-config path never calls Gemini,
+which previously 429'd on an out-of-quota key and left semantic search
+keyword-only.
+
+**Why.** The Gemini key shipped in this environment is out of quota, so the old
+"key present ⇒ Gemini" rule failed at every boot (`Could not build the AI vector
+index on startup … 429 … gemini-api`). Groq cannot substitute (no embeddings
+API), so the honest fix is to make the local model the default and Gemini opt-in.
+
+**Dimension.** `nomic-embed-text` emits 768 dimensions, matching `vector_store`
+(`vector(768)`) and the Gemini path (`gemini-embedding-2` at `dimensions: 768`).
+Verified live against the local Ollama instance: 768 in, 768 out. No schema
+change or table rebuild is required.
+
+**Boot behaviour when the embedding provider is down.** `ProductIndexBootstrap`
+catches any failure from the embedding call, logs a single warning
+(`Could not build the AI vector index on startup; semantic search will stay
+keyword-only until the next reindex: …`), and continues startup. Semantic search
+degrades to keyword-only. There is no retry at boot and no failed startup.
+
+**Operational consequence.** Because embeddings now default to local Ollama, the
+compose stack's `ollama-init` service **must** have pulled `nomic-embed-text`.
+Verify with:
+
+    docker compose run --rm ollama-init
+
+and confirm `nomic-embed-text` is listed (`ollama list` / `ollama show nomic-embed-text`).
+If it is missing, semantic search stays keyword-only until the model is pulled.

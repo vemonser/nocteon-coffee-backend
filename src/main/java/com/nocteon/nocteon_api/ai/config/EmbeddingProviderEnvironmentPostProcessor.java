@@ -11,8 +11,9 @@ import org.springframework.core.env.MapPropertySource;
 import org.springframework.util.StringUtils;
 
 /**
- * Chooses which provider supplies the embedding model, from whether a Gemini API key is
- * configured.
+ * Chooses which provider supplies the embedding model. Ollama is the default; Gemini is an
+ * explicit opt-in (AI_EMBEDDING_PROVIDER=gemini or a pinned selector), never the automatic
+ * choice just because a GEMINI_API_KEY is present.
  *
  * <h2>Why this is a second post-processor and not a flag</h2>
  * It is deliberately the same mechanism as {@link ChatProviderEnvironmentPostProcessor}, for the
@@ -126,6 +127,19 @@ public class EmbeddingProviderEnvironmentPostProcessor implements EnvironmentPos
     private static final String GEMINI_API_KEY = "GEMINI_API_KEY";
 
     /**
+     * Explicit opt-in for the hosted (Gemini) embedding provider.
+     *
+     * <p>Gemini is no longer selected automatically from {@link #GEMINI_API_KEY}: the local
+     * Ollama model is the default. Set this to {@code gemini} (or {@code google-genai}) to opt in,
+     * alongside a non-blank {@code GEMINI_API_KEY}. Blank/unset means "local".
+     */
+    public static final String AI_EMBEDDING_PROVIDER_PROPERTY = "AI_EMBEDDING_PROVIDER";
+    /** Alias kept for callers/tests that use the bare variable name as the constant. */
+    public static final String AI_EMBEDDING_PROVIDER = "AI_EMBEDDING_PROVIDER";
+    /** Alias kept for callers/tests that name the env var after the provider. */
+    public static final String EMBEDDING_PROVIDER_PROPERTY = "AI_EMBEDDING_PROVIDER";
+
+    /**
      * {@code LOWEST_PRECEDENCE} for the same reason as
      * {@link ChatProviderEnvironmentPostProcessor}: it must run after
      * {@code ConfigDataEnvironmentPostProcessor}, which is what makes {@code application.yaml}
@@ -149,10 +163,12 @@ public class EmbeddingProviderEnvironmentPostProcessor implements EnvironmentPos
         // still leaving exactly one provider claiming the bean.
         String embeddingSelector = environment.getProperty(EMBEDDING_SELECTOR_PROPERTY);
         String textSelector = environment.getProperty(TEXT_EMBEDDING_SELECTOR_PROPERTY);
+        String aiProvider = environment.getProperty(AI_EMBEDDING_PROVIDER_PROPERTY);
 
-        boolean gemini = StringUtils.hasText(textSelector)
-                ? GOOGLE_GENAI_PROVIDER.equals(textSelector)
-                : hasGeminiApiKey(environment);
+        // Gemini is an explicit opt-in now: the local Ollama model is the default even when a
+        // GEMINI_API_KEY is present (which, in this environment, is out of quota and would 429).
+        // Selection happens only on an explicit request — the env var or a pinned selector.
+        boolean gemini = isGeminiRequested(aiProvider, textSelector);
 
         if (!StringUtils.hasText(embeddingSelector)) {
             decisions.put(EMBEDDING_SELECTOR_PROPERTY, gemini ? NO_PROVIDER : OLLAMA_PROVIDER);
@@ -191,6 +207,17 @@ public class EmbeddingProviderEnvironmentPostProcessor implements EnvironmentPos
      * at a provider it cannot authenticate against — which, unlike a chat 401, would surface as
      * every reindex silently failing.
      */
+    private static boolean isGeminiRequested(String aiProvider, String textSelector) {
+        if (StringUtils.hasText(textSelector)) {
+            return GOOGLE_GENAI_PROVIDER.equals(textSelector);
+        }
+        if (StringUtils.hasText(aiProvider)) {
+            String v = aiProvider.trim().toLowerCase(java.util.Locale.ROOT);
+            return "gemini".equals(v) || "google-genai".equals(v) || "google".equals(v);
+        }
+        return false;
+    }
+
     private static boolean hasGeminiApiKey(ConfigurableEnvironment environment) {
         return StringUtils.hasText(environment.getProperty(GEMINI_API_KEY));
     }
