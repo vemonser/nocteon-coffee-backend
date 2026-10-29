@@ -65,6 +65,22 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
                      @Param("entityId") Long entityId);
 
     /**
+     * Resolves the row that {@link #insertIgnore} just created, so the realtime stream
+     * can push the stored row (its id and server timestamp) instead of a re-imagined
+     * DTO. The unique constraint makes this an exact lookup.
+     */
+    Optional<Notification> findByRecipientUserIdAndTypeAndEntityTypeAndEntityId(
+            Long recipientUserId, String type, String entityType, Long entityId);
+
+    /**
+     * Fallback for a notification whose entity id is null, where the unique
+     * constraint does not apply. Only used by the creation path immediately after
+     * its own insert.
+     */
+    Optional<Notification> findFirstByRecipientUserIdAndTypeOrderByIdDesc(
+            Long recipientUserId, String type);
+
+    /**
      * Cursor-keyset query. Both cursor values are required: first-page requests
      * must use {@link #findPage(Long, boolean, Pageable)} instead. There is no
      * nullable convenience wrapper, so a missing cursor cannot be mistaken for a

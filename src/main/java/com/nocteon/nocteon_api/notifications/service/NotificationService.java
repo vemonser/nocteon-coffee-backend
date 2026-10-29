@@ -27,7 +27,55 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final com.nocteon.nocteon_api.notifications.stream.NotificationStreamRegistry streamRegistry;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /**
+     * The one place a notification row is created.
+     *
+     * <p>The insert is idempotent (the fan-out may run twice for the same entity) and
+     * the realtime push happens only when the row was actually inserted, so a
+     * repeated event never produces a second bell entry or a second stream message.
+     * Publishing is deferred to after-commit by the registry.
+     *
+     * @return the created row, or empty when the notification already existed
+     */
+    @Transactional
+    public java.util.Optional<NotificationResponse> createAndPublish(
+            Long recipientId, String type, String paramsJson, String entityType, Long entityId) {
+        int inserted = notificationRepository.insertIgnore(recipientId, type, paramsJson, entityType, entityId);
+        if (inserted == 0) {
+            // Already delivered for this entity: pushing again would double-count.
+            return java.util.Optional.empty();
+        }
+        Notification saved = findCreated(recipientId, type, entityType, entityId);
+        if (saved == null) {
+            // The row exists (the insert succeeded) but cannot be re-read in this
+            // transaction. The stream is a latency optimisation, so skipping the push
+            // is safe: the client's poll still finds the row.
+            log.warn("Notification inserted but not re-read (recipient={}, type={}, entity={}/{}); stream push skipped",
+                    recipientId, type, entityType, entityId);
+            return java.util.Optional.empty();
+        }
+        NotificationResponse response = toResponse(saved);
+        streamRegistry.publishNotification(
+                recipientId, response, notificationRepository.countByRecipientUserIdAndReadAtIsNull(recipientId));
+        return java.util.Optional.of(response);
+    }
+
+    private Notification findCreated(Long recipientId, String type, String entityType, Long entityId) {
+        if (entityId == null) {
+            // The unique constraint does not cover a null entity id, so there is
+            // nothing to look up by; the newest row of this type is the one just
+            // inserted by this thread.
+            return notificationRepository
+                    .findFirstByRecipientUserIdAndTypeOrderByIdDesc(recipientId, type)
+                    .orElse(null);
+        }
+        return notificationRepository
+                .findByRecipientUserIdAndTypeAndEntityTypeAndEntityId(recipientId, type, entityType, entityId)
+                .orElse(null);
+    }
 
     @Transactional(readOnly = true)
     public NotificationCursorResponse getNotifications(Long userId, String cursor, int limit, boolean unreadOnly) {
@@ -102,6 +150,7 @@ public class NotificationService {
         if (updated == 0) {
             throw new NotificationNotFoundException();
         }
+        publishUnreadCount(userId);
     }
 
     @Transactional
@@ -110,6 +159,7 @@ public class NotificationService {
         if (updated == 0) {
             throw new NotificationNotFoundException();
         }
+        publishUnreadCount(userId);
     }
 
     /** One query for a selection; missing or foreign ids are simply skipped. */
@@ -117,17 +167,20 @@ public class NotificationService {
     public void markReadBulk(Long userId, Collection<Long> ids) {
         if (ids == null || ids.isEmpty()) return;
         notificationRepository.markReadBulk(ids, userId, Instant.now());
+        publishUnreadCount(userId);
     }
 
     @Transactional
     public void deleteBulk(Long userId, Collection<Long> ids) {
         if (ids == null || ids.isEmpty()) return;
         notificationRepository.deleteBulk(ids, userId);
+        publishUnreadCount(userId);
     }
 
     @Transactional
     public void markAllRead(Long userId) {
         notificationRepository.markAllRead(userId, Instant.now());
+        publishUnreadCount(userId);
     }
 
     @Transactional
@@ -136,6 +189,18 @@ public class NotificationService {
         if (deleted == 0) {
             throw new NotificationNotFoundException();
         }
+        publishUnreadCount(userId);
+    }
+
+    /**
+     * Pushes the new unread count to this user's live streams, so a second tab's
+     * badge does not wait for its next poll. Skipped entirely when nobody is
+     * listening, so the count query is not paid for by REST-only clients.
+     */
+    private void publishUnreadCount(Long userId) {
+        if (!streamRegistry.hasSubscribers(userId)) return;
+        streamRegistry.publishUnreadCount(
+                userId, notificationRepository.countByRecipientUserIdAndReadAtIsNull(userId));
     }
 
     private Instant parseCursorTimestamp(String value, Long cursorId, Long userId) {
