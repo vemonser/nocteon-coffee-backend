@@ -29,5 +29,11 @@ public class OrderStatusHistoryResponse {
         /** Whether the customer was asked to be told about the change. */
         private boolean notifyCustomer;
 
+        /**
+         * Set when the row is an EVENT, not a status change — a return's
+         * request, approval or rejection (FE-20). Null for a status change.
+         */
+        private String eventType;
+
         private Instant createdAt;
 }

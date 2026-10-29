@@ -27,6 +27,7 @@ import com.nocteon.nocteon_api.common.util.ClientIpResolver;
 import com.nocteon.nocteon_api.order.dto.request.CreateOrderNoteRequest;
 import com.nocteon.nocteon_api.order.dto.request.CreateOrderRequest;
 import com.nocteon.nocteon_api.order.dto.request.CreateRefundRequest;
+import com.nocteon.nocteon_api.order.dto.request.CreateReturnRequest;
 import com.nocteon.nocteon_api.order.dto.request.OrderFilterRequest;
 import com.nocteon.nocteon_api.order.dto.request.UpdateOrderStatusRequest;
 import com.nocteon.nocteon_api.order.dto.request.UpdateShipmentRequest;
@@ -36,6 +37,8 @@ import com.nocteon.nocteon_api.order.dto.response.OrderPaymentDetailsResponse;
 import com.nocteon.nocteon_api.order.dto.response.OrderPaymentResponse;
 import com.nocteon.nocteon_api.order.dto.response.OrderRefundResponse;
 import com.nocteon.nocteon_api.order.dto.response.OrderResponse;
+import com.nocteon.nocteon_api.order.dto.response.OrderReturnResponse;
+import com.nocteon.nocteon_api.order.enums.ReturnStatus;
 import com.nocteon.nocteon_api.order.dto.response.OrderShipmentResponse;
 import com.nocteon.nocteon_api.order.dto.response.OrderStatsResponse;
 import com.nocteon.nocteon_api.order.dto.response.OrderStatusHistoryResponse;
@@ -47,6 +50,7 @@ import com.nocteon.nocteon_api.order.service.OrderInvoiceService;
 import com.nocteon.nocteon_api.order.service.OrderNoteService;
 import com.nocteon.nocteon_api.order.service.OrderQueryService;
 import com.nocteon.nocteon_api.order.service.OrderRefundService;
+import com.nocteon.nocteon_api.order.service.OrderReturnService;
 import com.nocteon.nocteon_api.order.service.OrderService;
 import com.nocteon.nocteon_api.order.service.OrderShipmentService;
 import com.nocteon.nocteon_api.order.service.OrderStatsService;
@@ -71,6 +75,7 @@ public class OrderController {
         private final OrderNoteService orderNoteService;
         private final OrderShipmentService orderShipmentService;
         private final OrderRefundService orderRefundService;
+        private final OrderReturnService orderReturnService;
         private final OrderStatsService orderStatsService;
         private final OrderInvoiceService orderInvoiceService;
         private final OrderConfirmationEmailService orderConfirmationEmailService;
@@ -296,6 +301,76 @@ public class OrderController {
                                 "Order refunds retrieved"));
         }
 
+        // ─── returns / RMA (FE-20) ────────────────────────────────────────────
+
+        /**
+         * The returns of an order, newest first.
+         *
+         * <p>Read with the same {@code order:read} as the rest of the order
+         * page: a return is part of the order, not a separate module.
+         */
+        @GetMapping("/dashboard/orders/{id}/returns")
+        @PreAuthorize("hasAuthority('order:read')")
+        public ResponseEntity<ApiResponse<List<OrderReturnResponse>>> getReturns(@PathVariable Long id) {
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                orderReturnService.getReturns(id),
+                                                "Order returns retrieved"));
+        }
+
+        /**
+         * Record a return: which lines came back, how many, and why.
+         *
+         * <p>Recording a return does NOT move stock — approval does. The
+         * quantities are validated against what is still returnable on each
+         * line, and at least one line with a reason is required.
+         */
+        @PostMapping("/dashboard/orders/{id}/returns")
+        @PreAuthorize("hasAuthority('order:update')")
+        public ResponseEntity<ApiResponse<OrderReturnResponse>> createReturn(
+                        @PathVariable Long id,
+                        @Valid @RequestBody CreateReturnRequest request,
+                        @AuthenticationPrincipal UserPrincipal principal) {
+                return ResponseEntity.status(HttpStatus.CREATED)
+                                .body(ApiResponse.success(
+                                                orderReturnService.create(id, request, actorOf(principal)),
+                                                "Order return recorded"));
+        }
+
+        /**
+         * Approve a return: the units go back into stock.
+         *
+         * <p>The restock is written through the inventory movement service
+         * (reason RETURN), so the stock log explains it. Approving an already
+         * approved return is a retry — it answers the row and restocks nothing.
+         */
+        @PostMapping("/dashboard/orders/{id}/returns/{returnId}/approve")
+        @PreAuthorize("hasAuthority('order:update')")
+        public ResponseEntity<ApiResponse<OrderReturnResponse>> approveReturn(
+                        @PathVariable Long id,
+                        @PathVariable Long returnId,
+                        @AuthenticationPrincipal UserPrincipal principal) {
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                orderReturnService.decide(id, returnId, ReturnStatus.APPROVED,
+                                                                actorOf(principal)),
+                                                "Order return approved"));
+        }
+
+        /** Reject a return: nothing is restocked, and the decision is final. */
+        @PostMapping("/dashboard/orders/{id}/returns/{returnId}/reject")
+        @PreAuthorize("hasAuthority('order:update')")
+        public ResponseEntity<ApiResponse<OrderReturnResponse>> rejectReturn(
+                        @PathVariable Long id,
+                        @PathVariable Long returnId,
+                        @AuthenticationPrincipal UserPrincipal principal) {
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                orderReturnService.decide(id, returnId, ReturnStatus.REJECTED,
+                                                                actorOf(principal)),
+                                                "Order return rejected"));
+        }
+
         /**
          * The invoice of an order, as a PDF.
          *
@@ -374,6 +449,7 @@ public class OrderController {
                                 .note(row.getNote())
                                 .changedBy(row.getChangedBy())
                                 .notifyCustomer(row.isNotifyCustomer())
+                                .eventType(row.getEventType())
                                 .createdAt(row.getCreatedAt())
                                 .build();
         }
