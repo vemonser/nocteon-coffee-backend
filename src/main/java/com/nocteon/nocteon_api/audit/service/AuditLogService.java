@@ -30,12 +30,39 @@ public class AuditLogService {
     private static final Instant MAX_INSTANT = Instant.parse("2100-01-01T00:00:00Z");
 
     private final AuditLogRepository auditLogRepository;
+    private final AuditRequestMetadataResolver requestMetadataResolver;
 
+    /**
+     * Writes one audit row.
+     *
+     * <p>{@code ipAddress} and {@code userAgent} are an explicit override, and every caller today
+     * passes null for both: the columns are then filled from the request the current thread is
+     * serving ({@link AuditRequestMetadataResolver}), so a writer records WHERE the action came
+     * from without taking {@code HttpServletRequest} as a parameter. Off a request thread — a
+     * scheduler or a worker — both stay null, which is what a system action honestly is.
+     *
+     * <p>The parameters stay in the signature so a caller that ever does hold a request of its own
+     * (a webhook repo, a replay tool) can state the values outright, and so no existing call site
+     * changes.
+     */
     @Transactional
     public void log(AuditAction action, Long userId, String userEmail, String entityType, Long entityId, String entitySlug,
                     String ipAddress, String userAgent, Map<String, Object> oldValues, Map<String, Object> newValues,
                     Map<String, Object> metadata, boolean success, String errorMessage) {
         try {
+            // Resolved once, only for the columns the caller left open: two header reads on the
+            // request thread, no extra query, and nothing at all for a system write.
+            String recordedIpAddress = ipAddress;
+            String recordedUserAgent = userAgent;
+            if (recordedIpAddress == null || recordedUserAgent == null) {
+                AuditRequestMetadata requestMetadata = requestMetadataResolver.resolve();
+                if (recordedIpAddress == null) {
+                    recordedIpAddress = requestMetadata.ipAddress();
+                }
+                if (recordedUserAgent == null) {
+                    recordedUserAgent = requestMetadata.userAgent();
+                }
+            }
             ObjectMapper mapper = new ObjectMapper();
             AuditLog log = AuditLog.builder()
                     .userId(userId)
@@ -44,8 +71,8 @@ public class AuditLogService {
                     .entityType(entityType)
                     .entityId(entityId)
                     .entitySlug(entitySlug)
-                    .ipAddress(ipAddress)
-                    .userAgent(userAgent)
+                    .ipAddress(recordedIpAddress)
+                    .userAgent(recordedUserAgent)
                     .oldValues(oldValues != null ? mapper.writeValueAsString(oldValues) : null)
                     .newValues(newValues != null ? mapper.writeValueAsString(newValues) : null)
                     .metadata(metadata != null ? mapper.writeValueAsString(metadata) : null)
