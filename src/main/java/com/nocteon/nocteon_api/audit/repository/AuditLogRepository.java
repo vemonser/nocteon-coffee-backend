@@ -6,8 +6,10 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.nocteon.nocteon_api.audit.entity.AuditLog;
 
@@ -62,4 +64,39 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             ORDER BY a.createdAt DESC
             """)
     List<AuditLog> findByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
+
+    /**
+     * Deletes at most {@code batchSize} rows whose {@code created_at} is
+     * strictly before {@code horizon} and returns how many rows went.
+     *
+     * <p>Three deliberate details:
+     * <ul>
+     * <li>{@code created_at < :horizon} — a row at the horizon itself stays.
+     * This is the whole safety property of the job: it can never delete
+     * something younger than the configured window.</li>
+     * <li>{@code LIMIT :batchSize} — the statement is bounded. The caller runs
+     * it in a loop, one transaction per batch, so no single statement holds a
+     * long lock on {@code audit_logs}.</li>
+     * <li>{@code ORDER BY created_at, id} — lets {@code idx_audit_log_created}
+     * serve both the filter and the order, so Postgres stops after
+     * {@code batchSize} index entries instead of sorting the backlog. The id
+     * breaks ties so a batch boundary is deterministic.</li>
+     * </ul>
+     *
+     * <p>Native SQL rather than JPQL: the delete must be a bounded
+     * {@code LIMIT} in the database, and the {@code @Modifying @Query} JPQL form
+     * has no portable way to say "at most N rows".
+     */
+    @Modifying
+    @Transactional
+    @Query(value = """
+            DELETE FROM audit_logs
+            WHERE id IN (
+                SELECT id FROM audit_logs
+                WHERE created_at < :horizon
+                ORDER BY created_at, id
+                LIMIT :batchSize
+            )
+            """, nativeQuery = true)
+    int deleteBatchOlderThan(@Param("horizon") Instant horizon, @Param("batchSize") int batchSize);
 }

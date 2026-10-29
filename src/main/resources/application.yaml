@@ -345,6 +345,31 @@ springdoc:
 
 
 # ═══════════════════════════════════
+#         AUDIT LOG RETENTION
+# ═══════════════════════════════════
+# Read by AuditRetentionProperties; the job itself is AuditLogRetentionScheduler.
+# audit_logs grows with every login and every admin action, so without a sweep it
+# becomes the largest object in the database. The sweep is opt-in on purpose:
+# deleting audit history cannot be undone by re-enabling a flag, so it must be a
+# deliberate per-environment decision rather than a side effect of a deploy.
+app:
+  audit:
+    retention:
+      # Gates AuditLogRetentionScheduler. Off by default: the job stays dormant
+      # (it returns before running a single query) until this is set to true.
+      enabled: ${AUDIT_RETENTION_ENABLED:false}
+      # Rows whose created_at is older than this many days are deleted; rows
+      # younger than the horizon are never touched. Keep it above the longest
+      # period an investigation or support ticket can reasonably reach back.
+      days: ${AUDIT_RETENTION_DAYS:180}
+      # Rows per delete statement. Each batch is its own transaction, so the job
+      # commits and frees its locks every batch-size rows instead of holding one
+      # long transaction over the whole backlog. Lower it if writers on a large
+      # table see lock waits; the pass just takes more statements.
+      batch-size: ${AUDIT_RETENTION_BATCH_SIZE:5000}
+
+
+# ═══════════════════════════════════
 #              LOGGING
 # ═══════════════════════════════════
 logging:
