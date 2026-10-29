@@ -83,7 +83,7 @@ public interface ProcessingMethodRepository extends JpaRepository<ProcessingMeth
         FROM processing_methods e
         JOIN processing_method_translations et ON e.id = et.processing_method_id
         WHERE e.deleted_at IS NOT NULL
-        AND (LOWER(et.name) LIKE :search OR LOWER(e.slug) LIKE :search)
+        AND (COALESCE(:search, '') = '' OR LOWER(et.name) LIKE :search OR LOWER(e.slug) LIKE :search)
         GROUP BY e.id, e.slug, e.created_at, et.language, et.name, et.description
         """, nativeQuery = true)
     List<Object[]> findDeletedBySearchNative(@Param("search") String search);

@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "2026-10-28T21-00-00Z-fe08",
+    "task": "Rich product story",
+    "source": ".quality/specs/fe-08.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-23",
+      "statement": "rich story is sanitized on write and read",
+      "sourceRef": {
+        "path": ".quality/specs/fe-08.md",
+        "line": 8
+      },
+      "kind": "security",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "nocteon-backend/src/main/java/com/nocteon/nocteon_api/product/service/ProductMutationService.java",
+        "nocteon-backend/src/main/java/com/nocteon/nocteon_api/product/mapper/ProductResponseMapper.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.product.service.ProductStorySanitizationTest.xml",
+          "command": "bash -lc cd nocteon-backend && mise exec -- ./mvnw -q -o -Dtest=ProductStorySanitizationTest -DfailIfNoTests=false test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T18:54:42.834Z"
+        },
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.product.service.ProductStorySanitizationTest.xml",
+          "command": "bash -lc cd nocteon-backend && mise exec -- ./mvnw -q -o -Dtest='ProductStorySanitizationTest,RichTextImageServiceTest' -DfailIfNoTests=false test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T19:04:29.019Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-24",
+      "statement": "the story field is the journal's rich-text editor and toolbar",
+      "sourceRef": {
+        "path": ".quality/specs/fe-08.md",
+        "line": 12
+      },
+      "kind": "ui",
+      "requiresBrowser": true,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "nocteon-dashboard/src/app/features/products/components/steps/basic-info-step/basic-info-step.component.ts",
+        "nocteon-dashboard/src/app/shared/quill/rich-text.config.ts"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "screenshot",
+          "path": "nocteon-dashboard/evidence/fe-08/story-editor-1440.png",
+          "command": "test -s nocteon-dashboard/evidence/fe-08/story-editor-1440.png",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T18:54:42.913Z"
+        },
+        {
+          "type": "e2e",
+          "path": ".quality/runs/2026-10-28T21-00-00Z-fe08/artifacts/ac-26-story.log",
+          "command": "test -s .quality/runs/2026-10-28T21-00-00Z-fe08/artifacts/ac-26-story.log",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T18:55:33.637Z"
+        },
+        {
+          "type": "screenshot",
+          "path": "nocteon-dashboard/evidence/fe-08/story-editor-1440.png",
+          "command": "test -s nocteon-dashboard/evidence/fe-08/story-editor-1440.png",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T19:05:25.798Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-25",
+      "statement": "legacy plain-text stories are preserved",
+      "sourceRef": {
+        "path": ".quality/specs/fe-08.md",
+        "line": 16
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "nocteon-backend/src/main/java/com/nocteon/nocteon_api/product/service/ProductMutationService.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.product.service.ProductStorySanitizationTest.xml",
+          "command": "test -s nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.product.service.ProductStorySanitizationTest.xml",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T18:54:42.874Z"
+        },
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.product.service.ProductStorySanitizationTest.xml",
+          "command": "test -s nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.product.service.ProductStorySanitizationTest.xml",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T19:04:29.056Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-26",
+      "statement": "formatting and inline images persist and are served publicly",
+      "sourceRef": {
+        "path": ".quality/specs/fe-08.md",
+        "line": 19
+      },
+      "kind": "ui",
+      "requiresBrowser": true,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "nocteon-dashboard/src/app/features/products/components/steps/basic-info-step/basic-info-step.component.ts"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "e2e",
+          "path": ".quality/runs/2026-10-28T21-00-00Z-fe08/artifacts/ac-26-story.log",
+          "command": "bash -lc cd nocteon-dashboard && npx playwright test e2e/fe08-live.spec.ts --project=chromium --reporter=line",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T18:55:23.298Z"
+        },
+        {
+          "type": "screenshot",
+          "path": "nocteon-dashboard/evidence/fe-08/story-editor-1440.png",
+          "command": "test -s nocteon-dashboard/evidence/fe-08/story-editor-1440.png",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T18:55:33.678Z"
+        },
+        {
+          "type": "e2e",
+          "path": ".quality/runs/2026-10-28T21-00-00Z-fe08/artifacts/ac-26-story-fixed.log",
+          "command": "bash -lc cd nocteon-dashboard && npx playwright test e2e/fe08-live.spec.ts --project=chromium --reporter=line",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T19:05:25.760Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

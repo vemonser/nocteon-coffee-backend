@@ -94,7 +94,7 @@ public interface PairingRepository extends JpaRepository<Pairing, Long> {
                 FROM pairings e
                 JOIN pairing_translations et ON e.id = et.pairing_id
                 WHERE e.deleted_at IS NOT NULL
-                AND (LOWER(et.name) LIKE :search
+                AND (COALESCE(:search, '') = '' OR LOWER(et.name) LIKE :search
                      OR LOWER(e.slug) LIKE :search)
                 GROUP BY e.id, e.slug, e.image_url, e.created_at, et.language, et.name, et.description
                 """, nativeQuery = true)

@@ -25,7 +25,7 @@ public interface ShippingZoneRepository extends JpaRepository<ShippingZone, Long
     @Query(value = "SELECT e.* FROM shipping_zones e WHERE e.deleted_at IS NOT NULL", nativeQuery = true)
     List<ShippingZone> findAllDeletedNative();
 
-    @Query(value = "SELECT e.* FROM shipping_zones e WHERE e.deleted_at IS NOT NULL AND (LOWER(e.name) LIKE :search)", nativeQuery = true)
+    @Query(value = "SELECT e.* FROM shipping_zones e WHERE e.deleted_at IS NOT NULL AND (COALESCE(:search, '') = '' OR LOWER(e.name) LIKE :search)", nativeQuery = true)
     List<ShippingZone> findDeletedBySearchNative(@Param("search") String search);
 
     @Query(value = "SELECT e.* FROM shipping_zones e WHERE e.id = :id AND e.deleted_at IS NOT NULL", nativeQuery = true)

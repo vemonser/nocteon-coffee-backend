@@ -80,7 +80,7 @@ public interface TastingNoteRepository extends JpaRepository<TastingNote, Long> 
                 FROM tasting_notes e
                 JOIN tasting_note_translations et ON e.id = et.tasting_note_id
                 WHERE e.deleted_at IS NOT NULL
-                AND (LOWER(et.name) LIKE :search
+                AND (COALESCE(:search, '') = '' OR LOWER(et.name) LIKE :search
                      OR LOWER(e.slug) LIKE :search)
                 GROUP BY e.id, e.slug, e.created_at, et.language, et.name
                 """, nativeQuery = true)

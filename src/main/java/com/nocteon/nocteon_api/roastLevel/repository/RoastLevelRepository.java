@@ -78,7 +78,7 @@ public interface RoastLevelRepository extends JpaRepository<RoastLevel, Long> {
         FROM roast_levels e
         JOIN roast_level_translations et ON e.id = et.roast_level_id
         WHERE e.deleted_at IS NOT NULL
-        AND (LOWER(et.name) LIKE :search OR LOWER(e.slug) LIKE :search)
+        AND (COALESCE(:search, '') = '' OR LOWER(et.name) LIKE :search OR LOWER(e.slug) LIKE :search)
         GROUP BY e.id, e.slug, e.color, e.created_at, e.updated_at, et.language, et.name, et.description
         """, nativeQuery = true)
     List<Object[]> findDeletedBySearchNative(@Param("search") String search);

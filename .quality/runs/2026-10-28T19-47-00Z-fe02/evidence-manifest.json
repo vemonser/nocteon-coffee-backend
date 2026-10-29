@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "2026-10-28T19-47-00Z-fe02",
+    "task": "Journal inline images",
+    "source": ".quality/specs/fe-02.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-12",
+      "statement": "Given the editor uploads an image, when it reaches POST /api/dashboard/journal/images, then it is stored via the media pipeline and the response carries its URL.",
+      "sourceRef": {
+        "path": ".quality/specs/fe-02.md",
+        "line": 8
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "nocteon-backend/src/main/java/com/nocteon/nocteon_api/journal/service/JournalService.java",
+        "nocteon-backend/src/main/java/com/nocteon/nocteon_api/journal/controller/JournalController.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.journal.service.JournalInlineImageTest.xml",
+          "command": "bash -lc cd nocteon-backend && mise exec -- ./mvnw -q -o -Dtest=JournalInlineImageTest -DfailIfNoTests=false test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T16:46:03.367Z"
+        },
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.journal.service.JournalInlineImageTest.xml",
+          "command": "bash -lc cd nocteon-backend && mise exec -- ./mvnw -q -o -Dtest='JournalInlineImageTest,JournalControllerInlineImageTest' -DfailIfNoTests=false test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T16:55:38.865Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-13",
+      "statement": "Given an empty or non-image file, when it is posted to the image endpoint, then it is refused with a 400 and nothing is stored.",
+      "sourceRef": {
+        "path": ".quality/specs/fe-02.md",
+        "line": 13
+      },
+      "kind": "security",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "nocteon-backend/src/main/java/com/nocteon/nocteon_api/common/exception/invalid/InvalidImageException.java",
+        "nocteon-backend/src/main/java/com/nocteon/nocteon_api/journal/service/JournalService.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.journal.service.JournalInlineImageTest.xml",
+          "command": "test -s nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.journal.service.JournalInlineImageTest.xml",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T16:46:03.411Z"
+        },
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.journal.service.JournalInlineImageTest.xml",
+          "command": "test -s nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.journal.service.JournalInlineImageTest.xml",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T16:55:38.919Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-14",
+      "statement": "Given the toolbar image button, when a file is chosen, then the editor inserts the returned URL (no base64) and the saved body keeps the image and serves it publicly.",
+      "sourceRef": {
+        "path": ".quality/specs/fe-02.md",
+        "line": 17
+      },
+      "kind": "ui",
+      "requiresBrowser": true,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "nocteon-dashboard/src/app/features/journal/components/journal-form.component.ts",
+        "nocteon-dashboard/src/app/features/journal/services/journal.service.ts"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "e2e",
+          "path": ".quality/runs/2026-10-28T19-47-00Z-fe02/artifacts/ac-14-live.log",
+          "command": "bash -lc cd nocteon-dashboard && npx playwright test e2e/fe02-live.spec.ts --project=chromium --reporter=line",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T16:46:40.702Z"
+        },
+        {
+          "type": "screenshot",
+          "path": "nocteon-dashboard/evidence/fe-02/inline-image-editor-1440.png",
+          "command": "test -s nocteon-dashboard/evidence/fe-02/inline-image-editor-1440.png",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T16:46:40.792Z"
+        },
+        {
+          "type": "e2e",
+          "path": ".quality/runs/2026-10-28T19-47-00Z-fe02/artifacts/ac-14-live.log",
+          "command": "bash -lc cd nocteon-dashboard && npx playwright test e2e/fe02-live.spec.ts --project=chromium --reporter=line",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T16:56:05.511Z"
+        },
+        {
+          "type": "screenshot",
+          "path": "nocteon-dashboard/evidence/fe-02/inline-image-editor-1440.png",
+          "command": "test -s nocteon-dashboard/evidence/fe-02/inline-image-editor-1440.png",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T16:56:05.575Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

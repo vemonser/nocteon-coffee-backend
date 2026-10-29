@@ -82,7 +82,7 @@ public interface BrewingMethodRepository extends JpaRepository<BrewingMethod, Lo
                 FROM brewing_methods e
                 JOIN brewing_method_translations et ON e.id = et.brewing_method_id
                 WHERE e.deleted_at IS NOT NULL
-                AND (LOWER(et.name) LIKE :search
+                AND (COALESCE(:search, '') = '' OR LOWER(et.name) LIKE :search
                      OR LOWER(e.slug) LIKE :search)
                 GROUP BY e.id, e.slug, e.created_at, et.language, et.name, et.description
                 """, nativeQuery = true)

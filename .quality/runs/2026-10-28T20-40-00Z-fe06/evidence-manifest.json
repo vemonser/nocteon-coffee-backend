@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "2026-10-28T20-40-00Z-fe06",
+    "task": "Rich text toolbar",
+    "source": ".quality/specs/fe-06.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-20",
+      "statement": "only allowlisted https video players survive sanitization",
+      "sourceRef": {
+        "path": ".quality/specs/fe-06.md",
+        "line": 8
+      },
+      "kind": "security",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "nocteon-backend/src/main/java/com/nocteon/nocteon_api/common/service/HtmlSanitizer.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.common.service.HtmlSanitizerTest.xml",
+          "command": "bash -lc cd nocteon-backend && mise exec -- ./mvnw -q -o -Dtest=HtmlSanitizerTest -DfailIfNoTests=false test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T17:54:03.729Z"
+        },
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.common.service.HtmlSanitizerTest.xml",
+          "command": "bash -lc cd nocteon-backend && mise exec -- ./mvnw -q -o -Dtest=HtmlSanitizerTest -DfailIfNoTests=false test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T18:05:31.557Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-21",
+      "statement": "Quill code-block markup becomes pre>code with the text intact",
+      "sourceRef": {
+        "path": ".quality/specs/fe-06.md",
+        "line": 12
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "nocteon-backend/src/main/java/com/nocteon/nocteon_api/common/service/HtmlSanitizer.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.common.service.HtmlSanitizerTest.xml",
+          "command": "test -s nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.common.service.HtmlSanitizerTest.xml",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T17:54:03.773Z"
+        },
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.common.service.HtmlSanitizerTest.xml",
+          "command": "test -s nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.common.service.HtmlSanitizerTest.xml",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T18:05:31.638Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-22",
+      "statement": "video, horizontal rule and code block inserted from the toolbar survive a save",
+      "sourceRef": {
+        "path": ".quality/specs/fe-06.md",
+        "line": 15
+      },
+      "kind": "ui",
+      "requiresBrowser": true,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "nocteon-dashboard/src/app/features/journal/components/journal-form.component.ts",
+        "nocteon-dashboard/src/app/features/journal/components/journal-form.utils.ts"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "e2e",
+          "path": ".quality/runs/2026-10-28T20-40-00Z-fe06/artifacts/ac-22-toolbar.log",
+          "command": "bash -lc cd nocteon-dashboard && npx playwright test e2e/fe06-live.spec.ts --project=chromium --reporter=line",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T17:54:11.526Z"
+        },
+        {
+          "type": "screenshot",
+          "path": "nocteon-dashboard/evidence/fe-06/toolbar-1440.png",
+          "command": "test -s nocteon-dashboard/evidence/fe-06/toolbar-1440.png",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T17:54:11.568Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

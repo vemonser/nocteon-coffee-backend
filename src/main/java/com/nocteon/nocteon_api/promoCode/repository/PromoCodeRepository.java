@@ -64,7 +64,7 @@ List<PromoCode> searchPromoCodes(@Param("query") String query, Pageable pageable
     @Query(value = "SELECT e.* FROM promo_codes e WHERE e.deleted_at IS NOT NULL", nativeQuery = true)
     List<PromoCode> findAllDeletedNative();
 
-    @Query(value = "SELECT e.* FROM promo_codes e WHERE e.deleted_at IS NOT NULL AND (LOWER(e.code) LIKE :search)", nativeQuery = true)
+    @Query(value = "SELECT e.* FROM promo_codes e WHERE e.deleted_at IS NOT NULL AND (COALESCE(:search, '') = '' OR LOWER(e.code) LIKE :search)", nativeQuery = true)
     List<PromoCode> findDeletedBySearchNative(@Param("search") String search);
 
     @Query(value = "SELECT e.* FROM promo_codes e WHERE e.id = :id AND e.deleted_at IS NOT NULL", nativeQuery = true)

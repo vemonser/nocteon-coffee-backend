@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "2026-10-28T20-22-00Z-fe05",
+    "task": "Journal categories",
+    "source": ".quality/specs/fe-05.md"
+  },
+  "criteria": [
+    {
+      "id": "AC-16",
+      "statement": "creates a category with both translations and a generated slug",
+      "sourceRef": {
+        "path": ".quality/specs/fe-05.md",
+        "line": 8
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "nocteon-backend/src/main/java/com/nocteon/nocteon_api/journal/service/JournalService.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.journal.service.JournalCategoryServiceTest.xml",
+          "command": "bash -lc cd nocteon-backend && mise exec -- ./mvnw -q -o -Dtest=JournalCategoryServiceTest -DfailIfNoTests=false test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T17:21:07.209Z"
+        },
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.journal.service.JournalCategoryServiceTest.xml",
+          "command": "bash -lc cd nocteon-backend && mise exec -- ./mvnw -q -o -Dtest=JournalCategoryServiceTest -DfailIfNoTests=false test",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T17:32:46.363Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-17",
+      "statement": "renames both translation names and keeps the slug",
+      "sourceRef": {
+        "path": ".quality/specs/fe-05.md",
+        "line": 12
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "nocteon-backend/src/main/java/com/nocteon/nocteon_api/journal/service/JournalService.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.journal.service.JournalCategoryServiceTest.xml",
+          "command": "test -s nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.journal.service.JournalCategoryServiceTest.xml",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T17:21:07.258Z"
+        },
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.journal.service.JournalCategoryServiceTest.xml",
+          "command": "test -s nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.journal.service.JournalCategoryServiceTest.xml",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T17:32:46.399Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-18",
+      "statement": "refuses deleting an in-use category with the count; removes an unused one",
+      "sourceRef": {
+        "path": ".quality/specs/fe-05.md",
+        "line": 15
+      },
+      "kind": "behavior",
+      "requiresBrowser": false,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "nocteon-backend/src/main/java/com/nocteon/nocteon_api/journal/service/JournalService.java",
+        "nocteon-backend/src/main/java/com/nocteon/nocteon_api/common/exception/invalid/JournalCategoryInUseException.java"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.journal.service.JournalCategoryServiceTest.xml",
+          "command": "test -s nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.journal.service.JournalCategoryServiceTest.xml",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T17:21:07.318Z"
+        },
+        {
+          "type": "unit-test",
+          "path": "nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.journal.service.JournalCategoryServiceTest.xml",
+          "command": "test -s nocteon-backend/target/surefire-reports/TEST-com.nocteon.nocteon_api.journal.service.JournalCategoryServiceTest.xml",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T17:32:46.434Z"
+        }
+      ]
+    },
+    {
+      "id": "AC-19",
+      "statement": "the categories page lists/adds/renames/deletes and shows the count on refusal",
+      "sourceRef": {
+        "path": ".quality/specs/fe-05.md",
+        "line": 19
+      },
+      "kind": "ui",
+      "requiresBrowser": true,
+      "requiresAutomatedTest": true,
+      "implementation": [
+        "nocteon-dashboard/src/app/features/journal/components/journal-categories.component.ts"
+      ],
+      "status": "PASS",
+      "notes": null,
+      "naReason": null,
+      "evidence": [
+        {
+          "type": "e2e",
+          "path": ".quality/runs/2026-10-28T20-22-00Z-fe05/artifacts/ac-19-categories.log",
+          "command": "bash -lc cd nocteon-dashboard && npx playwright test e2e/fe05-live.spec.ts --project=chromium --reporter=line",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T17:21:23.927Z"
+        },
+        {
+          "type": "screenshot",
+          "path": "nocteon-dashboard/evidence/fe-05/categories-1440.png",
+          "command": "test -s nocteon-dashboard/evidence/fe-05/categories-1440.png",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T17:21:23.997Z"
+        },
+        {
+          "type": "e2e",
+          "path": ".quality/runs/2026-10-28T20-22-00Z-fe05/artifacts/ac-19-categories.log",
+          "command": "bash -lc cd nocteon-dashboard && npx playwright test e2e/fe05-live.spec.ts --project=chromium --reporter=line",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T17:32:55.638Z"
+        },
+        {
+          "type": "screenshot",
+          "path": "nocteon-dashboard/evidence/fe-05/categories-1440.png",
+          "command": "test -s nocteon-dashboard/evidence/fe-05/categories-1440.png",
+          "exitCode": 0,
+          "recordedAt": "2026-10-28T17:32:55.674Z"
+        }
+      ]
+    }
+  ],
+  "unresolvedReviewBlockers": []
+}

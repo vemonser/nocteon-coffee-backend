@@ -83,7 +83,7 @@ public interface CoffeeVarietyRepository extends JpaRepository<CoffeeVariety, Lo
         FROM coffee_varieties e
         JOIN coffee_variety_translations et ON e.id = et.coffee_variety_id
         WHERE e.deleted_at IS NOT NULL
-        AND (LOWER(et.name) LIKE :search OR LOWER(e.slug) LIKE :search)
+        AND (COALESCE(:search, '') = '' OR LOWER(et.name) LIKE :search OR LOWER(e.slug) LIKE :search)
         GROUP BY e.id, e.slug, e.created_at, et.language, et.name, et.description
         """, nativeQuery = true)
     List<Object[]> findDeletedBySearchNative(@Param("search") String search);
