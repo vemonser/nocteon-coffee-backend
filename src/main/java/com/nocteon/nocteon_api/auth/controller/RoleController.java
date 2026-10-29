@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,6 +20,7 @@ import jakarta.validation.Valid;
 import com.nocteon.nocteon_api.auth.dto.request.CreateRoleRequest;
 import com.nocteon.nocteon_api.auth.dto.request.UpdateRoleRequest;
 import com.nocteon.nocteon_api.auth.dto.response.RoleResponse;
+import com.nocteon.nocteon_api.auth.security.UserPrincipal;
 import com.nocteon.nocteon_api.auth.service.RoleService;
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.enums.Permission;
@@ -50,19 +52,22 @@ public class RoleController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('role:manage')")
-    public ResponseEntity<ApiResponse<RoleResponse>> create(@RequestBody @Valid CreateRoleRequest request) {
-        var role = roleService.create(request.getName(), request.getDescription(), request.getCloneFrom());
+    public ResponseEntity<ApiResponse<RoleResponse>> create(@RequestBody @Valid CreateRoleRequest request,
+                                                           @AuthenticationPrincipal UserPrincipal principal) {
+        var role = roleService.create(request.getName(), request.getDescription(), request.getCloneFrom(), principal);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(toResponse(role), "Role created successfully"));
     }
 
     @PutMapping("/{name}")
     @PreAuthorize("hasAuthority('role:manage')")
-    public ResponseEntity<ApiResponse<RoleResponse>> update(@PathVariable String name, @RequestBody @Valid UpdateRoleRequest request) {
+    public ResponseEntity<ApiResponse<RoleResponse>> update(@PathVariable String name,
+                                                            @RequestBody @Valid UpdateRoleRequest request,
+                                                            @AuthenticationPrincipal UserPrincipal principal) {
         com.nocteon.nocteon_api.auth.entity.RoleEntity before = roleService.getRole(name);
         java.util.Set<String> beforePerms = new java.util.HashSet<>(before.getPermissions());
 
-        var role = roleService.update(name, request.getDescription(), request.getPermissions(), null);
+        var role = roleService.update(name, request.getDescription(), request.getPermissions(), null, principal);
         RoleResponse response = toResponse(role);
 
         // Permission diff for the editor: what was granted/revoked by this update.
@@ -93,8 +98,9 @@ public class RoleController {
 
     @DeleteMapping("/{name}")
     @PreAuthorize("hasAuthority('role:manage')")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String name) {
-        roleService.delete(name);
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String name,
+                                                    @AuthenticationPrincipal UserPrincipal principal) {
+        roleService.delete(name, principal);
         return ResponseEntity.ok(ApiResponse.success(null, "Role deleted successfully"));
     }
 

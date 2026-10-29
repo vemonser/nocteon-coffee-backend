@@ -21,8 +21,11 @@ import lombok.Setter;
  * audit page pretty-prints the text for reading and shows the same text on
  * copy, so what an auditor sees is exactly what was recorded.
  *
- * <p>Only columns that exist on {@code public.audit_logs} are exposed. There is
- * no username column, so the actor is {@code userId} + {@code userEmail}.
+ * <p>Only columns that exist on {@code public.audit_logs} are exposed. The actor is
+ * {@code userId} + {@code userEmail}, and both are recorded when an authenticated admin
+ * performs the action: the page names the actor by the e-mail and falls back to
+ * {@code #id}. A genuine system action records neither, and only then does the page show
+ * "System". There is still no username column — the e-mail is the identity the row keeps.
  */
 @Getter
 @Setter

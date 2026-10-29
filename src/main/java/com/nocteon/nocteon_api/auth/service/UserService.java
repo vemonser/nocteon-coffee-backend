@@ -40,6 +40,7 @@ import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.dto.Summary;
 import com.nocteon.nocteon_api.common.dto.Summary;
 import com.nocteon.nocteon_api.common.enums.Permission;
+import com.nocteon.nocteon_api.common.security.AuditActor;
 import com.nocteon.nocteon_api.common.exception.email.EmailAlreadyExistsException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidCredentialsException;
 import com.nocteon.nocteon_api.common.exception.notFound.UserNotFoundException;
@@ -255,10 +256,16 @@ public class UserService {
         user.setActive(nowActive);
         userRepository.save(user);
 
+        // The acting admin is threaded in from the controller, not read from the
+        // SecurityContext here: a scheduler calling this with no principal records
+        // no actor instead of borrowing one.
+        AuditActor auditActor = AuditActor.of(actor);
         if (nowActive) {
-            auditLogService.logSuccess(AuditAction.USER_UNBLOCKED, null, null, "User", userId, null, null, null, null, null, null);
+            auditLogService.logSuccess(AuditAction.USER_UNBLOCKED, auditActor.userId(), auditActor.userEmail(),
+                    "User", userId, null, null, null, null, null, null);
         } else {
-            auditLogService.logSuccess(AuditAction.USER_BLOCKED, null, null, "User", userId, null, null, null, null, null, null);
+            auditLogService.logSuccess(AuditAction.USER_BLOCKED, auditActor.userId(), auditActor.userEmail(),
+                    "User", userId, null, null, null, null, null, null);
         }
         log.info("User {} isActive toggled to {} by admin", userId, user.isActive());
 
@@ -448,7 +455,9 @@ public class UserService {
             }
         }
 
-        auditLogService.logSuccess(AuditAction.ROLE_CHANGED, principal.getUserId(), null, "User", userId, null, null, null,
+        AuditActor auditActor = AuditActor.of(principal);
+        auditLogService.logSuccess(AuditAction.ROLE_CHANGED, auditActor.userId(), auditActor.userEmail(),
+                "User", userId, null, null, null,
                 java.util.Map.of("from", oldRole),
                 java.util.Map.of("to", newRole, "grantedCount", granted.size(), "revokedCount", revoked.size()),
                 null);
