@@ -67,6 +67,18 @@ public class OrderStatusHistory {
         @Column(name = "notify_customer", nullable = false)
         private boolean notifyCustomer = false;
 
+        /**
+         * The kind of row when it is NOT a status change (FE-20).
+         *
+         * <p>Null for a status change, which is the overwhelming majority of
+         * rows. A return writes {@code RETURN_REQUESTED},
+         * {@code RETURN_APPROVED} or {@code RETURN_REJECTED} here and leaves
+         * {@code fromStatus} null, because nothing was transitioned; the
+         * timeline draws it from this column and the status CHAIN ignores it.
+         */
+        @Column(name = "event_type", length = 32)
+        private String eventType;
+
         @CreatedDate
         @Column(name = "created_at", updatable = false, nullable = false)
         private Instant createdAt;
@@ -79,5 +91,23 @@ public class OrderStatusHistory {
                 this.note = note;
                 this.changedBy = changedBy;
                 this.notifyCustomer = notifyCustomer;
+        }
+
+        /**
+         * An order EVENT that is not a status change (FE-20).
+         *
+         * <p>{@code toStatus} is the order's status AT THE TIME: the row stays a
+         * true statement about the order, and {@code eventType} is what says
+         * which event it was. {@code fromStatus} is null — nothing transitioned.
+         */
+        public OrderStatusHistory(Order order, OrderStatus currentStatus, String eventType, String note,
+                        String changedBy) {
+                this.order = order;
+                this.fromStatus = null;
+                this.toStatus = currentStatus != null ? currentStatus.name() : OrderStatus.PENDING.name();
+                this.eventType = eventType;
+                this.note = note;
+                this.changedBy = changedBy;
+                this.notifyCustomer = false;
         }
 }

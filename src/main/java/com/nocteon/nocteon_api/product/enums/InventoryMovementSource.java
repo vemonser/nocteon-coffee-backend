@@ -17,5 +17,14 @@ public enum InventoryMovementSource {
     MANUAL,
 
     /** A product save: {@code source_id} is {@code products.id}. */
-    PRODUCT
+    PRODUCT,
+
+    /**
+     * An approved return (FE-20): {@code source_id} is {@code returns.id}.
+     *
+     * <p>Its own source rather than MANUAL, because the log's whole point is
+     * the jump: a row that says MANUAL sends the reader to a person, and this
+     * one should send them to the return they can open.
+     */
+    RETURN
 }

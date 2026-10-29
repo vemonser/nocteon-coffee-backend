@@ -119,6 +119,42 @@ public class InventoryMovementService {
     }
 
     /**
+     * Put units back on the shelf because a return was approved (FE-20).
+     *
+     * <p>The only path that ADDS stock for a reason the store did not type: the
+     * quantity is what the customer actually sent back. It is written through
+     * this one writer like every other change, so the FE-13 log stays the single
+     * record of what happened to a stock number — reason {@code RETURN}, source
+     * {@code RETURN} and {@code source_id} = the return, which is the row a
+     * reader can open to see why.
+     *
+     * @param variantId the variant the units go back to
+     * @param quantity  units returned; refused when it is not positive
+     * @param note      the return's own reason — the sentence in the log
+     * @param actor     the admin who approved it
+     * @param returnId  {@code returns.id}, the source of the row
+     */
+    @Transactional
+    public StockChange restockForReturn(Long variantId, int quantity, String note, String actor, Long returnId) {
+        if (quantity <= 0) {
+            // A return line is already > 0 by construction (request validation
+            // and the table's CHECK). Reaching here means a caller built the
+            // line by hand, and a zero row would explain nothing.
+            throw new InvalidStockAdjustmentException("error.inventory.quantityNotPositive");
+        }
+        variantRepository.findById(variantId)
+                .orElseThrow(ProductVariantNotFoundException::new);
+
+        int before = variantRepository.findStockById(variantId);
+        variantRepository.incrementStock(variantId, quantity);
+        int after = variantRepository.findStockById(variantId);
+
+        record(variantId, before, after, InventoryMovementReason.RETURN,
+                note == null ? null : note.trim(), actor, InventoryMovementSource.RETURN, returnId);
+        return new StockChange(variantId, before, after, after - before);
+    }
+
+    /**
      * The product form was saved with a different stock figure on an EXISTING
      * variant.
      *
