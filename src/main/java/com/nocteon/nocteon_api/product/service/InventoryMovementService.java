@@ -166,6 +166,76 @@ public class InventoryMovementService {
     }
 
     /**
+     * Put units back on the shelf because an order that had already consumed
+     * them was cancelled.
+     *
+     * <p>The one path that ADDS stock because an ORDER died, and the mirror of
+     * {@link #consumeForOrder}: the quantity is what the order took, and
+     * {@code source_id} is the order that explains it. Reason
+     * {@code ORDER_CANCELLED}, source {@code ORDER} — the same source as the
+     * consumption, so both halves of the story sit behind one id.
+     *
+     * <p>Who decides that a restock is owed is the caller, and it decides from
+     * {@link #consumedByOrder} — the ledger below — not from the order's
+     * payment method. That is what keeps a cancellation from inventing units
+     * for an order that never took any.
+     *
+     * @param variantId the variant the units go back to
+     * @param quantity  units returned; refused when it is not positive
+     * @param note      the cancellation reason — the sentence in the log
+     * @param actor     whoever cancelled (admin e-mail, or system)
+     * @param orderId   {@code orders.id}, the source of the row
+     */
+    @Transactional
+    public StockChange restockForCancelledOrder(Long variantId, int quantity, String note, String actor, Long orderId) {
+        if (quantity <= 0) {
+            // The quantity comes from a consumption row, so it is > 0 by
+            // construction; a zero or negative one would explain nothing.
+            throw new InvalidStockAdjustmentException("error.inventory.quantityNotPositive");
+        }
+        variantRepository.findById(variantId)
+                .orElseThrow(ProductVariantNotFoundException::new);
+
+        int before = variantRepository.findStockById(variantId);
+        variantRepository.incrementStock(variantId, quantity);
+        int after = variantRepository.findStockById(variantId);
+
+        record(variantId, before, after, InventoryMovementReason.ORDER_CANCELLED,
+                note == null ? null : note.trim(), actor, InventoryMovementSource.ORDER, orderId);
+        return new StockChange(variantId, before, after, after - before);
+    }
+
+    /**
+     * What this order ACTUALLY took off the shelf: variant id → units, summed
+     * over every consumption the order wrote.
+     *
+     * <p>Read from the ledger rather than derived from the order's status or
+     * payment method, because those say what the order is, not what happened to
+     * the stock. A checkout whose {@link #consumeForOrder} found nothing writes
+     * no row and therefore appears here with nothing — so cancelling it can
+     * never conjure units that were never taken. An empty answer is the normal
+     * case for an unpaid order: its units are only RESERVED, which is not a
+     * stock change and has never written a row.
+     *
+     * <p>Ordered by variant id, so a cancellation restocks in a stable order.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, Integer> consumedByOrder(Long orderId) {
+        if (orderId == null) {
+            return Map.of();
+        }
+        Map<Long, Integer> consumed = new LinkedHashMap<>();
+        for (Object[] row : movementRepository.sumConsumedByOrder(
+                InventoryMovementSource.ORDER, orderId, InventoryMovementReason.ORDER)) {
+            // The rows are negative (units left the shelf); the caller needs the
+            // units to put BACK, so the sign is flipped here, once.
+            long delta = ((Number) row[1]).longValue();
+            consumed.put((Long) row[0], Math.toIntExact(-delta));
+        }
+        return consumed;
+    }
+
+    /**
      * The product form was saved with a different stock figure on an EXISTING
      * variant.
      *

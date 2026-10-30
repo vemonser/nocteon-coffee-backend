@@ -191,3 +191,108 @@ Verify with:
 
 and confirm `nomic-embed-text` is listed (`ollama list` / `ollama show nomic-embed-text`).
 If it is missing, semantic search stays keyword-only until the model is pulled.
+
+## STOCK — a cancelled order puts back what it consumed
+
+**What was wrong.** The checkout writes two different numbers, and only one of
+them was ever given back. `reserveStockIfAvailable` increments
+`reserved_quantity` (a promise), while `consumeStock` decrements
+`stock_quantity` *and* `reserved_quantity` (the units leave the shelf). A
+cash-on-delivery order is CONFIRMED at checkout, so it is consumed immediately;
+cancelling it ran only `releaseStock`, which hands the RESERVATION back — and
+that reservation was already zero. The units were never returned: the shelf
+said 7 forever for an order that had died.
+
+**Which paths consume, which reserve, and what cancelling them now does.**
+
+| Path | Stock effect | Cancellation, before | Cancellation, now |
+| --- | --- | --- | --- |
+| Checkout, COD (`initialStatus = CONFIRMED`) | reserve, then **consume** | reservation released → reservation already 0, units lost | consumed units **restocked** (`ORDER_CANCELLED`) + reservation released (no-op) |
+| Checkout, ONLINE (`PENDING`, unpaid) | reserve only | reservation released | unchanged: reservation released, nothing restocked |
+| Payment success webhook | **consume** (order becomes CONFIRMED) | units lost | consumed units **restocked** |
+| Payment failure webhook | reservation released, order CANCELLED | — | unchanged (this path does not go through the status machine) |
+| Unpaid expiry sweep | reservation released | — | unchanged (an unpaid order consumed nothing) |
+| Return approved (FE-20) | **restock** (`RETURN`) | — | unchanged |
+
+**What is now true.**
+
+- `InventoryMovementService.restockForCancelledOrder` is the writer: one
+  `inventory_movements` row per variant, with the numbers it saw
+  (`stock_before`/`stock_after`/`delta`), `source_type = ORDER`,
+  `source_id = orders.id`, the actor, and `reason_note` = the cancellation
+  reason the admin typed. No stock is written outside that class.
+- **The ledger decides whether a restock is owed, not the payment method.**
+  `InventoryMovementService.consumedByOrder(orderId)` sums the negative deltas
+  of the order's `ORDER` rows (one query). An empty answer means the order never
+  took anything, so nothing comes back — this is what makes "cancel twice",
+  "cancel an unpaid order" and "cancel a pending order" write nothing, and it
+  also stops a cancellation from inventing units for a paid order whose
+  consumption found no stock.
+- **Cancelling twice cannot restock twice**: `CANCELLED` is terminal in the
+  state machine, so the second attempt is refused before any write, and the
+  ledger would answer "already mirrored" even if it were not.
+- **One audit action, not two.** The restock is not its own action: the
+  `ORDER_CANCEL` row gained `metadata.restocked = true`,
+  `metadata.restockedUnits` and `metadata.restockReason = ORDER_CANCELLED`.
+
+**New movement reason: `ORDER_CANCELLED`.** The dashboard's stock history
+(`GET /api/dashboard/products/variants/{id}/movements`) now returns this value
+alongside `ORDER` / `MANUAL_ADJUSTMENT` / `PRODUCT_EDIT` / `RETURN`; it needs a
+label in the UI like the others.
+
+**Deliberately not done.**
+
+- **No migration.** `inventory_movements.reason` is `varchar(32)` with no CHECK
+  constraint, so a new enum value needs no schema change.
+- **`releaseStock` is untouched.** Every cancellation still releases the
+  reservation exactly as before; on an order that was consumed it is a no-op
+  because the reservation is already zero. Only the consumed half is new.
+- **No restock on a refund.** A refund records money, not stock; units come back
+  through an approved return (`RETURN`) or through this cancellation path.
+- **Known edge.** If a variant was retired (soft-deleted) between the
+  consumption and the cancellation, the restock refuses rather than writing a
+  number it cannot verify — the same rule `restockForReturn` already follows.
+
+## INVOICE TAX — tax on the printed invoice (no tax field on the order today)
+
+**Context.** The order model has no tax field and the printed invoice
+(`order/invoice/InvoicePdfRenderer#totals`) has no tax line: it prints subtotal,
+discount, shipping and the total the order stored, so the price is printed
+as-is. Two ways to close that gap; neither is implemented yet — the owner must
+answer the question below first.
+
+### Option A — add `taxAmount` (+ rate) to the order at checkout
+
+- **What changes.** New `taxAmount` (and a `taxRate`) column on `orders`,
+  computed at checkout from the (discounted) subtotal + shipping, stored on
+  the order, and printed as a line on the invoice. Checkout totals, the
+  order response, the invoice renderer and any total re-derivation all move.
+- **Cost.** Bigger: a migration, a schema change, checkout + totals + invoice
+  + (probably) the order DTO and dashboard order detail. Needs a business
+  answer up front: is the displayed price **tax-inclusive** (tax is a
+  breakdown of the price the customer already pays) or **tax-exclusive** (tax
+  is added on top, so the total grows)? Getting this wrong means every
+  existing order total is misstated.
+- **What the store must decide.** Inclusive vs exclusive pricing, the
+  applicable rate(s), and whether shipping is taxed.
+
+### Option B — keep tax out of the order; state that prices include VAT
+
+- **What changes.** No schema change. One line on the PDF: "Prices include
+  VAT" (and the equivalent in Arabic). The order total stays the price the
+  customer pays. The invoice draws its own strings — they live in
+  `order/invoice/InvoiceLabels` (`EN` / `AR`), not in the message bundles — so
+  this is one label per language plus one row in the renderer.
+- **Cost.** Smallest: one invoice-renderer string, plus the Arabic copy. No
+  migration, no checkout change, no re-derivation risk. Tax is not broken out
+  anywhere, so the store cannot report tax collected per order from this data.
+- **What the store must decide.** Only whether the single "Prices include
+  VAT" statement is legally sufficient for its jurisdiction; if it needs a
+  per-order tax breakdown (for accounting/VAT returns), Option A is required.
+
+### Recommendation
+
+**Start with Option B.** It is reversible, needs no migration, and unblocks
+the invoice work today; move to Option A only if the store confirms it needs
+a per-order tax breakdown (or its jurisdiction requires one). Do not
+implement either until the owner answers the inclusive-vs-exclusive question.
