@@ -1,6 +1,7 @@
 package com.nocteon.nocteon_api.ai.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 
@@ -9,8 +10,12 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.mock.env.MockEnvironment;
 
 /**
- * The embedding provider is chosen from whether {@code GEMINI_API_KEY} is set, and this is the only
- * place that decision is made.
+ * The embedding provider decision, in one table.
+ *
+ * <p>The rule is: {@code AI_EMBEDDING_PROVIDER} first, then {@code GEMINI_API_KEY}, then
+ * {@code EMBEDDING_API_KEY}, then nothing — and nothing means keyword-only, never Ollama. Ollama
+ * is reachable only through the explicit switch, which is the whole point of the change this test
+ * pins.
  *
  * <p>It has to live in an {@code EnvironmentPostProcessor} because Spring AI 2.0.1 gates each
  * provider's embedding autoconfiguration on a selector with {@code matchIfMissing = true}, so with
@@ -28,243 +33,347 @@ class EmbeddingProviderEnvironmentPostProcessorTest {
     private final EmbeddingProviderEnvironmentPostProcessor processor =
             new EmbeddingProviderEnvironmentPostProcessor();
 
-    // --- no key: the local model --------------------------------------------------------
-
-    @Test
-    void usesTheLocalModelWhenNoApiKeyIsConfigured() {
-        MockEnvironment environment = new MockEnvironment();
-
+    private MockEnvironment decide(MockEnvironment environment) {
         processor.postProcessEnvironment(environment, new SpringApplication());
-
-        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.EMBEDDING_SELECTOR_PROPERTY))
-                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.OLLAMA_PROVIDER);
-        assertThat(environment.getProperty(
-                EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY))
-                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+        return environment;
     }
 
+    private static String provider(MockEnvironment environment) {
+        return environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.PROVIDER_DECISION_PROPERTY);
+    }
+
+    private static String embeddingSelector(MockEnvironment environment) {
+        return environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.EMBEDDING_SELECTOR_PROPERTY);
+    }
+
+    private static String textSelector(MockEnvironment environment) {
+        return environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY);
+    }
+
+    // --- no key at all: keyword-only ----------------------------------------------------
+
     /**
-     * An unset variable in a {@code .env} file reads as an empty string, not as absent. Treating
-     * that as "configured" would point the embedding model at a provider it cannot authenticate
-     * against — and unlike a chat 401, that surfaces as every reindex silently failing.
+     * The rule this whole change exists for. A machine with no embedding key gets no embedding
+     * model, no vector store and no call to a local model server — search stays keyword-only.
      */
     @Test
-    void treatsABlankApiKeyAsAbsent() {
-        MockEnvironment environment = new MockEnvironment().withProperty("GEMINI_API_KEY", "");
+    void withNoKeyAtAllTheDecisionIsKeywordOnly() {
+        MockEnvironment environment = decide(new MockEnvironment());
 
-        processor.postProcessEnvironment(environment, new SpringApplication());
-
-        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.EMBEDDING_SELECTOR_PROPERTY))
-                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.OLLAMA_PROVIDER);
+        assertThat(provider(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+        assertThat(embeddingSelector(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+        assertThat(textSelector(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
     }
 
-    /** A key of nothing but whitespace is the same mistake, not a key. */
+    /**
+     * And the vector index is switched off with it, because {@code PgVectorStore} cannot be built
+     * without an {@code EmbeddingModel}. Leaving this selector alone — it is
+     * {@code matchIfMissing = true} — would turn "no key" into a boot failure.
+     */
     @Test
-    void treatsAWhitespaceOnlyApiKeyAsAbsent() {
-        MockEnvironment environment = new MockEnvironment().withProperty("GEMINI_API_KEY", "   ");
+    void withNoKeyAtAllTheVectorStoreIsSwitchedOff() {
+        MockEnvironment environment = decide(new MockEnvironment());
 
-        processor.postProcessEnvironment(environment, new SpringApplication());
-
-        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.EMBEDDING_SELECTOR_PROPERTY))
-                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.OLLAMA_PROVIDER);
-    }
-
-    // --- key present: Gemini -----------------------------------------------------------
-
-    @Test
-    void doesNotUseGeminiWhenOnlyAnApiKeyIsConfigured() {
-        MockEnvironment environment = new MockEnvironment()
-                .withProperty("GEMINI_API_KEY", "not-a-real-key");
-
-        processor.postProcessEnvironment(environment, new SpringApplication());
-
-        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.EMBEDDING_SELECTOR_PROPERTY))
-                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.OLLAMA_PROVIDER);
-        assertThat(environment.getProperty(
-                EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY))
-                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
-    }
-
-    @Test
-    void usesGeminiWhenExplicitlyRequested() {
-        MockEnvironment environment = new MockEnvironment()
-                .withProperty("GEMINI_API_KEY", "not-a-real-key")
-                .withProperty(EmbeddingProviderEnvironmentPostProcessor.AI_EMBEDDING_PROVIDER_PROPERTY, "gemini");
-
-        processor.postProcessEnvironment(environment, new SpringApplication());
-
-        assertThat(environment.getProperty(
-                EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY))
-                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.GOOGLE_GENAI_PROVIDER);
-        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.EMBEDDING_SELECTOR_PROPERTY))
+        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.VECTOR_STORE_TYPE_PROPERTY))
                 .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
     }
 
     /**
-     * Every selector is {@code matchIfMissing = true}, so the rejected provider has to be switched
-     * off explicitly. Leaving the Ollama selector unset while switching on Gemini is not a
-     * tie-break — it is two autoconfigurations both defining an {@code EmbeddingModel}, which is the
+     * A Gemini key that is present but out of quota is not a reason to quietly embed somewhere
+     * else: the failure is loud at index time and the configuration says what was asked for.
+     */
+    @Test
+    void aGeminiKeySelectsGeminiEvenThoughItsQuotaCannotBeKnownHere() {
+        MockEnvironment environment = decide(new MockEnvironment().withProperty("GEMINI_API_KEY", "not-a-real-key"));
+
+        assertThat(provider(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.GOOGLE_GENAI_PROVIDER);
+        assertThat(textSelector(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.GOOGLE_GENAI_PROVIDER);
+        assertThat(embeddingSelector(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.VECTOR_STORE_TYPE_PROPERTY))
+                .isNull();
+    }
+
+    /** A key of nothing but whitespace — an unset variable in a .env file — is not a key. */
+    @Test
+    void treatsBlankAndWhitespaceOnlyKeysAsAbsent() {
+        assertThat(provider(decide(new MockEnvironment().withProperty("GEMINI_API_KEY", ""))))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+        assertThat(provider(decide(new MockEnvironment().withProperty("GEMINI_API_KEY", "   "))))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+        assertThat(provider(decide(new MockEnvironment().withProperty("EMBEDDING_API_KEY", ""))))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+    }
+
+    /**
+     * Groq is chat only. Its key must not drag embeddings anywhere, and it certainly must not be
+     * mistaken for an embeddings credential — the API has no embeddings endpoint.
+     */
+    @Test
+    void aGroqKeyAloneLeavesEmbeddingsKeywordOnly() {
+        MockEnvironment environment = decide(new MockEnvironment().withProperty("GROQ_API_KEY", "gsk_not-a-real-key"));
+
+        assertThat(provider(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.VECTOR_STORE_TYPE_PROPERTY))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+    }
+
+    // --- the generic hosted provider ----------------------------------------------------
+
+    /**
+     * A generic hosted key selects the OpenAI-compatible provider without any other switch: the
+     * point of that path is that an operator can point the project at a vendor this code has never
+     * heard of, with credentials only.
+     */
+    @Test
+    void anEmbeddingKeyAloneSelectsTheGenericHostedProvider() {
+        MockEnvironment environment = decide(new MockEnvironment()
+                .withProperty("EMBEDDING_API_KEY", "not-a-real-key")
+                .withProperty("EMBEDDING_BASE_URL", "https://api.voyageai.com/v1")
+                .withProperty("EMBEDDING_MODEL", "voyage-3-lite"));
+
+        assertThat(provider(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.OPENAI_PROVIDER);
+        assertThat(embeddingSelector(environment))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.OPENAI_PROVIDER);
+        assertThat(textSelector(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+    }
+
+    /** Gemini is preferred when both keys are present; the switch is how the other one is forced. */
+    @Test
+    void geminiWinsWhenBothHostedKeysArePresent() {
+        MockEnvironment environment = decide(new MockEnvironment()
+                .withProperty("GEMINI_API_KEY", "not-a-real-key")
+                .withProperty("EMBEDDING_API_KEY", "not-a-real-key"));
+
+        assertThat(provider(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.GOOGLE_GENAI_PROVIDER);
+    }
+
+    @Test
+    void theSwitchForcesTheGenericProviderOverGemini() {
+        MockEnvironment environment = decide(new MockEnvironment()
+                .withProperty("GEMINI_API_KEY", "not-a-real-key")
+                .withProperty("EMBEDDING_API_KEY", "not-a-real-key")
+                .withProperty(EmbeddingProviderEnvironmentPostProcessor.AI_EMBEDDING_PROVIDER_PROPERTY,
+                        "openai-compatible"));
+
+        assertThat(provider(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.OPENAI_PROVIDER);
+        assertThat(textSelector(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+    }
+
+    /**
+     * Asking for the generic provider with no key is a configuration error, not a state to degrade
+     * from: there is nothing to authenticate against, so the only honest answer is to refuse.
+     */
+    @Test
+    void askingForTheGenericProviderWithoutAKeyFailsStartup() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty(EmbeddingProviderEnvironmentPostProcessor.AI_EMBEDDING_PROVIDER_PROPERTY,
+                        "openai-compatible");
+
+        assertThatThrownBy(() -> decide(environment))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("EMBEDDING_API_KEY");
+    }
+
+    /**
+     * And the same for Gemini, with a message about the AI Studio key rather than the Vertex AI
+     * project id the starter would complain about.
+     */
+    @Test
+    void askingForGeminiWithoutAKeyFailsStartup() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty(EmbeddingProviderEnvironmentPostProcessor.AI_EMBEDDING_PROVIDER_PROPERTY,
+                        "gemini");
+
+        assertThatThrownBy(() -> decide(environment))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("GEMINI_API_KEY")
+                .hasMessageContaining("AI Studio");
+    }
+
+    // --- Ollama, opt-in only ------------------------------------------------------------
+
+    /**
+     * The only route to a local model. Everything else in this class is about making sure nobody
+     * reaches it by accident.
+     */
+    @Test
+    void ollamaIsSelectedOnlyWhenExplicitlyAskedFor() {        MockEnvironment environment = decide(new MockEnvironment()
+                .withProperty(EmbeddingProviderEnvironmentPostProcessor.AI_EMBEDDING_PROVIDER_PROPERTY, "ollama"));
+
+        assertThat(provider(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.OLLAMA_PROVIDER);
+        assertThat(embeddingSelector(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.OLLAMA_PROVIDER);
+        assertThat(textSelector(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.VECTOR_STORE_TYPE_PROPERTY))
+                .isNull();
+    }
+
+    /** And it stays selected when a hosted key is also present, because the switch was explicit. */
+    @Test
+    void anExplicitOllamaChoiceBeatsAHostedKey() {
+        MockEnvironment environment = decide(new MockEnvironment()
+                .withProperty("GEMINI_API_KEY", "not-a-real-key")
+                .withProperty(EmbeddingProviderEnvironmentPostProcessor.AI_EMBEDDING_PROVIDER_PROPERTY, "ollama"));
+
+        assertThat(embeddingSelector(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.OLLAMA_PROVIDER);
+        assertThat(textSelector(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+    }
+
+    /** The switch is an operator-facing string: case and the documented aliases are accepted. */
+    @Test
+    void acceptsTheDocumentedAliases() {
+        assertThat(EmbeddingProviderEnvironmentPostProcessor.normalise("Gemini"))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.GOOGLE_GENAI_PROVIDER);
+        assertThat(EmbeddingProviderEnvironmentPostProcessor.normalise("google"))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.GOOGLE_GENAI_PROVIDER);
+        assertThat(EmbeddingProviderEnvironmentPostProcessor.normalise("OpenAI-Compatible"))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.OPENAI_PROVIDER);
+        assertThat(EmbeddingProviderEnvironmentPostProcessor.normalise("local"))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.OLLAMA_PROVIDER);
+        assertThat(EmbeddingProviderEnvironmentPostProcessor.normalise("keyword-only"))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+    }
+
+    /**
+     * A typo must not land on a provider nobody asked for. Embedded in a word like "none" the
+     * failure would be invisible until somebody compared the vectors.
+     */
+    @Test
+    void rejectsAnUnknownProviderValue() {
+        assertThatThrownBy(() -> EmbeddingProviderEnvironmentPostProcessor.normalise("gemnii"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("gemnii");
+    }
+
+    @Test
+    void anExplicitNoneKeepsSearchKeywordOnlyAndNeedsNoKey() {
+        MockEnvironment environment = decide(new MockEnvironment()
+                .withProperty("GEMINI_API_KEY", "not-a-real-key")
+                .withProperty(EmbeddingProviderEnvironmentPostProcessor.AI_EMBEDDING_PROVIDER_PROPERTY, "none"));
+
+        assertThat(provider(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.VECTOR_STORE_TYPE_PROPERTY))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+    }
+
+    // --- rejected providers -------------------------------------------------------------
+
+    /**
+     * Every selector is {@code matchIfMissing = true}, so a rejected provider has to be switched
+     * off explicitly. Leaving the Ollama/OpenAI selector unset while switching on Gemini is not a
+     * tie-break — it is several autoconfigurations defining an {@code EmbeddingModel}, which is the
      * boot failure this class exists to prevent.
      */
     @Test
     void switchesOffEveryRejectedProvider() {
-        MockEnvironment environment = new MockEnvironment()
-                .withProperty("GEMINI_API_KEY", "not-a-real-key")
-                .withProperty(EmbeddingProviderEnvironmentPostProcessor.AI_EMBEDDING_PROVIDER_PROPERTY, "gemini");
+        assertThat(embeddingSelector(decide(new MockEnvironment()
+                .withProperty("GEMINI_API_KEY", "not-a-real-key"))))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
 
-        processor.postProcessEnvironment(environment, new SpringApplication());
-
-        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.EMBEDDING_SELECTOR_PROPERTY))
-                .isNotEqualTo(EmbeddingProviderEnvironmentPostProcessor.OLLAMA_PROVIDER);
+        assertThat(textSelector(decide(new MockEnvironment()
+                .withProperty("EMBEDDING_API_KEY", "not-a-real-key"))))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
     }
 
-    /** And the mirror image: Gemini is switched off on the local path. */
-    @Test
-    void switchesOffGeminiWhenTheLocalModelIsSelected() {
-        MockEnvironment environment = new MockEnvironment();
-
-        processor.postProcessEnvironment(environment, new SpringApplication());
-
-        assertThat(environment.getProperty(
-                EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY))
-                .isNotEqualTo(EmbeddingProviderEnvironmentPostProcessor.GOOGLE_GENAI_PROVIDER);
-    }
-
-    // --- explicit override --------------------------------------------------------------
+    // --- explicit overrides -------------------------------------------------------------
 
     /**
      * An operator pinning the provider wins over the derivation, on either selector. This is what
-     * lets a machine that has a key in its environment still run the demo against the local model.
+     * lets a machine that has a key in its environment run one directory against another store.
      */
     @Test
     void anExplicitOllamaSelectorOverridesTheDerivedValue() {
-        MockEnvironment environment = new MockEnvironment()
+        MockEnvironment environment = decide(new MockEnvironment()
                 .withProperty("GEMINI_API_KEY", "not-a-real-key")
-                .withProperty(EmbeddingProviderEnvironmentPostProcessor.EMBEDDING_SELECTOR_PROPERTY, "ollama");
+                .withProperty(EmbeddingProviderEnvironmentPostProcessor.EMBEDDING_SELECTOR_PROPERTY, "ollama"));
 
-        processor.postProcessEnvironment(environment, new SpringApplication());
-
-        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.EMBEDDING_SELECTOR_PROPERTY))
-                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.OLLAMA_PROVIDER);
+        assertThat(embeddingSelector(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.OLLAMA_PROVIDER);
+        assertThat(provider(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.OLLAMA_PROVIDER);
     }
 
     @Test
     void anExplicitTextSelectorOverridesTheDerivedValue() {
-        MockEnvironment environment = new MockEnvironment()
+        MockEnvironment environment = decide(new MockEnvironment()
                 .withProperty("GEMINI_API_KEY", "not-a-real-key")
-                .withProperty(EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY, "none");
+                .withProperty(EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY, "none"));
 
-        processor.postProcessEnvironment(environment, new SpringApplication());
-
-        assertThat(environment.getProperty(
-                EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY))
-                .isEqualTo("none");
+        assertThat(textSelector(environment)).isEqualTo("none");
+        // The Ollama/OpenAI selector is still resolved, and resolved to "no provider" rather than
+        // left unset — otherwise their matchIfMissing autoconfigurations would claim the bean.
+        assertThat(embeddingSelector(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
     }
 
     /**
-     * With nothing pinned and a key present, the post-processor has both selectors to decide and so
-     * installs its source.
+     * A pinned Gemini selector wins over the key, and must not be undone by the absence of one.
      */
     @Test
-    void installsAPropertySourceWhenItHasADecisionToMake() {
-        MockEnvironment environment = new MockEnvironment();
+    void pinningGeminiSelectsGeminiEvenWithoutAKey() {
+        MockEnvironment environment = decide(new MockEnvironment()
+                .withProperty(EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY, "google-genai"));
 
-        processor.postProcessEnvironment(environment, new SpringApplication());
-
-        assertThat(environment.getPropertySources()
-                .contains(EmbeddingProviderEnvironmentPostProcessor.PROPERTY_SOURCE_NAME))
-                .isTrue();
+        assertThat(textSelector(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.GOOGLE_GENAI_PROVIDER);
+        assertThat(embeddingSelector(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.VECTOR_STORE_TYPE_PROPERTY))
+                .isNull();
     }
 
+    /** Pinning both selectors off is the same state as no key at all, and disables the store. */
+    @Test
+    void pinningBothSelectorsOffAlsoDisablesTheVectorStore() {
+        MockEnvironment environment = decide(new MockEnvironment()
+                .withProperty(EmbeddingProviderEnvironmentPostProcessor.EMBEDDING_SELECTOR_PROPERTY, "none")
+                .withProperty(EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY, "none"));
+
+        assertThat(provider(environment)).isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.VECTOR_STORE_TYPE_PROPERTY))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+    }
+
+    // --- the Gemini connection autoconfiguration ----------------------------------------
+
     /**
-     * The pinned value survives untouched, and the Gemini connection autoconfiguration is removed
-     * with it.
-     *
-     * <p>The pinned selector is a <em>local</em> one here, so Gemini is not the selected provider
-     * and the un-gated connection autoconfiguration has to go. Pinning a provider cannot leave the
-     * application in a state it would not have reached on its own.
+     * The pinned value survives untouched, and the un-gated Gemini connection autoconfiguration is
+     * removed with it — otherwise a pinned local provider on a machine with a key would fail on a
+     * missing project id.
      */
     @Test
-    void pinningTheLocalModelAlsoRemovesTheGeminiConnection() {
-        MockEnvironment environment = new MockEnvironment()
+    void pinningALocalProviderAlsoRemovesTheGeminiConnection() {
+        MockEnvironment environment = decide(new MockEnvironment()
                 .withProperty("GEMINI_API_KEY", "not-a-real-key")
                 .withProperty(EmbeddingProviderEnvironmentPostProcessor.EMBEDDING_SELECTOR_PROPERTY, "ollama")
-                .withProperty(EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY, "none");
+                .withProperty(EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY, "none"));
 
-        processor.postProcessEnvironment(environment, new SpringApplication());
-
-        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.EMBEDDING_SELECTOR_PROPERTY))
-                .isEqualTo("ollama");
-        assertThat(environment.getProperty(
-                EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY))
-                .isEqualTo("none");
         assertThat(environment.getProperty("spring.autoconfigure.exclude"))
                 .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.GOOGLE_GENAI_CONNECTION_AUTOCONFIGURATION);
     }
 
-    /**
-     * Pinning Gemini must leave the connection autoconfiguration in place, or the provider the
-     * operator selected would have no connection to build.
-     */
+    /** Pinning Gemini must leave the connection in place, or the selected provider has nothing to build on. */
     @Test
     void pinningGeminiKeepsTheConnection() {
-        MockEnvironment environment = new MockEnvironment()
-                .withProperty(EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY, "google-genai");
-
-        processor.postProcessEnvironment(environment, new SpringApplication());
+        MockEnvironment environment = decide(new MockEnvironment()
+                .withProperty(EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY, "google-genai"));
 
         assertThat(environment.getProperty("spring.autoconfigure.exclude")).isNull();
     }
 
-    /**
-     * A pinned Gemini selector wins over the key. This is the case an operator uses to force the
-     * hosted model on a machine whose environment has no key at all — and it must not be undone by
-     * the absence of one.
-     */
+    /** The generic provider is not Gemini either, so the connection still has to go. */
     @Test
-    void pinningGeminiSelectsGeminiEvenWithoutAKey() {
-        MockEnvironment environment = new MockEnvironment()
-                .withProperty(EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY, "google-genai");
+    void theGenericProviderExcludesTheGeminiConnection() {
+        MockEnvironment environment = decide(new MockEnvironment()
+                .withProperty("EMBEDDING_API_KEY", "not-a-real-key"));
 
-        processor.postProcessEnvironment(environment, new SpringApplication());
-
-        assertThat(environment.getProperty(
-                EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY))
-                .isEqualTo("google-genai");
-        // The Ollama/OpenAI selector is still resolved, and resolved to "no provider" rather than
-        // left unset — otherwise their matchIfMissing autoconfigurations would claim the bean.
-        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.EMBEDDING_SELECTOR_PROPERTY))
-                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+        assertThat(environment.getProperty("spring.autoconfigure.exclude"))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.GOOGLE_GENAI_CONNECTION_AUTOCONFIGURATION);
     }
 
-    /**
-     * And the mirror image, which is the failure this per-selector resolution exists to prevent:
-     * pinning only the Gemini selector must still switch the Ollama/OpenAI one off. Leaving it unset
-     * does not disable them — {@code matchIfMissing = true} means an unset selector activates them,
-     * so they would claim the {@code EmbeddingModel} and the context would fail to start on a
-     * missing credential.
-     */
-    @Test
-    void pinningOnlyTheGeminiSelectorStillSwitchesTheOtherOneOff() {
-        MockEnvironment environment = new MockEnvironment()
-                .withProperty("GEMINI_API_KEY", "not-a-real-key")
-                .withProperty(EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY, "google-genai");
-
-        processor.postProcessEnvironment(environment, new SpringApplication());
-
-        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.EMBEDDING_SELECTOR_PROPERTY))
-                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
-    }
+    // --- structure ----------------------------------------------------------------------
 
     /**
-     * Both selectors come from one property source, so a single decision moves both and cannot be
-     * half-applied.
+     * Both selectors and the decision come from one property source, so a single decision moves
+     * them together and cannot be half-applied.
      */
     @Test
-    void derivesBothSelectorsFromASingleDecision() {
-        MockEnvironment environment = new MockEnvironment();
-
-        processor.postProcessEnvironment(environment, new SpringApplication());
+    void derivesEverythingFromASingleDecision() {
+        MockEnvironment environment = decide(new MockEnvironment());
 
         Map<String, Object> decisions = (Map<String, Object>) environment.getPropertySources()
                 .get(EmbeddingProviderEnvironmentPostProcessor.PROPERTY_SOURCE_NAME)
@@ -272,10 +381,10 @@ class EmbeddingProviderEnvironmentPostProcessorTest {
 
         assertThat(decisions).containsKeys(
                 EmbeddingProviderEnvironmentPostProcessor.EMBEDDING_SELECTOR_PROPERTY,
-                EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY);
+                EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY,
+                EmbeddingProviderEnvironmentPostProcessor.VECTOR_STORE_TYPE_PROPERTY,
+                EmbeddingProviderEnvironmentPostProcessor.PROVIDER_DECISION_PROPERTY);
     }
-
-    // --- ordering ------------------------------------------------------------------------
 
     /**
      * {@code LOWEST_PRECEDENCE} so this runs after {@code ConfigDataEnvironmentPostProcessor},

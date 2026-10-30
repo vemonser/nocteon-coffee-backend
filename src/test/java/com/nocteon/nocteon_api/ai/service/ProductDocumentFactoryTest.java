@@ -40,7 +40,7 @@ class ProductDocumentFactoryTest {
      * {@link #contentHashChangesWhenTheEmbeddingModelChanges()} and by
      * {@code EmbeddingModelFingerprintTest}.
      */
-    private static final String FINGERPRINT = "google-genai:gemini-embedding-2:768";
+    private static final String FINGERPRINT = "google-genai:gemini-embedding-2:768@768";
 
     private final ProductDocumentFactory factory =
             new ProductDocumentFactory(new EmbeddingModelFingerprint("google-genai", "gemini-embedding-2", 768));

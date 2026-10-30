@@ -9,10 +9,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.document.Document;
@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.nocteon.nocteon_api.ai.dto.response.AiIndexStatsResponse;
 import com.nocteon.nocteon_api.ai.dto.response.AiReindexResponse;
+import com.nocteon.nocteon_api.ai.exception.AiUnavailableException;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.entity.ProductTranslation;
 import com.nocteon.nocteon_api.product.enums.ProductType;
@@ -34,6 +35,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,8 +50,13 @@ class ProductIndexingServiceTest {
     @Mock
     private ProductDocumentFactory documentFactory;
 
-    @InjectMocks
     private ProductIndexingService service;
+
+    @BeforeEach
+    void buildService() {
+        service = new ProductIndexingService(
+                VectorStoreProviders.of(vectorStore), productRepository, documentFactory);
+    }
 
     private static Product product(Long id, String slug) {
         return Product.builder().id(id).slug(slug).build();
@@ -608,5 +615,60 @@ class ProductIndexingServiceTest {
         assertThat(result.getIndexed()).isEqualTo(1);
         assertThat(result.getSkipped()).isZero();
         verify(vectorStore).add(List.of(unhashed));
+    }
+
+    // --- keyword-only mode: no store at all ---------------------------------------------
+
+    /**
+     * With no embedding provider configured the store bean does not exist, and a reindex is a
+     * statement about an index that was never built. Reporting "0 indexed" would be a claim about
+     * the index rather than about the configuration, so it fails instead — the admin endpoint maps
+     * that to a 503 and the boot hook and nightly job already swallow it.
+     */
+    @Test
+    void indexAllFailsClearlyWhenNoEmbeddingProviderIsConfigured() {
+        ProductIndexingService keywordOnly = new ProductIndexingService(
+                VectorStoreProviders.absent(), productRepository, documentFactory);
+
+        assertThatThrownBy(keywordOnly::indexAll).isInstanceOf(AiUnavailableException.class);
+        verifyNoInteractions(productRepository);
+        verifyNoInteractions(vectorStore);
+    }
+
+    /** Same for the drift report: it describes an index, and there is none. */
+    @Test
+    void statsFailsClearlyWhenNoEmbeddingProviderIsConfigured() {
+        ProductIndexingService keywordOnly = new ProductIndexingService(
+                VectorStoreProviders.absent(), productRepository, documentFactory);
+
+        assertThatThrownBy(keywordOnly::stats).isInstanceOf(AiUnavailableException.class);
+        verifyNoInteractions(productRepository);
+    }
+
+    /**
+     * The write paths are after-commit housekeeping, so they must stay quiet instead: a catalogue
+     * edit must never fail, or log a warning, because indexing is off.
+     */
+    @Test
+    void upsertIsANoOpWithoutAStoreAndNeverTouchesTheDatabase() {
+        ProductIndexingService keywordOnly = new ProductIndexingService(
+                VectorStoreProviders.absent(), productRepository, documentFactory);
+
+        keywordOnly.upsertById(7L);
+        keywordOnly.upsert(product(7L, "yirgacheffe"));
+
+        verifyNoInteractions(productRepository);
+        verifyNoInteractions(documentFactory);
+        verifyNoInteractions(vectorStore);
+    }
+
+    @Test
+    void removeIsANoOpWithoutAStore() {
+        ProductIndexingService keywordOnly = new ProductIndexingService(
+                VectorStoreProviders.absent(), productRepository, documentFactory);
+
+        keywordOnly.remove("yirgacheffe");
+
+        verifyNoInteractions(vectorStore);
     }
 }

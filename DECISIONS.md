@@ -154,43 +154,92 @@ code said "single instance only".
   Postgres.
 - **No migration.** Nothing is stored; the channel is transient.
 
-## AI providers — chat on Groq, embeddings on local Ollama
+## AI providers — chat on Groq, embeddings on a hosted provider (never a hidden Ollama)
 
 **Chat.** Groq over its OpenAI-compatible endpoint (`GROQ_API_KEY` → `/openai/v1`),
-with local Ollama (`qwen2.5:3b-instruct`) as the zero-key fallback. Groq has no
-embeddings endpoint, so it is **chat only**.
+with local Ollama (`qwen2.5:3b-instruct`) as the zero-key fallback for the assistant
+alone. A chat fallback to a local model is defensible because the failure is visible to
+the one person who asked; the assistant answers or apologises, in front of them.
 
-**Embeddings.** Local Ollama `nomic-embed-text` is the default — even when a
-`GEMINI_API_KEY` is present. Gemini becomes an explicit opt-in: set
-`AI_EMBEDDING_PROVIDER=gemini` (or `spring.ai.model.embedding.text=google-genai`)
-alongside a non-blank `GEMINI_API_KEY`. The zero-config path never calls Gemini,
-which previously 429'd on an out-of-quota key and left semantic search
-keyword-only.
+**Embeddings.** Hosted, in this order:
 
-**Why.** The Gemini key shipped in this environment is out of quota, so the old
-"key present ⇒ Gemini" rule failed at every boot (`Could not build the AI vector
-index on startup … 429 … gemini-api`). Groq cannot substitute (no embeddings
-API), so the honest fix is to make the local model the default and Gemini opt-in.
+| # | Condition | Chat | Embeddings | Vector index |
+|---|-----------|------|------------|--------------|
+| 1 | `AI_EMBEDDING_PROVIDER=openai-compatible` (+ `EMBEDDING_API_KEY`) | Groq if `GROQ_API_KEY`, else Ollama | that vendor | yes |
+| 2 | `AI_EMBEDDING_PROVIDER=gemini` (+ `GEMINI_API_KEY`) | Groq if `GROQ_API_KEY`, else Ollama | Gemini | yes |
+| 3 | `AI_EMBEDDING_PROVIDER=ollama` | Groq if `GROQ_API_KEY`, else Ollama | local Ollama | yes |
+| 4 | `AI_EMBEDDING_PROVIDER=none` | Groq if `GROQ_API_KEY`, else Ollama | **none** | **no — keyword-only** |
+| 5 | unset, `GEMINI_API_KEY` present | Groq if `GROQ_API_KEY`, else Ollama | Gemini | yes |
+| 6 | unset, `EMBEDDING_API_KEY` present | Groq if `GROQ_API_KEY`, else Ollama | that vendor | yes |
+| 7 | unset, no embedding key | Groq if `GROQ_API_KEY`, else Ollama | **none** | **no — keyword-only** |
 
-**Dimension.** `nomic-embed-text` emits 768 dimensions, matching `vector_store`
-(`vector(768)`) and the Gemini path (`gemini-embedding-2` at `dimensions: 768`).
-Verified live against the local Ollama instance: 768 in, 768 out. No schema
-change or table rebuild is required.
+Row 1 exists so the owner can point the project at any OpenAI-compatible vendor
+(OpenAI, Together, Fireworks, DeepInfra, a self-hosted vLLM, …) with environment
+variables only — no code change, no new dependency. It reuses
+`spring-ai-starter-model-openai`, which is already on the classpath for Groq chat, and
+sets the `spring.ai.openai.embedding.*` sub-properties: verified in the 2.0.1 bytecode
+that `OpenAiAutoConfigurationUtil#resolveCommonProperties` prefers the embedding-specific
+`base-url`/`api-key` and falls back to the common ones, which is exactly what lets chat
+stay on Groq while embeddings go to a different vendor.
+
+Rows 5–7 are the derivation: an explicit `AI_EMBEDDING_PROVIDER` always wins, then
+`GEMINI_API_KEY`, then `EMBEDDING_API_KEY`, then nothing.
+
+**Why Groq cannot embed.** Groq's OpenAI-compatible API serves
+`POST /openai/v1/chat/completions` only; there is no `/embeddings` route, and the
+free tier lists no embedding model. It is therefore a chat provider in this project and
+nothing else — the two decisions are independent properties, not one provider choice.
+
+**Why keyword-only is the no-key default, and why Ollama is opt-in only.** The previous
+wiring fell back to local Ollama `nomic-embed-text`, which is a dependency the deployment
+host cannot satisfy: the index build failed at every boot and semantic search was
+silently dead. A fallback that requires a process nobody started is a hidden requirement,
+not a graceful degradation. With no key the post-processor now writes
+`spring.ai.model.embedding=none`, `spring.ai.model.embedding.text=none` and
+`spring.ai.vectorstore.type=none`, so there is no `EmbeddingModel`, no `VectorStore` and
+no outbound call; `ProductIndexBootstrap` logs exactly one INFO line saying search is
+keyword-only. Ollama remains fully supported, reachable only by
+`AI_EMBEDDING_PROVIDER=ollama` (row 3).
+
+**Why Gemini is preferred when its key is present.** The key is the one this deployment
+holds, and a 429 is an operational fact discovered at index time, not a reason to
+silently embed somewhere else. The failure is already handled: one message-only warning
+from the boot hook, no retry storm, and the catalogue keeps answering from the keyword
+half of the ranker.
+
+**Dimension.** 768 for all three providers, matching `vector_store` (`vector(768)`):
+`nomic-embed-text` natively, `gemini-embedding-2` via MRL truncation (`dimensions: 768`),
+and any OpenAI-compatible model via `EMBEDDING_DIMENSIONS=768` sent as a request
+parameter. A vendor that does not accept that parameter must be given a model that
+emits 768 natively. No schema change or table rebuild is required.
+
+**Fingerprint.** `EmbeddingModelFingerprint` is
+`<provider>:<model>:<requested>@<column>` and is mixed into every document's
+`contentHash`, so a change re-embeds the catalogue instead of mixing vector spaces:
+
+| Change | Example | Fingerprint moves |
+|--------|---------|-------------------|
+| provider | `google-genai` → `ollama` | yes |
+| provider | `openai` → `google-genai` | yes |
+| model id | `gemini-embedding-001` → `-2` | yes |
+| **vendor** (generic provider) | `EMBEDDING_BASE_URL` host `api.openai.com` → `api.voyageai.com` | yes (`model@host`) |
+| requested width | `EMBEDDING_DIMENSIONS=768` → `1536` | yes |
+| column width | `spring.ai.vectorstore.pgvector.dimensions` | yes |
+| endpoint path / API key | `/v1` → `/v2` | no — and the key is never in the hash |
+| keyword-only ↔ any provider | — | yes (`none:keyword-only:0@768`) |
 
 **Boot behaviour when the embedding provider is down.** `ProductIndexBootstrap`
 catches any failure from the embedding call, logs a single warning
 (`Could not build the AI vector index on startup; semantic search will stay
-keyword-only until the next reindex: …`), and continues startup. Semantic search
-degrades to keyword-only. There is no retry at boot and no failed startup.
+keyword-only until the next reindex: …`), and continues startup. There is no retry at
+boot and no failed startup.
 
-**Operational consequence.** Because embeddings now default to local Ollama, the
-compose stack's `ollama-init` service **must** have pulled `nomic-embed-text`.
-Verify with:
-
-    docker compose run --rm ollama-init
-
-and confirm `nomic-embed-text` is listed (`ollama list` / `ollama show nomic-embed-text`).
-If it is missing, semantic search stays keyword-only until the model is pulled.
+**Operational consequence.** A deployment with no embedding key now needs nothing: search
+is keyword-only and says so. A deployment that wants semantic search sets one key —
+`GEMINI_API_KEY`, or `EMBEDDING_API_KEY` (+ `EMBEDDING_BASE_URL`, `EMBEDDING_MODEL`) —
+and the first boot indexes the catalogue. Ollama is only needed by someone who chose
+row 3, and then `ollama-init` must have pulled `nomic-embed-text`
+(`docker compose run --rm ollama-init`).
 
 ## STOCK — a cancelled order puts back what it consumed
 

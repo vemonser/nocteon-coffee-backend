@@ -11,6 +11,7 @@ import java.util.Optional;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -94,7 +95,7 @@ public class SimilarProductService {
      */
     private static final double ACCEPT_ALL_SIMILARITY = 0.0;
 
-    private final VectorStore vectorStore;
+    private final ObjectProvider<VectorStore> vectorStore;
     private final AiSearchService aiSearchService;
     private final ProductDocumentFactory documentFactory;
     private final ProductRepository productRepository;
@@ -121,7 +122,7 @@ public class SimilarProductService {
 
         String language = LocaleContextHolder.getLocale().getLanguage();
 
-        List<Scored> ranked = aiSearchService.isSearchEnabled()
+        List<Scored> ranked = aiSearchService.isSearchEnabled() && aiSearchService.isSemanticIndexAvailable()
                 ? vectorRank(source, effectiveLimit)
                 : List.<Scored>of();
 
@@ -142,8 +143,15 @@ public class SimilarProductService {
      * identically to the flag being off.
      */
     private List<Scored> vectorRank(Product source, int limit) {
+        VectorStore store = vectorStore.getIfAvailable();
+        if (store == null) {
+            // Keyword-only mode: there is no index, so the attribute fallback is the answer and
+            // this is not a fault. Reached only when the caller's availability check raced nothing.
+            return List.of();
+        }
+
         try {
-            List<Document> hits = vectorStore.similaritySearch(SearchRequest.builder()
+            List<Document> hits = store.similaritySearch(SearchRequest.builder()
                     .query(documentFactory.buildText(source))
                     .topK(limit + SELF_HIT_ALLOWANCE)
                     .similarityThreshold(ACCEPT_ALL_SIMILARITY)

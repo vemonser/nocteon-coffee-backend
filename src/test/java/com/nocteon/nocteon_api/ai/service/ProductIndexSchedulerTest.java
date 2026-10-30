@@ -66,6 +66,7 @@ class ProductIndexSchedulerTest {
     @Test
     void aNightlyRunWithAiOnReindexesTheCatalog() {
         when(aiSearchService.isSearchEnabled()).thenReturn(true);
+        when(aiSearchService.isSemanticIndexAvailable()).thenReturn(true);
         when(aiSearchService.reindexAll())
                 .thenReturn(AiReindexResponse.builder().indexed(4).skipped(6).durationMs(12L).build());
 
@@ -83,6 +84,7 @@ class ProductIndexSchedulerTest {
     @Test
     void aFailedNightlyRunDoesNotEscape() {
         when(aiSearchService.isSearchEnabled()).thenReturn(true);
+        when(aiSearchService.isSemanticIndexAvailable()).thenReturn(true);
         when(aiSearchService.reindexAll()).thenThrow(new IllegalStateException("ollama down"));
 
         assertThatCode(() -> scheduler.nightlyReindex()).doesNotThrowAnyException();
@@ -105,6 +107,7 @@ class ProductIndexSchedulerTest {
     @Test
     void aRunRejectedByTheInFlightGuardIsNotAFailure() {
         when(aiSearchService.isSearchEnabled()).thenReturn(true);
+        when(aiSearchService.isSemanticIndexAvailable()).thenReturn(true);
         when(aiSearchService.reindexAll())
                 .thenReturn(AiReindexResponse.builder().indexed(0).skipped(0).durationMs(0).build());
 
@@ -115,6 +118,7 @@ class ProductIndexSchedulerTest {
     @Test
     void aFailedRunDoesNotStopTheNextOne() {
         when(aiSearchService.isSearchEnabled()).thenReturn(true);
+        when(aiSearchService.isSemanticIndexAvailable()).thenReturn(true);
         when(aiSearchService.reindexAll())
                 .thenThrow(new IllegalStateException("ollama down"))
                 .thenReturn(AiReindexResponse.builder().indexed(2).skipped(0).durationMs(3L).build());
@@ -123,6 +127,23 @@ class ProductIndexSchedulerTest {
         scheduler.nightlyReindex();
 
         verify(aiSearchService, times(2)).reindexAll();
+    }
+
+    /**
+     * Keyword-only mode is not a fault and must not be retried nightly.
+     *
+     * <p>With no embedding provider configured there is no index to repair, and asking
+     * {@code reindexAll()} anyway would raise {@code AiUnavailableException} at 3am, every night,
+     * about a state nobody changed. The availability check is what keeps the log quiet.
+     */
+    @Test
+    void aKeywordOnlyDeploymentNeverAsksForAReindex() {
+        when(aiSearchService.isSearchEnabled()).thenReturn(true);
+        when(aiSearchService.isSemanticIndexAvailable()).thenReturn(false);
+
+        scheduler.nightlyReindex();
+
+        verify(aiSearchService, never()).reindexAll();
     }
 
     /**

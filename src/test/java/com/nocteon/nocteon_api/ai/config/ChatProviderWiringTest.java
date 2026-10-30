@@ -71,6 +71,23 @@ class ChatProviderWiringTest {
     private static final String GEMINI_DIMENSIONS = "spring.ai.google.genai.embedding.text.dimensions=768";
 
     /**
+     * The generic OpenAI-compatible provider, supplied the same two ways: {@code EMBEDDING_API_KEY}
+     * is what the post-processor reads to choose it, and {@code spring.ai.openai.embedding.*} is
+     * what the client is constructed from.
+     *
+     * <p>The base URL is a real vendor's, and the key is a placeholder: nothing is ever called.
+     */
+    private static final String EMBEDDING_KEY = "EMBEDDING_API_KEY=not-a-real-key";
+
+    private static final String EMBEDDING_KEY_PROPERTY = "spring.ai.openai.embedding.api-key=not-a-real-key";
+
+    private static final String EMBEDDING_BASE_URL = "spring.ai.openai.embedding.base-url=https://api.together.xyz/v1";
+
+    private static final String EMBEDDING_MODEL = "spring.ai.openai.embedding.model=BAAI/bge-base-en-v1.5";
+
+    private static final String EMBEDDING_DIMENSIONS = "spring.ai.openai.embedding.dimensions=768";
+
+    /**
      * Every provider autoconfiguration the application's classpath offers.
      *
      * <p>A list rather than an {@code AutoConfigurations} constant because
@@ -229,39 +246,120 @@ class ChatProviderWiringTest {
     }
 
     /**
-     * The zero-API-key path still works, and it still embeds locally — this is the case the
-     * portfolio demo runs on a machine with no keys at all, so a regression here is a broken demo.
+     * The zero-API-key path is keyword-only: no embedding model at all, and no local model server
+     * assumed to be running.
+     *
+     * <p>This is the test that pins the owner's constraint. The previous wiring defaulted to a
+     * local Ollama embedding model here, which is a dependency the deployment host cannot satisfy
+     * — the index build failed at every boot and semantic search was quietly dead. Keyword-only
+     * needs nothing, and says so out loud at startup.
      */
     @Test
-    void theEmbeddingModelStaysLocalWithoutAnApiKey() {
+    void withoutAnApiKeyThereIsNoEmbeddingModelAtAll() {
         runner.run(context -> {
-            assertThat(context).hasSingleBean(EmbeddingModel.class);
-            assertThat(context.getBean(EmbeddingModel.class)).isInstanceOf(OllamaEmbeddingModel.class);
+            assertThat(context).doesNotHaveBean(EmbeddingModel.class);
+            assertThat(context).doesNotHaveBean(OllamaEmbeddingModel.class);
             assertThat(context).doesNotHaveBean(GoogleGenAiTextEmbeddingModel.class);
         });
     }
 
     /**
-     * A Groq key alone must <em>not</em> drag the embedding model to a hosted provider. Groq has no
-     * embedding model in this project, and its presence says nothing about Gemini: coupling the two
-     * would make the hosted embedding path unreachable without a chat key, and would send the index
-     * to a provider the project never configured.
+     * And the vector index is switched off with it: {@code spring.ai.vectorstore.type=none} is what
+     * stops {@code PgVectorStore} from being asked to build itself around a model that does not
+     * exist. That selector is {@code matchIfMissing = true}, so leaving it unset would not mean
+     * "no store" — it would mean a boot failure.
      */
     @Test
-    void aGroqKeyAloneLeavesTheEmbeddingModelLocal() {
+    void withoutAnApiKeyTheVectorStoreSelectorIsTurnedOff() {
+        runner.run(context -> assertThat(context.getEnvironment()
+                .getProperty(EmbeddingProviderEnvironmentPostProcessor.VECTOR_STORE_TYPE_PROPERTY))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER));
+    }
+
+    /**
+     * A Groq key alone must <em>not</em> drag the embedding model anywhere. Groq has no embeddings
+     * endpoint at all — its OpenAI-compatible API serves chat completions only — so with a Groq key
+     * and no other, chat moves to Groq and the index stays keyword-only.
+     */
+    @Test
+    void aGroqKeyAloneLeavesEmbeddingsKeywordOnly() {
         runnerFor(GROQ_KEY, GROQ_API_KEY_PROPERTY, GROQ_BASE_URL, GROQ_MODEL).run(context -> {
-            assertThat(context).hasSingleBean(EmbeddingModel.class);
-            assertThat(context.getBean(EmbeddingModel.class)).isInstanceOf(OllamaEmbeddingModel.class);
+            assertThat(context).hasSingleBean(ChatModel.class);
+            assertThat(context.getBean(ChatModel.class)).isInstanceOf(OpenAiChatModel.class);
+
+            assertThat(context).doesNotHaveBean(EmbeddingModel.class);
+            assertThat(context).doesNotHaveBean(OllamaEmbeddingModel.class);
         });
     }
 
     /**
-     * A blank {@code GEMINI_API_KEY} — an unset variable in a {@code .env} file — falls back to the
-     * local model rather than selecting a provider the app cannot authenticate against.
+     * A blank {@code GEMINI_API_KEY} — an unset variable in a {@code .env} file — selects no
+     * provider rather than one the app cannot authenticate against.
      */
     @Test
-    void aBlankGeminiKeyFallsBackToTheLocalModel() {
-        runnerFor("GEMINI_API_KEY=").run(context -> {
+    void aBlankGeminiKeyLeavesEmbeddingsKeywordOnly() {
+        runnerFor("GEMINI_API_KEY=").run(context -> assertThat(context).doesNotHaveBean(EmbeddingModel.class));
+    }
+
+    /**
+     * The generic hosted provider, wired for real: exactly one {@code EmbeddingModel}, and it is the
+     * OpenAI one — no Ollama model is built even though the starter is on the classpath.
+     */
+    @Test
+    void anEmbeddingKeyWiresTheGenericHostedProvider() {
+        runnerFor(EMBEDDING_KEY, EMBEDDING_KEY_PROPERTY, EMBEDDING_BASE_URL, EMBEDDING_MODEL, EMBEDDING_DIMENSIONS)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(EmbeddingModel.class);
+                    assertThat(context.getBean(EmbeddingModel.class))
+                            .isInstanceOf(org.springframework.ai.openai.OpenAiEmbeddingModel.class);
+                    assertThat(context).doesNotHaveBean(OllamaEmbeddingModel.class);
+                    assertThat(context).doesNotHaveBean(GoogleGenAiTextEmbeddingModel.class);
+                });
+    }
+
+    /**
+     * The deployed shape for that provider: chat stays on Groq while embeddings go to another
+     * vendor entirely. That is the combination the separate embedding base URL and key exist for —
+     * one {@code OpenAIClient} class, two sets of credentials.
+     */
+    @Test
+    void theGenericHostedProviderLeavesChatOnGroq() {
+        runnerFor(GROQ_KEY, GROQ_API_KEY_PROPERTY, GROQ_BASE_URL, GROQ_MODEL,
+                EMBEDDING_KEY, EMBEDDING_KEY_PROPERTY, EMBEDDING_BASE_URL, EMBEDDING_MODEL, EMBEDDING_DIMENSIONS)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(ChatModel.class);
+                    assertThat(context.getBean(ChatModel.class)).isInstanceOf(OpenAiChatModel.class);
+                    assertThat(context).hasSingleBean(EmbeddingModel.class);
+                    assertThat(context.getBean(EmbeddingModel.class))
+                            .isInstanceOf(org.springframework.ai.openai.OpenAiEmbeddingModel.class);
+                });
+    }
+
+    /**
+     * Gemini is preferred over the generic provider when both keys are present, and the switch is
+     * how the other one is forced — asserted here as a pair so the priority cannot drift.
+     */
+    @Test
+    void geminiIsPreferredOverTheGenericProviderAndTheSwitchForcesIt() {
+        runnerFor(GEMINI_KEY, GEMINI_API_KEY_PROPERTY, GEMINI_MODEL, GEMINI_DIMENSIONS,
+                EMBEDDING_KEY, EMBEDDING_KEY_PROPERTY, EMBEDDING_BASE_URL, EMBEDDING_MODEL, EMBEDDING_DIMENSIONS)
+                .run(context -> assertThat(context.getBean(EmbeddingModel.class))
+                        .isInstanceOf(GoogleGenAiTextEmbeddingModel.class));
+
+        runnerFor(GEMINI_KEY, GEMINI_API_KEY_PROPERTY, GEMINI_MODEL, GEMINI_DIMENSIONS,
+                EMBEDDING_KEY, EMBEDDING_KEY_PROPERTY, EMBEDDING_BASE_URL, EMBEDDING_MODEL, EMBEDDING_DIMENSIONS,
+                "AI_EMBEDDING_PROVIDER=openai-compatible")
+                .run(context -> assertThat(context.getBean(EmbeddingModel.class))
+                        .isInstanceOf(org.springframework.ai.openai.OpenAiEmbeddingModel.class));
+    }
+
+    /**
+     * Ollama, on the other hand, is reachable only by asking for it. Same run as the keyword-only
+     * case above, plus one environment variable.
+     */
+    @Test
+    void ollamaIsWiredOnlyWhenExplicitlyRequested() {
+        runnerFor("AI_EMBEDDING_PROVIDER=ollama").run(context -> {
             assertThat(context).hasSingleBean(EmbeddingModel.class);
             assertThat(context.getBean(EmbeddingModel.class)).isInstanceOf(OllamaEmbeddingModel.class);
         });

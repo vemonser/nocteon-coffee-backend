@@ -45,6 +45,12 @@ public class ProductIndexScheduler {
                 return;
             }
 
+            if (!aiSearchService.isSemanticIndexAvailable()) {
+                // Keyword-only by configuration. There is no index to repair, and retrying would
+                // produce one warning a night about a state nobody changed.
+                return;
+            }
+
             AiReindexResponse result = aiSearchService.reindexAll();
             log.info("Nightly AI reindex: indexed={}, skipped={}, took={}ms",
                     result.getIndexed(), result.getSkipped(), result.getDurationMs());
