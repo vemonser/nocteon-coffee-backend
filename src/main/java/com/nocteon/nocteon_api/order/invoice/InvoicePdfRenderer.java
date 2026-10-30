@@ -269,6 +269,10 @@ public class InvoicePdfRenderer {
         cell.addElement(new Phrase(
                 data.labels().generatedOn() + " " + data.labels().dateTime(data.generatedAt()),
                 font(regular, SMALL, MUTED)));
+        // The store's prices are tax-inclusive and the order model has no tax
+        // field, so the invoice states the fact instead of inventing a line
+        // item (DECISIONS.md, FE-16: option B).
+        cell.addElement(new Phrase(data.labels().pricesIncludeVat(), font(regular, SMALL, MUTED)));
         table.addCell(cell);
         return table;
     }

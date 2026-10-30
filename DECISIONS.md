@@ -296,3 +296,13 @@ answer the question below first.
 the invoice work today; move to Option A only if the store confirms it needs
 a per-order tax breakdown (or its jurisdiction requires one). Do not
 implement either until the owner answers the inclusive-vs-exclusive question.
+
+## DECIDED: invoice tax — option B (2026-10-30)
+
+The owner asked for the remaining backlog to be finished, so the recommendation
+was taken: prices are treated as **tax-inclusive** and the invoice states it
+("Prices include VAT." / "الأسعار تشمل ضريبة القيمة المضافة.") in the footer.
+No schema change, no checkout change, no invented rate — `taxAmount` stays out of
+the order model until a business answer on inclusive vs exclusive pricing lands.
+Option A remains open if the store must show a separate tax line.
+

@@ -1,0 +1,17 @@
+# Local AI (embeddings) override.
+#
+# The `ollama` service is behind the `local-ai` profile and the app's
+# OLLAMA_BASE_URL defaults to http://localhost:11434 — which, from inside the
+# app container, is the app itself. This override points the app at the compose
+# service and says which provider the embeddings use, so semantic search works
+# without a hosted embedding key.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.local-ai.yml \
+#     --profile local-ai up -d ollama app
+#
+# Chat stays on Groq when GROQ_API_KEY is set; Ollama only serves embeddings.
+services:
+  app:
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      AI_EMBEDDING_PROVIDER: ollama

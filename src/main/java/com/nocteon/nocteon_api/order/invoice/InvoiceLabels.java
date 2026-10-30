@@ -37,7 +37,8 @@ public record InvoiceLabels(
         String paidOn,
         String notRecorded,
         String generatedOn,
-        String noItems) {
+        String noItems,
+        String pricesIncludeVat) {
 
     private static final InvoiceLabels EN = new InvoiceLabels(
             false,
@@ -62,7 +63,8 @@ public record InvoiceLabels(
             "Paid on",
             "Not recorded",
             "Generated on",
-            "This order has no items.");
+            "This order has no items.",
+            "Prices include VAT.");
 
     private static final InvoiceLabels AR = new InvoiceLabels(
             true,
@@ -87,7 +89,8 @@ public record InvoiceLabels(
             "تاريخ الدفع",
             "غير مسجل",
             "تاريخ الإصدار",
-            "لا توجد أصناف في هذا الطلب.");
+            "لا توجد أصناف في هذا الطلب.",
+            "الأسعار تشمل ضريبة القيمة المضافة.");
 
     /** The labels for a language tag, defaulting to English. */
     public static InvoiceLabels of(String language) {
