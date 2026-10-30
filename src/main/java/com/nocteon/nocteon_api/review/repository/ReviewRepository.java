@@ -148,6 +148,14 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
         long countByDeletedAtIsNull();
 
+    /**
+     * A trashed review, read past {@code @SQLRestriction} — the only way to restore or purge one.
+     * Derived queries and JPQL both see live rows only, so a permanently-deleted-and-recreated
+     * lookup would silently find the wrong row here.
+     */
+    @Query(value = "SELECT * FROM reviews WHERE id = :id AND deleted_at IS NOT NULL", nativeQuery = true)
+    java.util.Optional<Review> findDeletedById(@Param("id") Long id);
+
         Long countByDeletedAtIsNullAndStatus(ReviewStatus status);
 
         Long countByDeletedAtIsNullAndIsVerifiedTrue();

@@ -19,6 +19,8 @@ import com.nocteon.nocteon_api.audit.service.DomainAuditRecorder;
 import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
+import com.nocteon.nocteon_api.common.service.TrashRules;
+import com.nocteon.nocteon_api.common.service.TrashRules.Table;
 import com.nocteon.nocteon_api.shippingZone.dto.request.ShippingZoneRequest;
 import com.nocteon.nocteon_api.shippingZone.dto.response.ShippingZoneResponse;
 import com.nocteon.nocteon_api.shippingZone.entity.ShippingZone;
@@ -42,6 +44,7 @@ public class ShippingZoneService {
 
     private final ShippingZoneRepository shippingZoneRepository;
     private final DomainAuditRecorder domainAudit;
+    private final TrashRules trashRules;
 
     public BigDecimal calculateShippingCost(String city) {
         ShippingZone zone = shippingZoneRepository.findActiveZoneByCity(city.trim())
@@ -123,10 +126,14 @@ public class ShippingZoneService {
      */
     @Transactional
     public void permanentDelete(Long id) {
+        trashRules.refuseUnlessTrashed(Table.SHIPPING_ZONES, id);
         ShippingZone zone = shippingZoneRepository.findDeletedById(id)
                 .orElseThrow(ShippingZoneNotFoundException::new);
+        String name = zone.getName();
         shippingZoneRepository.delete(zone);
-        log.info("Shipping zone permanently deleted: {}", zone.getName());
+        shippingZoneRepository.flush();
+        domainAudit.permanentlyDeleted(ENTITY, id, name, zone.getDeletedAt());
+        log.info("Shipping zone permanently deleted: {}", name);
     }
 
     @Transactional(readOnly = true)

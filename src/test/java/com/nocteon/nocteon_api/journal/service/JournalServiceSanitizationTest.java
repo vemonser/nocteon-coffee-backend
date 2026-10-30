@@ -84,7 +84,8 @@ class JournalServiceSanitizationTest {
                 helper,
                 new HtmlSanitizer(properties),
                 org.mockito.Mockito.mock(RichTextImageService.class),
-                org.mockito.Mockito.mock(com.nocteon.nocteon_api.audit.service.DomainAuditRecorder.class));
+                org.mockito.Mockito.mock(com.nocteon.nocteon_api.audit.service.DomainAuditRecorder.class),
+                org.mockito.Mockito.mock(com.nocteon.nocteon_api.common.service.TrashRules.class));
     }
 
     @Test

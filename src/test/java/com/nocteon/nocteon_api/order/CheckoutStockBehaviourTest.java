@@ -195,7 +195,8 @@ class CheckoutStockBehaviourTest {
         if (realPromoCodeService == null) {
             realPromoCodeService = new PromoCodeService(
                     promoCodeRepository, redemptionRepository, categoryRepository, cartRepository,
-                    org.mockito.Mockito.mock(com.nocteon.nocteon_api.audit.service.DomainAuditRecorder.class));
+                    org.mockito.Mockito.mock(com.nocteon.nocteon_api.audit.service.DomainAuditRecorder.class),
+                    org.mockito.Mockito.mock(com.nocteon.nocteon_api.common.service.TrashRules.class));
         }
         return realPromoCodeService;
     }

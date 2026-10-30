@@ -21,6 +21,9 @@ import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationExcept
 import com.nocteon.nocteon_api.common.exception.notFound.PairingNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.service.TrashRules;
+import com.nocteon.nocteon_api.common.service.TrashRules.Reference;
+import com.nocteon.nocteon_api.common.service.TrashRules.Table;
 import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.common.transaction.AfterCommit;
 import com.nocteon.nocteon_api.pairing.dto.request.PairingRequest;
@@ -50,6 +53,7 @@ public class PairingService {
         private final PairingTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
         private final DomainAuditRecorder domainAudit;
+        private final TrashRules trashRules;
 
 
         @Transactional
@@ -172,6 +176,8 @@ public class PairingService {
         public void delete(String slug) {
                 Pairing pairing = pairingRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(PairingNotFoundException::new);
+                trashRules.refuseIfReferenced(Reference.PRODUCT_PAIRING, pairing.getId());
+
                 pairing.softDelete();
                 pairingRepository.save(pairing);
 
@@ -390,6 +396,7 @@ public class PairingService {
          */
         @Transactional
         public void permanentDelete(Long id) {
+                trashRules.refuseUnlessTrashed(Table.PAIRINGS, id);
                 Pairing pairing = pairingRepository.findDeletedById(id)
                                 .orElseThrow(PairingNotFoundException::new);
                 pairingRepository.delete(pairing);
@@ -403,6 +410,7 @@ public class PairingService {
                         log.warn("Cloudinary delete failed for pairing {} ({}): {}", slug, imageUrl, e.getMessage());
                     }
                 });
+                domainAudit.permanentlyDeleted(ENTITY, id, pairing.getSlug(), pairing.getDeletedAt());
                 log.info("Pairing permanently deleted: {}", slug);
         }
 }

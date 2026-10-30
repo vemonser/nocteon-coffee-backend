@@ -18,6 +18,9 @@ import org.springframework.stereotype.Service;
 
 import com.nocteon.nocteon_api.audit.enums.AuditAction;
 import com.nocteon.nocteon_api.audit.service.DomainAuditRecorder;
+import com.nocteon.nocteon_api.common.service.TrashRules;
+import com.nocteon.nocteon_api.common.service.TrashRules.Reference;
+import com.nocteon.nocteon_api.common.service.TrashRules.Table;
 import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.cart.entity.Cart;
 import com.nocteon.nocteon_api.cart.entity.CartItem;
@@ -66,6 +69,7 @@ public class PromoCodeService {
     private final CategoryRepository categoryRepository;
     private final CartRepository cartRepository;
     private final DomainAuditRecorder domainAudit;
+    private final TrashRules trashRules;
 
     @Transactional(readOnly = true)
     public PageResponse<PromoCodeResponse> getAll(BaseFilterRequest filter) {
@@ -169,6 +173,11 @@ public class PromoCodeService {
     public void delete(Long id) {
         PromoCode promoCode = promoCodeRepository.findById(id)
                 .orElseThrow(PromoCodeNotFoundException::new);
+        // An order that recorded this code keeps its totals, so the redemptions are history —
+        // but a hard delete would null the reference and the order would stop naming the code
+        // it used. Refuse while any order still points at it.
+        trashRules.refuseIfReferenced(Reference.ORDER_PROMO_CODE, id);
+        trashRules.refuseIfReferenced(Reference.ORDER_ITEM_PROMO_CODE, id);
         promoCode.softDelete();
         promoCodeRepository.save(promoCode);
 
@@ -186,9 +195,14 @@ public class PromoCodeService {
      */
     @Transactional
     public void permanentDelete(Long id) {
+        trashRules.refuseUnlessTrashed(Table.PROMO_CODES, id);
         PromoCode promoCode = promoCodeRepository.findDeletedById(id)
                 .orElseThrow(PromoCodeNotFoundException::new);
+        String code = promoCode.getCode();
         promoCodeRepository.delete(promoCode);
+        promoCodeRepository.flush();
+        domainAudit.permanentlyDeleted(ENTITY, id, code, promoCode.getDeletedAt());
+        log.info("Promo code permanently deleted: {}", code);
     }
 
     @Transactional(readOnly = true)

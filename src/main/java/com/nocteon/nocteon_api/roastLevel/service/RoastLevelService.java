@@ -21,6 +21,9 @@ import com.nocteon.nocteon_api.common.exception.invalid.EntityInUseException;
 import com.nocteon.nocteon_api.common.exception.notFound.RoastLevelNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.service.TrashRules;
+import com.nocteon.nocteon_api.common.service.TrashRules.Reference;
+import com.nocteon.nocteon_api.common.service.TrashRules.Table;
 import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.roastLevel.dto.request.RoastLevelRequest;
 import com.nocteon.nocteon_api.roastLevel.dto.request.RoastLevelTranslationRequest;
@@ -49,6 +52,7 @@ public class RoastLevelService {
         private final RoastLevelTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
         private final DomainAuditRecorder domainAudit;
+        private final TrashRules trashRules;
         private final CoffeeDetailsRepository coffeeDetailsRepository;
 
         @Transactional
@@ -152,10 +156,7 @@ public class RoastLevelService {
         public void delete(String slug) {
                 RoastLevel roastLevel = roastLevelRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(RoastLevelNotFoundException::new);
-
-                if (coffeeDetailsRepository.countByRoastLevelId(roastLevel.getId()) > 0) {
-                        throw new EntityInUseException();
-                }
+                trashRules.refuseIfReferenced(Reference.COFFEE_DETAIL_ROAST_LEVEL, roastLevel.getId());
 
                 roastLevel.softDelete();
                 roastLevelRepository.save(roastLevel);
@@ -369,9 +370,12 @@ public class RoastLevelService {
          */
         @Transactional
         public void permanentDelete(Long id) {
+                trashRules.refuseUnlessTrashed(Table.ROAST_LEVELS, id);
                 RoastLevel roastLevel = roastLevelRepository.findDeletedById(id)
                                 .orElseThrow(RoastLevelNotFoundException::new);
                 roastLevelRepository.delete(roastLevel);
+                roastLevelRepository.flush();
+                domainAudit.permanentlyDeleted(ENTITY, id, roastLevel.getSlug(), roastLevel.getDeletedAt());
                 log.info("RoastLevel permanently deleted: {}", roastLevel.getSlug());
         }
 }

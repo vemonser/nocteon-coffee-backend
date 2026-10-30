@@ -21,7 +21,6 @@ import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
-import com.nocteon.nocteon_api.common.exception.invalid.JournalCategoryInUseException;
 import com.nocteon.nocteon_api.common.exception.invalid.JournalCategorySlugTakenException;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.notFound.JournalCategoryNotFoundException;
@@ -29,6 +28,9 @@ import com.nocteon.nocteon_api.common.exception.notFound.JournalPostNotFoundExce
 import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
 import com.nocteon.nocteon_api.common.service.RichTextImageService;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.service.TrashRules;
+import com.nocteon.nocteon_api.common.service.TrashRules.Reference;
+import com.nocteon.nocteon_api.common.service.TrashRules.Table;
 import com.nocteon.nocteon_api.common.transaction.AfterCommit;
 import com.nocteon.nocteon_api.journal.dto.request.JournalCategoryRequest;
 import com.nocteon.nocteon_api.journal.dto.request.JournalCategoryTranslationRequest;
@@ -74,6 +76,7 @@ public class JournalService {
         private final HtmlSanitizer htmlSanitizer;
         private final RichTextImageService richTextImageService;
         private final DomainAuditRecorder domainAudit;
+        private final TrashRules trashRules;
 
         private static final int WORDS_PER_MINUTE = 200;
 
@@ -209,10 +212,7 @@ public class JournalService {
         public void deleteCategory(Long id) {
                 JournalCategory category = categoryRepository.findById(id)
                                 .orElseThrow(JournalCategoryNotFoundException::new);
-                long posts = postRepository.countAllByCategoryIdIncludingDeleted(id);
-                if (posts > 0) {
-                        throw new JournalCategoryInUseException(posts);
-                }
+                trashRules.refuseIfReferenced(Reference.JOURNAL_POST_CATEGORY, id);
                 category.softDelete();
                 categoryRepository.save(category);
 
@@ -798,12 +798,14 @@ public class JournalService {
          */
         @Transactional
         public void permanentDelete(Long id) {
+                trashRules.refuseUnlessTrashed(Table.JOURNAL_POSTS, id);
                 JournalPost post = postRepository.findDeletedById(id)
                                 .orElseThrow(JournalPostNotFoundException::new);
                 postRepository.delete(post);
                 postRepository.flush();
                 String imageUrl = post.getCoverImageUrl();
                 String slug = post.getSlug();
+                domainAudit.permanentlyDeleted(POST_ENTITY, id, slug, post.getDeletedAt());
                 AfterCommit.run(() -> {
                     try {
                         helper.deleteMediaIfExists(imageUrl);
@@ -823,9 +825,13 @@ public class JournalService {
          */
         @Transactional
         public void permanentDeleteCategory(Long id) {
+                trashRules.refuseUnlessTrashed(Table.JOURNAL_CATEGORIES, id);
                 JournalCategory category = categoryRepository.findDeletedById(id)
                                 .orElseThrow(JournalCategoryNotFoundException::new);
+                String slug = category.getSlug();
                 categoryRepository.delete(category);
-                log.info("Journal category permanently deleted: {}", category.getSlug());
+                categoryRepository.flush();
+                domainAudit.permanentlyDeleted(CATEGORY_ENTITY, id, slug, category.getDeletedAt());
+                log.info("Journal category permanently deleted: {}", slug);
         }
 }
