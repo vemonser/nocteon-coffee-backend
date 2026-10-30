@@ -16,6 +16,8 @@ import com.nocteon.nocteon_api.category.service.CategoryService;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.journal.service.JournalService;
+import com.nocteon.nocteon_api.origin.dto.response.DashboardOriginResponse;
+import com.nocteon.nocteon_api.origin.service.OriginService;
 import com.nocteon.nocteon_api.product.dto.response.DashboardProductResponse;
 import com.nocteon.nocteon_api.product.service.ProductService;
 import com.nocteon.nocteon_api.support.TestJwtKeys;
@@ -44,6 +46,9 @@ class TrashBinIntegrationTest {
 
     @Autowired
     private JournalService journalService;
+
+    @Autowired
+    private OriginService originService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -102,6 +107,46 @@ class TrashBinIntegrationTest {
                     .doesNotContain(probeSlug);
         } finally {
             jdbcTemplate.update("update categories set deleted_at = null where id = ?", probeId);
+        }
+    }
+
+    @Test
+    void coffeeDataTrashListCarriesDeletedAt() {
+        String slug = "zz-inttest-origin-deleted-at";
+        try {
+            jdbcTemplate.update(
+                    "delete from origin_translations where origin_id in "
+                            + "(select id from origins where slug = ?)",
+                    slug);
+            jdbcTemplate.update("delete from origins where slug = ?", slug);
+            jdbcTemplate.update(
+                    "insert into origins (slug, code, created_at, updated_at, deleted_at) "
+                            + "values (?, 'ZZ', now(), now(), now())",
+                    slug);
+            Long id = jdbcTemplate.queryForObject(
+                    "select id from origins where slug = ?", Long.class, slug);
+            jdbcTemplate.update(
+                    "insert into origin_translations (origin_id, language, name, created_at, updated_at) "
+                            + "values (?, 'en', 'ZZ IntTest', now(), now())",
+                    id);
+
+            PageResponse<DashboardOriginResponse> trashed =
+                    originService.getAllDeleted(new LookupFilterRequest());
+            DashboardOriginResponse row = trashed.getContent().stream()
+                    .filter(r -> slug.equals(r.getSlug()))
+                    .findFirst()
+                    .orElse(null);
+
+            assertThat(row).as("the trashed origin must be listed").isNotNull();
+            assertThat(row.getDeletedAt())
+                    .as("the trash list must expose the deletion date")
+                    .isNotNull();
+        } finally {
+            jdbcTemplate.update(
+                    "delete from origin_translations where origin_id in "
+                            + "(select id from origins where slug = ?)",
+                    slug);
+            jdbcTemplate.update("delete from origins where slug = ?", slug);
         }
     }
 

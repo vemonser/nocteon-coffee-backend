@@ -81,22 +81,22 @@ public interface PairingRepository extends JpaRepository<Pairing, Long> {
     boolean existsBySlugIncludingDeleted(@Param("slug") String slug);
 
         @Query(value = """
-                SELECT e.id, e.slug, e.image_url, e.created_at, et.language, et.name, et.description
+                SELECT e.id, e.slug, e.image_url, e.created_at, e.deleted_at, et.language, et.name, et.description
                 FROM pairings e
                 JOIN pairing_translations et ON e.id = et.pairing_id
                 WHERE e.deleted_at IS NOT NULL
-                GROUP BY e.id, e.slug, e.image_url, e.created_at, et.language, et.name, et.description
+                GROUP BY e.id, e.slug, e.image_url, e.created_at, e.deleted_at, et.language, et.name, et.description
                 """, nativeQuery = true)
         List<Object[]> findAllDeletedNative();
 
         @Query(value = """
-                SELECT e.id, e.slug, e.image_url, e.created_at, et.language, et.name, et.description
+                SELECT e.id, e.slug, e.image_url, e.created_at, e.deleted_at, et.language, et.name, et.description
                 FROM pairings e
                 JOIN pairing_translations et ON e.id = et.pairing_id
                 WHERE e.deleted_at IS NOT NULL
                 AND (COALESCE(:search, '') = '' OR LOWER(et.name) LIKE :search
                      OR LOWER(e.slug) LIKE :search)
-                GROUP BY e.id, e.slug, e.image_url, e.created_at, et.language, et.name, et.description
+                GROUP BY e.id, e.slug, e.image_url, e.created_at, e.deleted_at, et.language, et.name, et.description
                 """, nativeQuery = true)
         List<Object[]> findDeletedBySearchNative(@Param("search") String search);
 

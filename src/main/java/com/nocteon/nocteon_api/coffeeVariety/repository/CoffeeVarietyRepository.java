@@ -68,23 +68,23 @@ public interface CoffeeVarietyRepository extends JpaRepository<CoffeeVariety, Lo
     boolean existsBySlugIncludingDeleted(@Param("slug") String slug);
 
     @Query(value = """
-        SELECT e.id, e.slug, e.created_at,
+        SELECT e.id, e.slug, e.created_at, e.deleted_at,
                et.language, et.name, et.description
         FROM coffee_varieties e
         JOIN coffee_variety_translations et ON e.id = et.coffee_variety_id
         WHERE e.deleted_at IS NOT NULL
-        GROUP BY e.id, e.slug, e.created_at, et.language, et.name, et.description
+        GROUP BY e.id, e.slug, e.created_at, e.deleted_at, et.language, et.name, et.description
         """, nativeQuery = true)
     List<Object[]> findAllDeletedNative();
 
     @Query(value = """
-        SELECT e.id, e.slug, e.created_at,
+        SELECT e.id, e.slug, e.created_at, e.deleted_at,
                et.language, et.name, et.description
         FROM coffee_varieties e
         JOIN coffee_variety_translations et ON e.id = et.coffee_variety_id
         WHERE e.deleted_at IS NOT NULL
         AND (COALESCE(:search, '') = '' OR LOWER(et.name) LIKE :search OR LOWER(e.slug) LIKE :search)
-        GROUP BY e.id, e.slug, e.created_at, et.language, et.name, et.description
+        GROUP BY e.id, e.slug, e.created_at, e.deleted_at, et.language, et.name, et.description
         """, nativeQuery = true)
     List<Object[]> findDeletedBySearchNative(@Param("search") String search);
 

@@ -400,15 +400,16 @@ public class OriginService {
                                 .code((String) row[2])
                                 .imageUrl((String) row[3])
                                 .createdAt((Instant) row[4])
+                                .deletedAt((Instant) row[5])
                                 .translations(new ArrayList<>())
                                 .build();
         }
 
         private TranslationResponse buildTranslation(Object[] row) {
                 return TranslationResponse.builder()
-                                .language((String) row[5])
-                                .name((String) row[6])
-                                .description((String) row[7])
+                                .language((String) row[6])
+                                .name((String) row[7])
+                                .description((String) row[8])
 
                                 .build();
         }

@@ -324,15 +324,16 @@ public class ProcessingMethodService {
                                 .id(((Number) row[0]).longValue())
                                 .slug((String) row[1])
                                 .createdAt((Instant) row[2])
+                                .deletedAt((Instant) row[3])
                                 .translations(new ArrayList<>())
                                 .build();
         }
 
         private TranslationResponse buildTranslation(Object[] row) {
                 return TranslationResponse.builder()
-                                .language((String) row[3])
-                                .name((String) row[4])
-                                .description((String) row[5])
+                                .language((String) row[4])
+                                .name((String) row[5])
+                                .description((String) row[6])
 
                                 .build();
         }

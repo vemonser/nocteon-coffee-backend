@@ -14,6 +14,7 @@ public class TastingNoteResponseDashboard {
     private Long id;
     private String slug;
     private Instant createdAt;
+    private Instant deletedAt;
     private List<TranslationResponseDashboard> translations;
 
 }

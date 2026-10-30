@@ -18,6 +18,7 @@ public class DashboardRoastLevelResponse {
     private String color;
     private Instant createdAt;
     private Instant updatedAt;
+    private Instant deletedAt;
     private List<TranslationResponse> translations;
 
 }

@@ -69,22 +69,22 @@ public interface BrewingMethodRepository extends JpaRepository<BrewingMethod, Lo
     boolean existsBySlugIncludingDeleted(@Param("slug") String slug);
 
         @Query(value = """
-                SELECT e.id, e.slug, e.created_at, et.language, et.name, et.description
+                SELECT e.id, e.slug, e.created_at, e.deleted_at, et.language, et.name, et.description
                 FROM brewing_methods e
                 JOIN brewing_method_translations et ON e.id = et.brewing_method_id
                 WHERE e.deleted_at IS NOT NULL
-                GROUP BY e.id, e.slug, e.created_at, et.language, et.name, et.description
+                GROUP BY e.id, e.slug, e.created_at, e.deleted_at, et.language, et.name, et.description
                 """, nativeQuery = true)
         List<Object[]> findAllDeletedNative();
 
         @Query(value = """
-                SELECT e.id, e.slug, e.created_at, et.language, et.name, et.description
+                SELECT e.id, e.slug, e.created_at, e.deleted_at, et.language, et.name, et.description
                 FROM brewing_methods e
                 JOIN brewing_method_translations et ON e.id = et.brewing_method_id
                 WHERE e.deleted_at IS NOT NULL
                 AND (COALESCE(:search, '') = '' OR LOWER(et.name) LIKE :search
                      OR LOWER(e.slug) LIKE :search)
-                GROUP BY e.id, e.slug, e.created_at, et.language, et.name, et.description
+                GROUP BY e.id, e.slug, e.created_at, e.deleted_at, et.language, et.name, et.description
                 """, nativeQuery = true)
         List<Object[]> findDeletedBySearchNative(@Param("search") String search);
 

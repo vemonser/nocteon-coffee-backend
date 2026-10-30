@@ -311,14 +311,15 @@ public class TastingNoteService {
                                 .id(((Number) row[0]).longValue())
                                 .slug((String) row[1])
                                 .createdAt((Instant) row[2])
+                                .deletedAt((Instant) row[3])
                                 .translations(new ArrayList<>())
                                 .build();
         }
 
         private TranslationResponseDashboard buildTranslation(Object[] row) {
                 return TranslationResponseDashboard.builder()
-                                .language((String) row[3])
-                                .name((String) row[4])
+                                .language((String) row[4])
+                                .name((String) row[5])
 
 
                                 .build();

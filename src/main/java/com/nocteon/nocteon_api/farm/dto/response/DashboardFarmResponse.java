@@ -18,6 +18,7 @@ public class DashboardFarmResponse {
     private String slug;
     private String imageUrl;
     private Instant createdAt;
+    private Instant deletedAt;
     private List<FarmTranslationResponse> translations;
 
 }

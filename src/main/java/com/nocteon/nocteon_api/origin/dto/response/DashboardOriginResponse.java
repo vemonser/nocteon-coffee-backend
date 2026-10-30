@@ -18,6 +18,7 @@ public class DashboardOriginResponse {
     private String slug;
     private String code;
     private Instant createdAt;
+    private Instant deletedAt;
     private String imageUrl;
 
     

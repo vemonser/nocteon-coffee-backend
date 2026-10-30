@@ -390,17 +390,18 @@ public class FarmService {
                                 .slug((String) row[1])
                                 .imageUrl((String) row[2])
                                 .createdAt((Instant) row[3])
-                                .originSlug((String) row[4])
+                                .deletedAt((Instant) row[4])
+                                .originSlug((String) row[5])
                                 .translations(new ArrayList<>())
                                 .build();
         }
 
         private FarmTranslationResponse buildTranslation(Object[] row) {
                 return FarmTranslationResponse.builder()
-                                .language((String) row[5])
-                                .name((String) row[6])
-                                .description((String) row[8])
-                                .country((String) row[7])
+                                .language((String) row[6])
+                                .name((String) row[7])
+                                .description((String) row[9])
+                                .country((String) row[8])
                                 .build();
         }
 

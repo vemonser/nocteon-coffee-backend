@@ -16,6 +16,7 @@ public class CoffeeVarietyResponseDashboard {
     private Long id;
     private String slug;
     private Instant createdAt;
+    private Instant deletedAt;
     private List<TranslationResponse> translations;
 
 }
