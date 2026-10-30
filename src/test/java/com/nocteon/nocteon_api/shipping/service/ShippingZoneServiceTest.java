@@ -32,6 +32,9 @@ import static org.mockito.Mockito.when;
 class ShippingZoneServiceTest {
 
     @Mock private ShippingZoneRepository shippingZoneRepository;
+    // The service reports to the audit recorder; without the mock the
+    // injected instance is null and every create/update throws.
+    @Mock private com.nocteon.nocteon_api.audit.service.DomainAuditRecorder domainAudit;
 
     @InjectMocks
     private ShippingZoneService shippingZoneService;
