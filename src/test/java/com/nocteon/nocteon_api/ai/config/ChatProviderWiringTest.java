@@ -182,7 +182,8 @@ class ChatProviderWiringTest {
     @Test
     void aGeminiKeyMovesTheEmbeddingModelAndLeavesChatOnGroq() {
         runnerFor(GROQ_KEY, GROQ_API_KEY_PROPERTY, GROQ_BASE_URL, GROQ_MODEL,
-                GEMINI_KEY, GEMINI_API_KEY_PROPERTY, GEMINI_MODEL, GEMINI_DIMENSIONS).run(context -> {
+                GEMINI_KEY, GEMINI_API_KEY_PROPERTY, GEMINI_MODEL, GEMINI_DIMENSIONS,
+                "AI_EMBEDDING_PROVIDER=gemini").run(context -> {
                     assertThat(context).hasSingleBean(ChatModel.class);
                     assertThat(context).hasSingleBean(OpenAiChatModel.class);
 
@@ -200,7 +201,8 @@ class ChatProviderWiringTest {
      */
     @Test
     void aGeminiKeyIsWhatSelectsTheHostedEmbeddingModel() {
-        runnerFor(GEMINI_KEY, GEMINI_API_KEY_PROPERTY, GEMINI_MODEL, GEMINI_DIMENSIONS).run(context -> {
+        runnerFor(GEMINI_KEY, GEMINI_API_KEY_PROPERTY, GEMINI_MODEL, GEMINI_DIMENSIONS,
+                "AI_EMBEDDING_PROVIDER=gemini").run(context -> {
             assertThat(context).hasSingleBean(EmbeddingModel.class);
             assertThat(context.getBean(EmbeddingModel.class))
                     .isInstanceOf(GoogleGenAiTextEmbeddingModel.class);
@@ -218,7 +220,8 @@ class ChatProviderWiringTest {
      */
     @Test
     void theGeminiEmbeddingModelIsConfiguredForTheExistingVectorColumnWidth() {
-        runnerFor(GEMINI_KEY, GEMINI_API_KEY_PROPERTY, GEMINI_MODEL, GEMINI_DIMENSIONS).run(context -> {
+        runnerFor(GEMINI_KEY, GEMINI_API_KEY_PROPERTY, GEMINI_MODEL, GEMINI_DIMENSIONS,
+                "AI_EMBEDDING_PROVIDER=gemini").run(context -> {
             GoogleGenAiTextEmbeddingModel model = context.getBean(GoogleGenAiTextEmbeddingModel.class);
             assertThat(model.options.getModel()).isEqualTo("gemini-embedding-2");
             assertThat(model.options.getDimensions()).isEqualTo(768);
@@ -358,7 +361,9 @@ class ChatProviderWiringTest {
     /** On the Gemini path nothing is excluded, or the provider the key selected would be switched off. */
     @Test
     void theGeminiPathExcludesNothing() {
-        MockEnvironment probe = new MockEnvironment().withProperty("GEMINI_API_KEY", "not-a-real-key");
+        MockEnvironment probe = new MockEnvironment()
+                .withProperty("GEMINI_API_KEY", "not-a-real-key")
+                .withProperty("AI_EMBEDDING_PROVIDER", "gemini");
         new EmbeddingProviderEnvironmentPostProcessor()
                 .postProcessEnvironment(probe, new SpringApplication());
 

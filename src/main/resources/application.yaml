@@ -115,15 +115,16 @@ spring:
     # both try to define the same bean type.
     #
     # NONE of these are set here — not `chat`, and neither embedding selector.
-    # They are derived from whether the relevant API key is configured:
+    # They are derived from the environment:
     # ChatProviderEnvironmentPostProcessor from GROQ_API_KEY, and
-    # EmbeddingProviderEnvironmentPostProcessor from GEMINI_API_KEY. A YAML
-    # placeholder cannot be conditional ("use this only when a key is present"),
-    # and an environment post-processor runs before the context exists, which is
-    # the only point where the decision can still be made.
+    # EmbeddingProviderEnvironmentPostProcessor from AI_EMBEDDING_PROVIDER (opt-in;
+    # Gemini is never selected just because GEMINI_API_KEY is present). A YAML
+    # placeholder cannot be conditional, and an environment post-processor runs
+    # before the context exists, which is the only point where the decision can
+    # still be made.
     #
     # Set either directly to override that decision — `AI_CHAT_PROVIDER=ollama`,
-    # or `spring.ai.model.embedding.text=google-genai` / `=none`.
+    # `AI_EMBEDDING_PROVIDER=gemini`, or `spring.ai.model.embedding.text=google-genai` / `=none`.
     #
     # The embedding case needs BOTH selectors, and that is Spring AI's design
     # rather than ours: Ollama and OpenAI test `spring.ai.model.embedding`, while
@@ -158,8 +159,9 @@ spring:
           temperature: 0.7
       embedding:
         options:
-          # Only read when the embedding selector resolves to ollama, i.e. when
-          # GEMINI_API_KEY is unset. That is the zero-configuration path: no API
+          # Read whenever the embedding selector resolves to ollama, which is the
+          # default (including when GEMINI_API_KEY is set but Gemini was not
+          # explicitly requested). That is the zero-configuration path: no API
           # key, no account, no network.
           model: nomic-embed-text
 
@@ -168,8 +170,11 @@ spring:
     # and needs a billing-enabled Cloud project; the starter for that is a
     # different artifact (`spring-ai-starter-model-vertex-ai-embedding`).
     #
-    # Only read when the embedding selector resolves to google-genai. With a blank
-    # key the post-processor selects Ollama instead and none of this is consulted.
+    # Gemini is opt-in: it is used only when AI_EMBEDDING_PROVIDER=gemini (or
+    # spring.ai.model.embedding.text=google-genai) is set, alongside a non-blank
+    # GEMINI_API_KEY. Otherwise the post-processor selects Ollama and none of
+    # this is consulted. Groq has no embeddings endpoint, so it is never used
+    # here.
     google:
       genai:
         embedding:

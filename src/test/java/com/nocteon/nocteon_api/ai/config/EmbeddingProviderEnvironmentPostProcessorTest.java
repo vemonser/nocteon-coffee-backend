@@ -72,9 +72,24 @@ class EmbeddingProviderEnvironmentPostProcessorTest {
     // --- key present: Gemini -----------------------------------------------------------
 
     @Test
-    void usesGeminiWhenAnApiKeyIsConfigured() {
+    void doesNotUseGeminiWhenOnlyAnApiKeyIsConfigured() {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("GEMINI_API_KEY", "not-a-real-key");
+
+        processor.postProcessEnvironment(environment, new SpringApplication());
+
+        assertThat(environment.getProperty(EmbeddingProviderEnvironmentPostProcessor.EMBEDDING_SELECTOR_PROPERTY))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.OLLAMA_PROVIDER);
+        assertThat(environment.getProperty(
+                EmbeddingProviderEnvironmentPostProcessor.TEXT_EMBEDDING_SELECTOR_PROPERTY))
+                .isEqualTo(EmbeddingProviderEnvironmentPostProcessor.NO_PROVIDER);
+    }
+
+    @Test
+    void usesGeminiWhenExplicitlyRequested() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("GEMINI_API_KEY", "not-a-real-key")
+                .withProperty(EmbeddingProviderEnvironmentPostProcessor.AI_EMBEDDING_PROVIDER_PROPERTY, "gemini");
 
         processor.postProcessEnvironment(environment, new SpringApplication());
 
@@ -94,7 +109,8 @@ class EmbeddingProviderEnvironmentPostProcessorTest {
     @Test
     void switchesOffEveryRejectedProvider() {
         MockEnvironment environment = new MockEnvironment()
-                .withProperty("GEMINI_API_KEY", "not-a-real-key");
+                .withProperty("GEMINI_API_KEY", "not-a-real-key")
+                .withProperty(EmbeddingProviderEnvironmentPostProcessor.AI_EMBEDDING_PROVIDER_PROPERTY, "gemini");
 
         processor.postProcessEnvironment(environment, new SpringApplication());
 
