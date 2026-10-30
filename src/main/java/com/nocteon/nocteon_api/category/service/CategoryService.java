@@ -4,9 +4,10 @@ import java.time.Instant;
 
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,6 +23,8 @@ import com.nocteon.nocteon_api.category.entity.Category;
 import com.nocteon.nocteon_api.category.entity.CategoryTranslation;
 import com.nocteon.nocteon_api.category.repository.CategoryRepository;
 import com.nocteon.nocteon_api.category.repository.CategoryTranslationRepository;
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.DomainAuditRecorder;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.dto.TranslationResponse;
@@ -46,10 +49,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class CategoryService {
 
+        /** The entity_type every row for this catalogue records. */
+        private static final String ENTITY = "Category";
+
         private final ProductRepository productRepository;
         private final CategoryRepository categoryRepository;
         private final CategoryTranslationRepository categoryTranslationRepository;
         private final LookupServiceHelper helper;
+        private final DomainAuditRecorder domainAudit;
         private final ProductResponseMapper productResponseMapper;
 
         @Transactional(readOnly = true)
@@ -66,6 +73,8 @@ public class CategoryService {
         public DashboardCategoryResponse update(String slug, CategoryRequest request, MultipartFile image) {
                 Category category = categoryRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(CategoryNotFoundException::new);
+
+                Map<String, Object> before = lookupFields(category);
 
                 if (request.getIsActive() != null)
                         category.setIsActive(request.getIsActive());
@@ -110,6 +119,9 @@ public class CategoryService {
                 categoryRepository.save(category);
                 var reloaded = categoryRepository.findBySlugWithTranslations(category.getSlug()).orElse(category);
 
+                domainAudit.updated(AuditAction.LOOKUP_UPDATE, ENTITY, category.getId(), category.getSlug(),
+                                before, lookupFields(reloaded));
+
                 return buildResponse(reloaded);
         }
 
@@ -139,6 +151,9 @@ public class CategoryService {
 
                 category.softDelete();
                 categoryRepository.save(category);
+
+                domainAudit.softDeleted(AuditAction.LOOKUP_DELETE, ENTITY, category.getId(), slug,
+                                category.getDeletedAt());
                 log.info("Category soft deleted: {}", slug);
         }
 
@@ -204,6 +219,8 @@ public class CategoryService {
                 log.info("Category created with slug: {}", slug);
                 var reloaded = categoryRepository.findBySlugWithTranslations(slug).orElse(category);
 
+                domainAudit.created(AuditAction.LOOKUP_CREATE, ENTITY, category.getId(), slug, lookupFields(reloaded, englishName));
+
                 return buildResponse(reloaded);
         }
 
@@ -246,6 +263,37 @@ public class CategoryService {
                 Category category = categoryRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(CategoryNotFoundException::new);
                 return buildResponse(category);
+        }
+
+        /**
+         * Create-time snapshot.
+         *
+         * <p>The translations are written through their own repository, so the
+         * entity's collection is still empty inside this transaction and a read of
+         * it would record a null name. The English name the admin submitted is the
+         * label the row records.
+         */
+        private static Map<String, Object> lookupFields(Category entity, String englishName) {
+                Map<String, Object> fields = lookupFields(entity);
+                fields.put("name", englishName);
+                return fields;
+        }
+
+        /**
+         * The change-visible state of one category, for an audit row: what the
+         * dashboard shows an editor, and nothing only a DB admin reads.
+         */
+        private static Map<String, Object> lookupFields(Category category) {
+                Map<String, Object> fields = new LinkedHashMap<>();
+                fields.put("slug", category.getSlug());
+                fields.put("imageUrl", category.getImageUrl());
+                fields.put("isActive", category.getIsActive());
+                String name = category.getTranslations() == null ? null : category.getTranslations().stream()
+                                .filter(t -> "en".equals(t.getLanguage()))
+                                .map(CategoryTranslation::getName)
+                                .findFirst().orElse(null);
+                fields.put("name", name);
+                return fields;
         }
 
         private CategoryResponse buildResponse(Category category, String language) {

@@ -2,13 +2,17 @@ package com.nocteon.nocteon_api.product.service;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.DomainAuditRecorder;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
 import com.nocteon.nocteon_api.common.exception.invalid.ProductTagInUseException;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductTagNotFoundException;
@@ -39,8 +43,12 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class ProductTagService {
 
+    /** The entity_type every row for this catalogue records. */
+    private static final String ENTITY = "ProductTag";
+
     private final ProductTagRepository tagRepository;
     private final LookupServiceHelper helper;
+    private final DomainAuditRecorder domainAudit;
 
     @Transactional(readOnly = true)
     public List<ProductTagResponseDashboard> getTags() {
@@ -97,6 +105,9 @@ public class ProductTagService {
                     .build());
         }
         tagRepository.save(tag);
+
+        domainAudit.created(AuditAction.PRODUCT_TAG_CREATE, ENTITY, tag.getId(), slug, tagFields(tag));
+
         log.info("Product tag created: {}", slug);
         return toResponse(tag);
     }
@@ -106,6 +117,8 @@ public class ProductTagService {
         helper.validateTranslations(request.getTranslations());
         ProductTag tag = tagRepository.findById(id)
                 .orElseThrow(ProductTagNotFoundException::new);
+
+        Map<String, Object> before = tagFields(tag);
 
         for (ProductTagTranslationRequest t : request.getTranslations()) {
             ProductTagTranslation translation = tag.getTranslations().stream()
@@ -122,6 +135,10 @@ public class ProductTagService {
             translation.setName(t.getName().trim());
         }
         tagRepository.save(tag);
+
+        domainAudit.updated(AuditAction.PRODUCT_TAG_UPDATE, ENTITY, tag.getId(), tag.getSlug(),
+                before, tagFields(tag));
+
         log.info("Product tag renamed: {}", tag.getSlug());
         return toResponse(tag);
     }
@@ -142,6 +159,10 @@ public class ProductTagService {
         }
         tag.softDelete();
         tagRepository.save(tag);
+
+        domainAudit.softDeleted(AuditAction.PRODUCT_TAG_DELETE, ENTITY, tag.getId(), tag.getSlug(),
+                tag.getDeletedAt());
+
         log.info("Product tag deleted: {}", tag.getSlug());
     }
 
@@ -183,6 +204,21 @@ public class ProductTagService {
             throw new ProductTagNotFoundException();
         }
         return new HashSet<>(found);
+    }
+
+    /**
+     * The change-visible state of one tag, for an audit row: the slug a product
+     * references and the English label an admin would recognise.
+     */
+    private static Map<String, Object> tagFields(ProductTag tag) {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("slug", tag.getSlug());
+        String name = tag.getTranslations() == null ? null : tag.getTranslations().stream()
+                .filter(t -> "en".equals(t.getLanguage()))
+                .map(ProductTagTranslation::getName)
+                .findFirst().orElse(null);
+        fields.put("name", name);
+        return fields;
     }
 
     private static ProductTagResponseDashboard toResponse(ProductTag tag) {

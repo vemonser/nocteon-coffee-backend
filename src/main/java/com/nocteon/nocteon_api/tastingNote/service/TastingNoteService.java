@@ -3,13 +3,16 @@ package com.nocteon.nocteon_api.tastingNote.service;
 import java.time.Instant;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.DomainAuditRecorder;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
@@ -37,9 +40,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class TastingNoteService {
 
+        /** The entity_type every row for this catalogue records. */
+        private static final String ENTITY = "TastingNote";
+
         private final TastingNoteRepository tastingNoteRepository;
         private final TastingNoteTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
+        private final DomainAuditRecorder domainAudit;
 
         public PageResponse<TastingNoteResponse> getAll(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
@@ -118,6 +125,8 @@ public class TastingNoteService {
 
                 log.info("TastingNote created with slug: {}", slug);
                 var reloaded = tastingNoteRepository.findBySlugWithTranslations(slug).orElse(tastingNote);
+                domainAudit.created(AuditAction.LOOKUP_CREATE, ENTITY, tastingNote.getId(), slug, lookupFields(reloaded, englishName));
+
                 return buildResponse(reloaded);
         }
 
@@ -125,6 +134,8 @@ public class TastingNoteService {
         public TastingNoteResponseDashboard update(String slug, TastingNoteRequest request) {
                 TastingNote tastingNote = tastingNoteRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(TastingNoteNotFoundException::new);
+
+                Map<String, Object> before = lookupFields(tastingNote);
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
                         helper.validateTranslations(request.getTranslations());
@@ -153,6 +164,9 @@ public class TastingNoteService {
                 tastingNoteRepository.save(tastingNote);
                 var reloaded = tastingNoteRepository.findBySlugWithTranslations(tastingNote.getSlug()).orElse(tastingNote);
 
+                domainAudit.updated(AuditAction.LOOKUP_UPDATE, ENTITY, tastingNote.getId(), tastingNote.getSlug(),
+                                before, lookupFields(reloaded));
+
                 return buildResponse(reloaded);
         }
 
@@ -162,7 +176,39 @@ public class TastingNoteService {
                                 .orElseThrow(TastingNoteNotFoundException::new);
                 tastingNote.softDelete();
                 tastingNoteRepository.save(tastingNote);
+
+                domainAudit.softDeleted(AuditAction.LOOKUP_DELETE, ENTITY, tastingNote.getId(), slug,
+                                tastingNote.getDeletedAt());
                 log.info("TastingNote soft deleted: {}", slug);
+        }
+
+        /**
+         * Create-time snapshot.
+         *
+         * <p>The translations are written through their own repository, so the
+         * entity's collection is still empty inside this transaction and a read of
+         * it would record a null name. The English name the admin submitted is the
+         * label the row records.
+         */
+        private static Map<String, Object> lookupFields(TastingNote entity, String englishName) {
+                Map<String, Object> fields = lookupFields(entity);
+                fields.put("name", englishName);
+                return fields;
+        }
+
+        /**
+         * The change-visible state of one tasting note, for an audit row: what the
+         * dashboard shows an editor, and nothing only a DB admin reads.
+         */
+        private static Map<String, Object> lookupFields(TastingNote tastingNote) {
+                Map<String, Object> fields = new LinkedHashMap<>();
+                fields.put("slug", tastingNote.getSlug());
+                String name = tastingNote.getTranslations() == null ? null : tastingNote.getTranslations().stream()
+                                .filter(t -> "en".equals(t.getLanguage()))
+                                .map(TastingNoteTranslation::getName)
+                                .findFirst().orElse(null);
+                fields.put("name", name);
+                return fields;
         }
 
         private TastingNoteResponse buildResponse(TastingNote tastingNote, String language) {

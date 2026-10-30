@@ -189,7 +189,8 @@ class CheckoutStockBehaviourTest {
         // Built lazily so each test gets the same instance the order service uses.
         if (realPromoCodeService == null) {
             realPromoCodeService = new PromoCodeService(
-                    promoCodeRepository, redemptionRepository, categoryRepository, cartRepository);
+                    promoCodeRepository, redemptionRepository, categoryRepository, cartRepository,
+                    org.mockito.Mockito.mock(com.nocteon.nocteon_api.audit.service.DomainAuditRecorder.class));
         }
         return realPromoCodeService;
     }

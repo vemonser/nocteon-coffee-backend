@@ -3,7 +3,10 @@ package com.nocteon.nocteon_api.promoCode.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -13,6 +16,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.DomainAuditRecorder;
 import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.cart.entity.Cart;
 import com.nocteon.nocteon_api.cart.entity.CartItem;
@@ -53,10 +58,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class PromoCodeService {
 
+    /** The entity_type every row for this catalogue records. */
+    private static final String ENTITY = "PromoCode";
+
     private final PromoCodeRepository promoCodeRepository;
     private final PromoCodeRedemptionRepository redemptionRepository;
     private final CategoryRepository categoryRepository;
     private final CartRepository cartRepository;
+    private final DomainAuditRecorder domainAudit;
 
     @Transactional(readOnly = true)
     public PageResponse<PromoCodeResponse> getAll(BaseFilterRequest filter) {
@@ -101,7 +110,9 @@ public class PromoCodeService {
                 .discountValue(request.getDiscountValue())
                 .minOrderAmount(request.getMinOrderAmount())
                 .scopeType(request.getScopeType())
-                .categories(categories)
+                // A mutable list: Hibernate merges a managed entity by clearing the
+                // collection it is given, and List.of() cannot be cleared.
+                .categories(new ArrayList<>(categories))
                 .maxTotalRedemptions(request.getMaxTotalRedemptions())
                 .maxRedemptionsPerUser(request.getMaxRedemptionsPerUser())
                 .validFrom(request.getValidFrom())
@@ -110,6 +121,10 @@ public class PromoCodeService {
                 .build();
 
         promoCodeRepository.save(promoCode);
+
+        domainAudit.created(AuditAction.PROMO_CODE_CREATE, ENTITY, promoCode.getId(), promoCode.getCode(),
+                promoCodeFields(promoCode));
+
         return buildResponse(promoCode);
     }
 
@@ -117,6 +132,8 @@ public class PromoCodeService {
     public PromoCodeResponse update(Long id, PromoCodeRequest request) {
         PromoCode promoCode = promoCodeRepository.findById(id)
                 .orElseThrow(PromoCodeNotFoundException::new);
+
+        Map<String, Object> before = promoCodeFields(promoCode);
 
         boolean codeChanged = !promoCode.getCode().equalsIgnoreCase(request.getCode());
         if (codeChanged && promoCodeRepository.existsByCodeIgnoreCase(request.getCode())) {
@@ -130,7 +147,10 @@ public class PromoCodeService {
         promoCode.setDiscountValue(request.getDiscountValue());
         promoCode.setMinOrderAmount(request.getMinOrderAmount());
         promoCode.setScopeType(request.getScopeType());
-        promoCode.setCategories(categories);
+        // A mutable list: Hibernate merges a managed entity by clearing the
+        // collection it is given, and List.of() cannot be cleared — which made
+        // editing a GLOBAL code throw instead of saving.
+        promoCode.setCategories(new ArrayList<>(categories));
         promoCode.setMaxTotalRedemptions(request.getMaxTotalRedemptions());
         promoCode.setMaxRedemptionsPerUser(request.getMaxRedemptionsPerUser());
         promoCode.setValidFrom(request.getValidFrom());
@@ -138,6 +158,10 @@ public class PromoCodeService {
         promoCode.setActive(request.isActive());
 
         promoCodeRepository.save(promoCode);
+
+        domainAudit.updated(AuditAction.PROMO_CODE_UPDATE, ENTITY, promoCode.getId(), promoCode.getCode(),
+                before, promoCodeFields(promoCode));
+
         return buildResponse(promoCode);
     }
 
@@ -147,6 +171,9 @@ public class PromoCodeService {
                 .orElseThrow(PromoCodeNotFoundException::new);
         promoCode.softDelete();
         promoCodeRepository.save(promoCode);
+
+        domainAudit.softDeleted(AuditAction.PROMO_CODE_DELETE, ENTITY, promoCode.getId(), promoCode.getCode(),
+                promoCode.getDeletedAt());
     }
 
     /**
@@ -337,6 +364,34 @@ public class PromoCodeService {
                 && userUsageCount >= promoCode.getMaxRedemptionsPerUser()) {
             throw new PromoCodeAlreadyUsedException();
         }
+    }
+
+    /**
+     * The change-visible state of one promo code, for an audit row.
+     *
+     * <p>The two validity dates are ISO strings, not {@code Instant}s: the audit
+     * writer serialises with a plain ObjectMapper, which has no java.time support.
+     * The category list is recorded by slug so a scope change reads as
+     * "coffee-*-gear" rather than a list of numbers.
+     */
+    private static Map<String, Object> promoCodeFields(PromoCode promoCode) {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("code", promoCode.getCode());
+        fields.put("discountType",
+                promoCode.getDiscountType() == null ? null : promoCode.getDiscountType().name());
+        fields.put("discountValue", promoCode.getDiscountValue());
+        fields.put("scopeType", promoCode.getScopeType() == null ? null : promoCode.getScopeType().name());
+        fields.put("categories", promoCode.getCategories() == null ? List.of() : promoCode.getCategories().stream()
+                .map(Category::getSlug)
+                .sorted()
+                .toList());
+        fields.put("minOrderAmount", promoCode.getMinOrderAmount());
+        fields.put("maxTotalRedemptions", promoCode.getMaxTotalRedemptions());
+        fields.put("maxRedemptionsPerUser", promoCode.getMaxRedemptionsPerUser());
+        fields.put("validFrom", promoCode.getValidFrom() == null ? null : promoCode.getValidFrom().toString());
+        fields.put("validUntil", promoCode.getValidUntil() == null ? null : promoCode.getValidUntil().toString());
+        fields.put("active", promoCode.isActive());
+        return fields;
     }
 
     private PromoCodeResponse buildResponse(PromoCode promoCode) {

@@ -2,7 +2,9 @@ package com.nocteon.nocteon_api.shippingZone.service;
 
 import java.math.BigDecimal;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -12,6 +14,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.DomainAuditRecorder;
 import com.nocteon.nocteon_api.common.dto.BaseFilterRequest;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
@@ -33,7 +37,11 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ShippingZoneService {
 
+    /** The entity_type every row for this catalogue records. */
+    private static final String ENTITY = "ShippingZone";
+
     private final ShippingZoneRepository shippingZoneRepository;
+    private final DomainAuditRecorder domainAudit;
 
     public BigDecimal calculateShippingCost(String city) {
         ShippingZone zone = shippingZoneRepository.findActiveZoneByCity(city.trim())
@@ -60,6 +68,9 @@ public class ShippingZoneService {
                 .build();
 
         shippingZoneRepository.save(zone);
+
+        domainAudit.created(AuditAction.SHIPPING_ZONE_CREATE, ENTITY, zone.getId(), null, shippingZoneFields(zone));
+
         return buildResponse(zone);
     }
 
@@ -74,6 +85,8 @@ public class ShippingZoneService {
         ShippingZone zone = shippingZoneRepository.findById(id)
                 .orElseThrow(ShippingZoneNotFoundException::new);
 
+        Map<String, Object> before = shippingZoneFields(zone);
+
         validateNoCityConflict(request.getCities(), id);
 
         zone.setName(request.getName());
@@ -82,6 +95,10 @@ public class ShippingZoneService {
         zone.setActive(request.isActive());
 
         shippingZoneRepository.save(zone);
+
+        domainAudit.updated(AuditAction.SHIPPING_ZONE_UPDATE, ENTITY, zone.getId(), null,
+                before, shippingZoneFields(zone));
+
         return buildResponse(zone);
     }
 
@@ -91,6 +108,9 @@ public class ShippingZoneService {
                 .orElseThrow(ShippingZoneNotFoundException::new);
         zone.softDelete();
         shippingZoneRepository.save(zone);
+
+        domainAudit.softDeleted(AuditAction.SHIPPING_ZONE_DELETE, ENTITY, zone.getId(), null,
+                zone.getDeletedAt());
     }
 
     /**
@@ -177,6 +197,20 @@ public class ShippingZoneService {
                 throw new CityAlreadyAssignedException(city);
             }
         }
+    }
+
+    /**
+     * The change-visible state of one zone, for an audit row: the price, the
+     * cities it covers and whether it is live. Cities are sorted, so a changed
+     * city reads as one line rather than a reshuffled set.
+     */
+    private static Map<String, Object> shippingZoneFields(ShippingZone zone) {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("name", zone.getName());
+        fields.put("shippingCost", zone.getShippingCost());
+        fields.put("cities", zone.getCities() == null ? List.of() : zone.getCities().stream().sorted().toList());
+        fields.put("active", zone.isActive());
+        return fields;
     }
 
     private ShippingZoneResponse buildResponse(ShippingZone zone) {

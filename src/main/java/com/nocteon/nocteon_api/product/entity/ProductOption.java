@@ -46,12 +46,15 @@ public class ProductOption extends BaseEntity {
     private Set<ProductType> appliesTo = new HashSet<>(Arrays.asList(ProductType.values()));
 
     @OneToMany(mappedBy = "option", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private Set<ProductOptionTranslation> translations = new HashSet<>();
 
     @OneToMany(mappedBy = "option", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private Set<ProductOptionValue> values = new HashSet<>();
 
     @ManyToMany(mappedBy = "options")
+    @Builder.Default
     private Set<Product> products = new HashSet<>();
 
 }

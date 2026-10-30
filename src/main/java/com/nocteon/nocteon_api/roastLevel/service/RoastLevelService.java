@@ -3,13 +3,16 @@ package com.nocteon.nocteon_api.roastLevel.service;
 import java.time.Instant;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.DomainAuditRecorder;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.dto.TranslationResponse;
@@ -39,9 +42,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class RoastLevelService {
 
+        /** The entity_type every row for this catalogue records. */
+        private static final String ENTITY = "RoastLevel";
+
         private final RoastLevelRepository roastLevelRepository;
         private final RoastLevelTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
+        private final DomainAuditRecorder domainAudit;
         private final CoffeeDetailsRepository coffeeDetailsRepository;
 
         @Transactional
@@ -92,6 +99,8 @@ public class RoastLevelService {
                 var reloaded = roastLevelRepository.findBySlugWithTranslations(slug).orElse(roastLevel);
 
 
+                domainAudit.created(AuditAction.LOOKUP_CREATE, ENTITY, roastLevel.getId(), slug, lookupFields(reloaded, englishName));
+
                 return buildResponse(reloaded);
         }
 
@@ -99,6 +108,8 @@ public class RoastLevelService {
         public DashboardRoastLevelResponse update(String slug, RoastLevelRequest request) {
                 RoastLevel roastLevel = roastLevelRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(RoastLevelNotFoundException::new);
+
+                Map<String, Object> before = lookupFields(roastLevel);
                 
                 roastLevel.setColor(request.getColor());
 
@@ -131,6 +142,9 @@ public class RoastLevelService {
                 roastLevelRepository.save(roastLevel);
                 var reloaded = roastLevelRepository.findBySlugWithTranslations(roastLevel.getSlug()).orElse(roastLevel);
 
+                domainAudit.updated(AuditAction.LOOKUP_UPDATE, ENTITY, roastLevel.getId(), roastLevel.getSlug(),
+                                before, lookupFields(reloaded));
+
                 return buildResponse(reloaded);
         }
 
@@ -145,6 +159,9 @@ public class RoastLevelService {
 
                 roastLevel.softDelete();
                 roastLevelRepository.save(roastLevel);
+
+                domainAudit.softDeleted(AuditAction.LOOKUP_DELETE, ENTITY, roastLevel.getId(), slug,
+                                roastLevel.getDeletedAt());
         }
 
         public RoastLevelResponse getBySlug(String slug) {
@@ -176,6 +193,36 @@ public class RoastLevelService {
                                 search,
                                filter.toPageable());
                 return PageResponse.of(page.map(this::buildResponse));
+        }
+
+        /**
+         * Create-time snapshot.
+         *
+         * <p>The translations are written through their own repository, so the
+         * entity's collection is still empty inside this transaction and a read of
+         * it would record a null name. The English name the admin submitted is the
+         * label the row records.
+         */
+        private static Map<String, Object> lookupFields(RoastLevel entity, String englishName) {
+                Map<String, Object> fields = lookupFields(entity);
+                fields.put("name", englishName);
+                return fields;
+        }
+
+        /**
+         * The change-visible state of one roast level, for an audit row: what the
+         * dashboard shows an editor, and nothing only a DB admin reads.
+         */
+        private static Map<String, Object> lookupFields(RoastLevel roastLevel) {
+                Map<String, Object> fields = new LinkedHashMap<>();
+                fields.put("slug", roastLevel.getSlug());
+                fields.put("color", roastLevel.getColor());
+                String name = roastLevel.getTranslations() == null ? null : roastLevel.getTranslations().stream()
+                                .filter(t -> "en".equals(t.getLanguage()))
+                                .map(RoastLevelTranslation::getName)
+                                .findFirst().orElse(null);
+                fields.put("name", name);
+                return fields;
         }
 
         private RoastLevelResponse buildResponse(RoastLevel roastLevel, String language) {

@@ -3,14 +3,17 @@ package com.nocteon.nocteon_api.pairing.service;
 import java.time.Instant;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.DomainAuditRecorder;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.dto.TranslationResponse;
@@ -39,10 +42,14 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class PairingService {
+
+        /** The entity_type every row for this catalogue records. */
+        private static final String ENTITY = "Pairing";
         
         private final PairingRepository pairingRepository;
         private final PairingTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
+        private final DomainAuditRecorder domainAudit;
 
 
         @Transactional
@@ -94,6 +101,8 @@ public class PairingService {
                 var reloaded = pairingRepository.findBySlugWithTranslations(slug).orElse(pairing);
 
 
+                domainAudit.created(AuditAction.LOOKUP_CREATE, ENTITY, pairing.getId(), slug, lookupFields(reloaded, englishName));
+
                 return buildResponse(reloaded);
         }
 
@@ -101,6 +110,8 @@ public class PairingService {
         public PairingResponseDashboard update(String slug, PairingRequest request, MultipartFile image) {
                 Pairing pairing = pairingRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(PairingNotFoundException::new);
+
+                Map<String, Object> before = lookupFields(pairing);
 
                 if (image != null && !image.isEmpty()) {
                         helper.deleteMediaIfExists(pairing.getImageUrl());
@@ -136,6 +147,9 @@ public class PairingService {
                 pairingRepository.save(pairing);
                 var reloaded = pairingRepository.findBySlugWithTranslations(pairing.getSlug()).orElse(pairing);
 
+                domainAudit.updated(AuditAction.LOOKUP_UPDATE, ENTITY, pairing.getId(), pairing.getSlug(),
+                                before, lookupFields(reloaded));
+
                 return buildResponse(reloaded);
         }
 
@@ -160,6 +174,9 @@ public class PairingService {
                                 .orElseThrow(PairingNotFoundException::new);
                 pairing.softDelete();
                 pairingRepository.save(pairing);
+
+                domainAudit.softDeleted(AuditAction.LOOKUP_DELETE, ENTITY, pairing.getId(), slug,
+                                pairing.getDeletedAt());
         }
 
         public PairingResponse getBySlug(String slug) {
@@ -193,6 +210,36 @@ public class PairingService {
                                 filter.toPageable());
                 return PageResponse.of(
                                 page.map(this::buildResponse));
+        }
+
+        /**
+         * Create-time snapshot.
+         *
+         * <p>The translations are written through their own repository, so the
+         * entity's collection is still empty inside this transaction and a read of
+         * it would record a null name. The English name the admin submitted is the
+         * label the row records.
+         */
+        private static Map<String, Object> lookupFields(Pairing entity, String englishName) {
+                Map<String, Object> fields = lookupFields(entity);
+                fields.put("name", englishName);
+                return fields;
+        }
+
+        /**
+         * The change-visible state of one pairing, for an audit row: what the
+         * dashboard shows an editor, and nothing only a DB admin reads.
+         */
+        private static Map<String, Object> lookupFields(Pairing pairing) {
+                Map<String, Object> fields = new LinkedHashMap<>();
+                fields.put("slug", pairing.getSlug());
+                fields.put("imageUrl", pairing.getImageUrl());
+                String name = pairing.getTranslations() == null ? null : pairing.getTranslations().stream()
+                                .filter(t -> "en".equals(t.getLanguage()))
+                                .map(PairingTranslation::getName)
+                                .findFirst().orElse(null);
+                fields.put("name", name);
+                return fields;
         }
 
         private PairingResponse buildResponse(Pairing pairing, String language) {

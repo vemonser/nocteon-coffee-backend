@@ -15,6 +15,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.DomainAuditRecorder;
 import com.nocteon.nocteon_api.auth.entity.User;
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
@@ -60,6 +62,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class JournalService {
 
+        private static final String POST_ENTITY = "JournalPost";
+        private static final String CATEGORY_ENTITY = "JournalCategory";
+
         private final JournalPostRepository postRepository;
         private final ProductRepository productRepository;
         private final JournalPostTranslationRepository translationRepository;
@@ -68,6 +73,7 @@ public class JournalService {
         private final LookupServiceHelper helper;
         private final HtmlSanitizer htmlSanitizer;
         private final RichTextImageService richTextImageService;
+        private final DomainAuditRecorder domainAudit;
 
         private static final int WORDS_PER_MINUTE = 200;
 
@@ -153,6 +159,10 @@ public class JournalService {
                                         .build());
                 }
                 categoryRepository.save(category);
+
+                domainAudit.created(AuditAction.JOURNAL_CATEGORY_CREATE, CATEGORY_ENTITY, category.getId(), slug,
+                                categoryFields(category));
+
                 log.info("Journal category created: {}", slug);
                 return toCategoryResponse(category);
         }
@@ -162,6 +172,8 @@ public class JournalService {
                 helper.validateTranslations(request.getTranslations());
                 JournalCategory category = categoryRepository.findByIdWithTranslations(id)
                                 .orElseThrow(JournalCategoryNotFoundException::new);
+
+                Map<String, Object> before = categoryFields(category);
 
                 for (JournalCategoryTranslationRequest t : request.getTranslations()) {
                         JournalCategoryTranslation translation = category.getTranslations().stream()
@@ -179,6 +191,10 @@ public class JournalService {
                         translation.setName(t.getName());
                 }
                 categoryRepository.save(category);
+
+                domainAudit.updated(AuditAction.JOURNAL_CATEGORY_UPDATE, CATEGORY_ENTITY, category.getId(),
+                                category.getSlug(), before, categoryFields(category));
+
                 log.info("Journal category renamed: {}", category.getSlug());
                 return toCategoryResponse(category);
         }
@@ -199,6 +215,10 @@ public class JournalService {
                 }
                 category.softDelete();
                 categoryRepository.save(category);
+
+                domainAudit.softDeleted(AuditAction.JOURNAL_CATEGORY_DELETE, CATEGORY_ENTITY, category.getId(),
+                                category.getSlug(), category.getDeletedAt());
+
                 log.info("Journal category deleted: {}", category.getSlug());
         }
 
@@ -321,6 +341,9 @@ public class JournalService {
                         postRepository.save(savedPost);
                 }
 
+                domainAudit.created(AuditAction.JOURNAL_POST_CREATE, POST_ENTITY, savedPost.getId(), slug,
+                                postFields(savedPost, englishTitleOf(request.getTranslations())));
+
                 log.info("Journal post created with slug: {}", slug);
                 return getDashboardBySlug(slug);
         }
@@ -345,6 +368,8 @@ public class JournalService {
                 JournalPost post = postRepository.findBySlugForDashboard(slug)
                                 .orElseThrow(JournalPostNotFoundException::new);
 
+                Map<String, Object> before = postFields(post, null);
+
                 JournalCategory category = categoryRepository.findBySlug(request.getCategorySlug())
                                 .orElseThrow(JournalCategoryNotFoundException::new);
 
@@ -365,6 +390,9 @@ public class JournalService {
                 updateProductLinks(post, request.getProductSlugs());
 
                 postRepository.save(post);
+
+                domainAudit.updated(AuditAction.JOURNAL_POST_UPDATE, POST_ENTITY, post.getId(), post.getSlug(),
+                                before, postFields(post, englishTitleOf(request.getTranslations())));
 
                 log.info("Journal post updated with slug: {}", slug);
                 return getDashboardBySlug(slug);
@@ -424,6 +452,63 @@ public class JournalService {
 
                 post.softDelete();
                 postRepository.save(post);
+
+                domainAudit.softDeleted(AuditAction.JOURNAL_POST_DELETE, POST_ENTITY, post.getId(), slug,
+                                post.getDeletedAt());
+        }
+
+        /**
+         * The change-visible state of one category, for an audit row.
+         */
+        private static Map<String, Object> categoryFields(JournalCategory category) {
+                Map<String, Object> fields = new LinkedHashMap<>();
+                fields.put("slug", category.getSlug());
+                String name = category.getTranslations() == null ? null : category.getTranslations().stream()
+                                .filter(t -> "en".equals(t.getLanguage()))
+                                .map(JournalCategoryTranslation::getName)
+                                .findFirst().orElse(null);
+                fields.put("name", name);
+                return fields;
+        }
+
+        /**
+         * The change-visible state of one post, for an audit row.
+         *
+         * <p>{@code titleOverride} is the English title the editor submitted. The translation row
+         * is written through its own repository, so the entity's collection can still be one
+         * flush behind on a language the post did not have yet; the submitted title is the value
+         * the admin actually changed. {@code publishedAt} is an ISO string because the audit
+         * writer's ObjectMapper has no java.time support.
+         */
+        private static Map<String, Object> postFields(JournalPost post, String titleOverride) {
+                Map<String, Object> fields = new LinkedHashMap<>();
+                fields.put("slug", post.getSlug());
+                fields.put("status", post.getStatus() == null ? null : post.getStatus().name());
+                fields.put("featured", post.isFeatured());
+                fields.put("categorySlug",
+                                post.getJournalCategory() == null ? null : post.getJournalCategory().getSlug());
+                fields.put("publishedAt", post.getPublishedAt() == null ? null : post.getPublishedAt().toString());
+                String title = titleOverride;
+                if (title == null && post.getTranslations() != null) {
+                        title = post.getTranslations().stream()
+                                        .filter(t -> "en".equals(t.getLanguage()))
+                                        .map(JournalPostTranslation::getTitle)
+                                        .findFirst().orElse(null);
+                }
+                fields.put("title", title);
+                return fields;
+        }
+
+        /** The English title of the submitted form, or null when the payload has none. */
+        private static String englishTitleOf(List<JournalPostTranslationRequest> translations) {
+                if (translations == null) {
+                        return null;
+                }
+                return translations.stream()
+                                .filter(t -> "en".equals(t.getLanguage()))
+                                .findFirst()
+                                .map(JournalPostTranslationRequest::getTitle)
+                                .orElse(null);
         }
 
         /**
