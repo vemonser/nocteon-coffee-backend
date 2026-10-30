@@ -109,6 +109,11 @@ class ProductMutationServiceReindexTest {
     @Mock
     private HtmlSanitizer htmlSanitizer;
 
+    // The delete path asks TrashRules whether anything still references the
+    // product; without the mock the injected instance is null.
+    @Mock
+    private com.nocteon.nocteon_api.common.service.TrashRules trashRules;
+
     @Mock
     private ProductTagService productTagService;
 
