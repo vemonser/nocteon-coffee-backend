@@ -55,6 +55,8 @@ class JournalCategoryServiceTest {
 
     @Mock
     private RichTextImageService richTextImageService;
+    @Mock
+    private com.nocteon.nocteon_api.audit.service.DomainAuditRecorder domainAudit;
 
     @InjectMocks
     private JournalService service;

@@ -3,15 +3,18 @@ package com.nocteon.nocteon_api.farm.service;
 import java.time.Instant;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.DomainAuditRecorder;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
@@ -50,11 +53,15 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FarmService {
 
+        /** The entity_type every row for this catalogue records. */
+        private static final String ENTITY = "Farm";
+
         private final ProductRepository productRepository;
         private final FarmRepository farmRepository;
         private final FarmTranslationRepository farmTranslationRepository;
         private final OriginRepository originRepository;
         private final LookupServiceHelper helper;
+        private final DomainAuditRecorder domainAudit;
         private final ProductResponseMapper productResponseMapper;
 
         @Transactional(readOnly = true)
@@ -150,6 +157,8 @@ public class FarmService {
                 log.info("Farm created with slug: {}", slug);
                 var reloaded = farmRepository.findBySlugWithTranslations(slug).orElse(farm);
 
+                domainAudit.created(AuditAction.LOOKUP_CREATE, ENTITY, farm.getId(), slug, lookupFields(reloaded, englishName));
+
                 return buildResponse(reloaded);
         }
 
@@ -164,6 +173,8 @@ public class FarmService {
         public DashboardFarmResponse update(String slug, FarmRequest request, MultipartFile image) {
                 Farm farm = farmRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(FarmNotFoundException::new);
+
+                Map<String, Object> before = lookupFields(farm);
 
                 if (request.getOriginSlug() != null) {
                         Origin origin = originRepository.findBySlug(request.getOriginSlug())
@@ -207,6 +218,9 @@ public class FarmService {
                 farmRepository.save(farm);
                 var reloaded = farmRepository.findBySlugWithTranslations(farm.getSlug()).orElse(farm);
 
+                domainAudit.updated(AuditAction.LOOKUP_UPDATE, ENTITY, farm.getId(), farm.getSlug(),
+                                before, lookupFields(reloaded));
+
                 return buildResponse(reloaded);
         }
 
@@ -236,7 +250,41 @@ public class FarmService {
 
                 farm.softDelete();
                 farmRepository.save(farm);
+
+                domainAudit.softDeleted(AuditAction.LOOKUP_DELETE, ENTITY, farm.getId(), slug,
+                                farm.getDeletedAt());
                 log.info("Farm soft deleted: {}", slug);
+        }
+
+        /**
+         * Create-time snapshot.
+         *
+         * <p>The translations are written through their own repository, so the
+         * entity's collection is still empty inside this transaction and a read of
+         * it would record a null name. The English name the admin submitted is the
+         * label the row records.
+         */
+        private static Map<String, Object> lookupFields(Farm entity, String englishName) {
+                Map<String, Object> fields = lookupFields(entity);
+                fields.put("name", englishName);
+                return fields;
+        }
+
+        /**
+         * The change-visible state of one farm, for an audit row: what the
+         * dashboard shows an editor, and nothing only a DB admin reads.
+         */
+        private static Map<String, Object> lookupFields(Farm farm) {
+                Map<String, Object> fields = new LinkedHashMap<>();
+                fields.put("slug", farm.getSlug());
+                fields.put("imageUrl", farm.getImageUrl());
+                fields.put("originSlug", farm.getOrigin() == null ? null : farm.getOrigin().getSlug());
+                String name = farm.getTranslations() == null ? null : farm.getTranslations().stream()
+                                .filter(t -> "en".equals(t.getLanguage()))
+                                .map(FarmTranslation::getName)
+                                .findFirst().orElse(null);
+                fields.put("name", name);
+                return fields;
         }
 
         private FarmResponse buildResponse(Farm farm, String language) {

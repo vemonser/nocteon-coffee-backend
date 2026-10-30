@@ -53,7 +53,8 @@ class ProductTagServiceTest {
         // Real slug arithmetic and real translation validation; only the advisory lock is stubbed
         // (it needs a database).
         helper = mock(LookupServiceHelper.class, CALLS_REAL_METHODS);
-        service = new ProductTagService(tagRepository, helper);
+        service = new ProductTagService(tagRepository, helper,
+                mock(com.nocteon.nocteon_api.audit.service.DomainAuditRecorder.class));
     }
 
     private void stubNameLock() {

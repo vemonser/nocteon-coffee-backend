@@ -3,10 +3,11 @@ package com.nocteon.nocteon_api.brewingMethod.service;
 import java.time.Instant;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -22,6 +23,8 @@ import com.nocteon.nocteon_api.brewingMethod.entity.BrewingMethod;
 import com.nocteon.nocteon_api.brewingMethod.entity.BrewingMethodTranslation;
 import com.nocteon.nocteon_api.brewingMethod.repository.BrewingMethodRepository;
 import com.nocteon.nocteon_api.brewingMethod.repository.BrewingMethodTranslationRepository;
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.DomainAuditRecorder;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.dto.TranslationResponse;
@@ -45,9 +48,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class BrewingMethodService {
 
+        /** The entity_type every row for this catalogue records. */
+        private static final String ENTITY = "BrewingMethod";
+
         private final BrewingMethodRepository brewingMethodRepository;
         private final BrewingMethodTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
+        private final DomainAuditRecorder domainAudit;
         private final ProductBrewingMethodRepository productBrewingMethodRepository;
         private final ProductResponseMapper productResponseMapper;
 
@@ -129,6 +136,8 @@ public class BrewingMethodService {
                 var reloaded = brewingMethodRepository.findBySlugWithTranslations(slug).orElse(brewingMethod);
 
 
+                domainAudit.created(AuditAction.LOOKUP_CREATE, ENTITY, brewingMethod.getId(), slug, lookupFields(reloaded, englishName));
+
                 return buildResponse(reloaded);
         }
 
@@ -136,6 +145,8 @@ public class BrewingMethodService {
         public BrewingMethodResponseDashboard update(String slug, BrewingMethodRequest request) {
                 BrewingMethod brewingMethod = brewingMethodRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(BrewingMethodNotFoundException::new);
+
+                Map<String, Object> before = lookupFields(brewingMethod);
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
                         helper.validateTranslations(request.getTranslations());
@@ -166,6 +177,9 @@ public class BrewingMethodService {
                 brewingMethodRepository.save(brewingMethod);
                 var reloaded = brewingMethodRepository.findBySlugWithTranslations(brewingMethod.getSlug()).orElse(brewingMethod);
 
+                domainAudit.updated(AuditAction.LOOKUP_UPDATE, ENTITY, brewingMethod.getId(), brewingMethod.getSlug(),
+                                before, lookupFields(reloaded));
+
                 return buildResponse(reloaded);
         }
 
@@ -175,6 +189,9 @@ public class BrewingMethodService {
                                 .orElseThrow(BrewingMethodNotFoundException::new);
                 brewingMethod.softDelete();
                 brewingMethodRepository.save(brewingMethod);
+
+                domainAudit.softDeleted(AuditAction.LOOKUP_DELETE, ENTITY, brewingMethod.getId(), slug,
+                                brewingMethod.getDeletedAt());
         }
 
         public BrewingMethodResponse getBySlug(String slug) {
@@ -203,6 +220,35 @@ public class BrewingMethodService {
 
                 return PageResponse.of(
                                 page.map(this::buildResponse));
+        }
+
+        /**
+         * Create-time snapshot.
+         *
+         * <p>The translations are written through their own repository, so the
+         * entity's collection is still empty inside this transaction and a read of
+         * it would record a null name. The English name the admin submitted is the
+         * label the row records.
+         */
+        private static Map<String, Object> lookupFields(BrewingMethod entity, String englishName) {
+                Map<String, Object> fields = lookupFields(entity);
+                fields.put("name", englishName);
+                return fields;
+        }
+
+        /**
+         * The change-visible state of one brewing method, for an audit row: what the
+         * dashboard shows an editor, and nothing only a DB admin reads.
+         */
+        private static Map<String, Object> lookupFields(BrewingMethod brewingMethod) {
+                Map<String, Object> fields = new LinkedHashMap<>();
+                fields.put("slug", brewingMethod.getSlug());
+                String name = brewingMethod.getTranslations() == null ? null : brewingMethod.getTranslations().stream()
+                                .filter(t -> "en".equals(t.getLanguage()))
+                                .map(BrewingMethodTranslation::getName)
+                                .findFirst().orElse(null);
+                fields.put("name", name);
+                return fields;
         }
 
         private BrewingMethodResponse buildResponse(BrewingMethod brewingMethod, String language) {

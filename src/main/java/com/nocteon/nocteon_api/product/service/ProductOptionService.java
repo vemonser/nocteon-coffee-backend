@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.Objects;
@@ -14,6 +15,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.DomainAuditRecorder;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.dto.TranslationResponse;
@@ -57,12 +60,16 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ProductOptionService {
 
+    /** The entity_type every row for this catalogue records. */
+    private static final String ENTITY = "ProductOption";
+
     private final ProductOptionRepository optionRepository;
     private final ProductOptionTranslationRepository optionTranslationRepository;
     private final ProductOptionValueRepository valueRepository;
     private final ProductOptionValueTranslationRepository valueTranslationRepository;
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final DomainAuditRecorder domainAudit;
 
     // ===== Options CRUD =====
 
@@ -95,6 +102,9 @@ public class ProductOptionService {
         }
         optionTranslationRepository.saveAll(translations);
 
+        domainAudit.created(AuditAction.PRODUCT_OPTION_CREATE, ENTITY, option.getId(), slug,
+                optionFields(option, englishName));
+
         return buildResponse(option, LocaleContextHolder.getLocale().getLanguage());
     }
 
@@ -102,6 +112,8 @@ public class ProductOptionService {
     public ProductOptionResponse update(Long optionId, ProductOptionRequest request) {
         ProductOption option = optionRepository.findById(optionId)
                 .orElseThrow(ProductOptionNotFoundException::new);
+
+        Map<String, Object> before = optionFields(option);
 
         if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
             validateNameTranslations(request.getTranslations());
@@ -128,6 +140,10 @@ public class ProductOptionService {
         }
 
         optionRepository.save(option);
+
+        domainAudit.updated(AuditAction.PRODUCT_OPTION_UPDATE, ENTITY, option.getId(), option.getSlug(),
+                before, optionFields(option));
+
         return buildResponse(option, LocaleContextHolder.getLocale().getLanguage());
     }
 
@@ -142,11 +158,16 @@ public class ProductOptionService {
             throw new OptionInUseException(variantCount);
         }
 
+        Map<String, Object> oldValues = optionFields(option);
+
         for (ProductOptionValue v : option.getValues()) {
             productVariantRepository.removeValueFromVariants(v.getId());
         }
 
         optionRepository.delete(option);
+
+        domainAudit.deleted(AuditAction.PRODUCT_OPTION_DELETE, ENTITY, option.getId(), option.getSlug(),
+                oldValues);
     }
 
     @Transactional(readOnly = true)
@@ -454,6 +475,35 @@ public class ProductOptionService {
             map.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
         }
         return map;
+    }
+
+    /**
+     * Create-time snapshot: the translations are written through their own
+     * repository, so the entity's collection is still empty inside this
+     * transaction. The submitted English name is the label the row records.
+     */
+    private static Map<String, Object> optionFields(ProductOption option, String englishName) {
+        Map<String, Object> fields = optionFields(option);
+        fields.put("name", englishName);
+        return fields;
+    }
+
+    /**
+     * The change-visible state of one option, for an audit row.
+     *
+     * <p>A hard delete has no entity left to point at, so this same snapshot is
+     * what a PRODUCT_OPTION_DELETE row keeps as its {@code old_values}.
+     */
+    private static Map<String, Object> optionFields(ProductOption option) {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("slug", option.getSlug());
+        fields.put("sortOrder", option.getSortOrder());
+        String name = option.getTranslations() == null ? null : option.getTranslations().stream()
+                .filter(t -> "en".equals(t.getLanguage()))
+                .map(ProductOptionTranslation::getName)
+                .findFirst().orElse(null);
+        fields.put("name", name);
+        return fields;
     }
 
     private ProductOptionResponse buildResponse(ProductOption option, String language) {

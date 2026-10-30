@@ -3,9 +3,10 @@ package com.nocteon.nocteon_api.coffeeVariety.service;
 import java.time.Instant;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,8 @@ import com.nocteon.nocteon_api.coffeeVariety.entity.CoffeeVarietyTranslation;
 import com.nocteon.nocteon_api.coffeeVariety.repository.CoffeeVarietyRepository;
 import com.nocteon.nocteon_api.product.repository.CoffeeDetailsRepository;
 import com.nocteon.nocteon_api.coffeeVariety.repository.CoffeeVarietyTranslationRepository;
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.DomainAuditRecorder;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.dto.TranslationResponse;
@@ -39,9 +42,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class CoffeeVarietyService {
 
+        /** The entity_type every row for this catalogue records. */
+        private static final String ENTITY = "CoffeeVariety";
+
         private final CoffeeVarietyRepository coffeeVarietyRepository;
         private final CoffeeVarietyTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
+        private final DomainAuditRecorder domainAudit;
         private final CoffeeDetailsRepository coffeeDetailsRepository;
 
         @Transactional
@@ -91,6 +98,8 @@ public class CoffeeVarietyService {
                 var reloaded = coffeeVarietyRepository.findBySlugWithTranslations(slug).orElse(coffeeVariety);
 
 
+                domainAudit.created(AuditAction.LOOKUP_CREATE, ENTITY, coffeeVariety.getId(), slug, lookupFields(reloaded, englishName));
+
                 return buildResponse(reloaded);
         }
 
@@ -98,6 +107,8 @@ public class CoffeeVarietyService {
         public CoffeeVarietyResponseDashboard update(String slug, CoffeeVarietyRequest request) {
                 CoffeeVariety coffeeVariety = coffeeVarietyRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(CoffeeVarietyNotFoundException::new);
+
+                Map<String, Object> before = lookupFields(coffeeVariety);
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
                         helper.validateTranslations(request.getTranslations());
@@ -128,6 +139,9 @@ public class CoffeeVarietyService {
                 coffeeVarietyRepository.save(coffeeVariety);
                 var reloaded = coffeeVarietyRepository.findBySlugWithTranslations(coffeeVariety.getSlug()).orElse(coffeeVariety);
 
+                domainAudit.updated(AuditAction.LOOKUP_UPDATE, ENTITY, coffeeVariety.getId(), coffeeVariety.getSlug(),
+                                before, lookupFields(reloaded));
+
                 return buildResponse(reloaded);
         }
 
@@ -142,6 +156,9 @@ public class CoffeeVarietyService {
 
                 coffeeVariety.softDelete();
                 coffeeVarietyRepository.save(coffeeVariety);
+
+                domainAudit.softDeleted(AuditAction.LOOKUP_DELETE, ENTITY, coffeeVariety.getId(), slug,
+                                coffeeVariety.getDeletedAt());
         }
 
         public CoffeeVarietyResponse getBySlug(String slug) {
@@ -177,6 +194,35 @@ public class CoffeeVarietyService {
 
                 return PageResponse.of(
                                 page.map(this::buildResponse));
+        }
+
+        /**
+         * Create-time snapshot.
+         *
+         * <p>The translations are written through their own repository, so the
+         * entity's collection is still empty inside this transaction and a read of
+         * it would record a null name. The English name the admin submitted is the
+         * label the row records.
+         */
+        private static Map<String, Object> lookupFields(CoffeeVariety entity, String englishName) {
+                Map<String, Object> fields = lookupFields(entity);
+                fields.put("name", englishName);
+                return fields;
+        }
+
+        /**
+         * The change-visible state of one coffee variety, for an audit row: what the
+         * dashboard shows an editor, and nothing only a DB admin reads.
+         */
+        private static Map<String, Object> lookupFields(CoffeeVariety coffeeVariety) {
+                Map<String, Object> fields = new LinkedHashMap<>();
+                fields.put("slug", coffeeVariety.getSlug());
+                String name = coffeeVariety.getTranslations() == null ? null : coffeeVariety.getTranslations().stream()
+                                .filter(t -> "en".equals(t.getLanguage()))
+                                .map(CoffeeVarietyTranslation::getName)
+                                .findFirst().orElse(null);
+                fields.put("name", name);
+                return fields;
         }
 
         private CoffeeVarietyResponse buildResponse(CoffeeVariety coffeeVariety, String language) {

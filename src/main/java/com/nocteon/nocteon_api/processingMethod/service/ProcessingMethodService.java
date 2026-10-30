@@ -3,13 +3,16 @@ package com.nocteon.nocteon_api.processingMethod.service;
 import java.time.Instant;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.DomainAuditRecorder;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.dto.TranslationResponse;
@@ -39,9 +42,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ProcessingMethodService {
 
+        /** The entity_type every row for this catalogue records. */
+        private static final String ENTITY = "ProcessingMethod";
+
         private final ProcessingMethodRepository processingMethodRepository;
         private final ProcessingMethodTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
+        private final DomainAuditRecorder domainAudit;
         private final CoffeeDetailsRepository coffeeDetailsRepository;
 
         public PageResponse<ProcessingMethodResponse> getAll(LookupFilterRequest filter) {
@@ -125,6 +132,8 @@ public class ProcessingMethodService {
 
                 log.info("ProcessingMethod created with slug: {}", slug);
                 var reloaded = processingMethodRepository.findBySlugWithTranslations(slug).orElse(processingMethod);
+                domainAudit.created(AuditAction.LOOKUP_CREATE, ENTITY, processingMethod.getId(), slug, lookupFields(reloaded, englishName));
+
                 return buildResponse(reloaded);
         }
 
@@ -133,6 +142,8 @@ public class ProcessingMethodService {
                 ProcessingMethod processingMethod = processingMethodRepository
                                 .findBySlugWithTranslations(slug)
                                 .orElseThrow(ProcessingMethodNotFoundException::new);
+
+                Map<String, Object> before = lookupFields(processingMethod);
 
                 if (request.getTranslations() != null && !request.getTranslations().isEmpty()) {
                         helper.validateTranslations(request.getTranslations());
@@ -164,6 +175,9 @@ public class ProcessingMethodService {
                 processingMethodRepository.save(processingMethod);
                 var reloaded = processingMethodRepository.findBySlugWithTranslations(processingMethod.getSlug()).orElse(processingMethod);
 
+                domainAudit.updated(AuditAction.LOOKUP_UPDATE, ENTITY, processingMethod.getId(), processingMethod.getSlug(),
+                                before, lookupFields(reloaded));
+
                 return buildResponse(reloaded);
         }
 
@@ -179,7 +193,39 @@ public class ProcessingMethodService {
 
                 processingMethod.softDelete();
                 processingMethodRepository.save(processingMethod);
+
+                domainAudit.softDeleted(AuditAction.LOOKUP_DELETE, ENTITY, processingMethod.getId(), slug,
+                                processingMethod.getDeletedAt());
                 log.info("ProcessingMethod soft deleted: {}", slug);
+        }
+
+        /**
+         * Create-time snapshot.
+         *
+         * <p>The translations are written through their own repository, so the
+         * entity's collection is still empty inside this transaction and a read of
+         * it would record a null name. The English name the admin submitted is the
+         * label the row records.
+         */
+        private static Map<String, Object> lookupFields(ProcessingMethod entity, String englishName) {
+                Map<String, Object> fields = lookupFields(entity);
+                fields.put("name", englishName);
+                return fields;
+        }
+
+        /**
+         * The change-visible state of one processing method, for an audit row: what the
+         * dashboard shows an editor, and nothing only a DB admin reads.
+         */
+        private static Map<String, Object> lookupFields(ProcessingMethod processingMethod) {
+                Map<String, Object> fields = new LinkedHashMap<>();
+                fields.put("slug", processingMethod.getSlug());
+                String name = processingMethod.getTranslations() == null ? null : processingMethod.getTranslations().stream()
+                                .filter(t -> "en".equals(t.getLanguage()))
+                                .map(ProcessingMethodTranslation::getName)
+                                .findFirst().orElse(null);
+                fields.put("name", name);
+                return fields;
         }
 
         private ProcessingMethodResponse buildResponse(ProcessingMethod processingMethod, String language) {

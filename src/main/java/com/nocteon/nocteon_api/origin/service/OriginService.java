@@ -3,15 +3,18 @@ package com.nocteon.nocteon_api.origin.service;
 import java.time.Instant;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.nocteon.nocteon_api.audit.enums.AuditAction;
+import com.nocteon.nocteon_api.audit.service.DomainAuditRecorder;
 import com.nocteon.nocteon_api.common.dto.LookupFilterRequest;
 import com.nocteon.nocteon_api.common.dto.PageResponse;
 import com.nocteon.nocteon_api.common.dto.TranslationResponse;
@@ -46,11 +49,15 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class OriginService {
 
+        /** The entity_type every row for this catalogue records. */
+        private static final String ENTITY = "Origin";
+
         private final OriginRepository originRepository;
         private final OriginTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
         private final ProductResponseMapper productResponseMapper;
         private final ProductRepository productRepository;
+        private final DomainAuditRecorder domainAudit;
 
         @Transactional(readOnly = true)
         public Page<ProductCardResponse> getProductsByOriginSlug(String slug, Pageable pageable) {
@@ -108,9 +115,10 @@ public class OriginService {
                 }
                 translationRepository.saveAll(translations);
 
-                log.info("Origin created with slug: {}", slug);
                 var reloaded = originRepository.findBySlugWithTranslations(slug).orElse(origin);
+                domainAudit.created(AuditAction.LOOKUP_CREATE, ENTITY, origin.getId(), slug, lookupFields(reloaded, englishName));
 
+                log.info("Origin created with slug: {}", slug);
                 return buildResponse(reloaded);
         }
 
@@ -118,6 +126,8 @@ public class OriginService {
         public DashboardOriginResponse update(String slug, OriginRequest request, MultipartFile image) {
                 Origin origin = originRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(OriginNotFoundException::new);
+
+                Map<String, Object> before = lookupFields(origin);
 
                 if (request.getCode() != null)
                         origin.setCode(request.getCode());
@@ -156,6 +166,9 @@ public class OriginService {
                 originRepository.save(origin);
                 var reloaded = originRepository.findBySlugWithTranslations(origin.getSlug()).orElse(origin);
 
+                domainAudit.updated(AuditAction.LOOKUP_UPDATE, ENTITY, origin.getId(), origin.getSlug(),
+                                before, lookupFields(reloaded));
+
                 return buildResponse(reloaded);
         }
 
@@ -185,7 +198,42 @@ public class OriginService {
 
                 origin.softDelete();
                 originRepository.save(origin);
+
+                domainAudit.softDeleted(AuditAction.LOOKUP_DELETE, ENTITY, origin.getId(), slug,
+                                origin.getDeletedAt());
+
                 log.info("Origin soft deleted: {}", slug);
+        }
+
+        /**
+         * Create-time snapshot.
+         *
+         * <p>The translations are written through their own repository, so the
+         * entity's collection is still empty inside this transaction and a read of
+         * it would record a null name. The English name the admin submitted is the
+         * label the row records.
+         */
+        private static Map<String, Object> lookupFields(Origin entity, String englishName) {
+                Map<String, Object> fields = lookupFields(entity);
+                fields.put("name", englishName);
+                return fields;
+        }
+
+        /**
+         * The change-visible state of one origin, for an audit row: what the dashboard
+         * shows an editor, and nothing only a DB admin reads.
+         */
+        private static Map<String, Object> lookupFields(Origin origin) {
+                Map<String, Object> fields = new LinkedHashMap<>();
+                fields.put("slug", origin.getSlug());
+                fields.put("code", origin.getCode());
+                fields.put("imageUrl", origin.getImageUrl());
+                String name = origin.getTranslations() == null ? null : origin.getTranslations().stream()
+                                .filter(t -> "en".equals(t.getLanguage()))
+                                .map(OriginTranslation::getName)
+                                .findFirst().orElse(null);
+                fields.put("name", name);
+                return fields;
         }
 
         public OriginResponse getBySlug(String slug) {
