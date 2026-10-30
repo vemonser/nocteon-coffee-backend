@@ -21,6 +21,9 @@ import com.nocteon.nocteon_api.common.exception.invalid.EntityInUseException;
 import com.nocteon.nocteon_api.common.exception.notFound.ProcessingMethodNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.service.TrashRules;
+import com.nocteon.nocteon_api.common.service.TrashRules.Reference;
+import com.nocteon.nocteon_api.common.service.TrashRules.Table;
 import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.processingMethod.dto.request.ProcessingMethodRequest;
 import com.nocteon.nocteon_api.processingMethod.dto.request.ProcessingMethodTranslationRequest;
@@ -49,6 +52,7 @@ public class ProcessingMethodService {
         private final ProcessingMethodTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
         private final DomainAuditRecorder domainAudit;
+        private final TrashRules trashRules;
         private final CoffeeDetailsRepository coffeeDetailsRepository;
 
         public PageResponse<ProcessingMethodResponse> getAll(LookupFilterRequest filter) {
@@ -186,10 +190,7 @@ public class ProcessingMethodService {
                 ProcessingMethod processingMethod = processingMethodRepository
                                 .findBySlugWithTranslations(slug)
                                 .orElseThrow(ProcessingMethodNotFoundException::new);
-
-                if (coffeeDetailsRepository.countByProcessingMethodId(processingMethod.getId()) > 0) {
-                        throw new EntityInUseException();
-                }
+                trashRules.refuseIfReferenced(Reference.COFFEE_DETAIL_PROCESSING_METHOD, processingMethod.getId());
 
                 processingMethod.softDelete();
                 processingMethodRepository.save(processingMethod);
@@ -367,9 +368,12 @@ public class ProcessingMethodService {
          */
         @Transactional
         public void permanentDelete(Long id) {
+                trashRules.refuseUnlessTrashed(Table.PROCESSING_METHODS, id);
                 ProcessingMethod processingMethod = processingMethodRepository.findDeletedById(id)
                                 .orElseThrow(ProcessingMethodNotFoundException::new);
                 processingMethodRepository.delete(processingMethod);
+                processingMethodRepository.flush();
+                domainAudit.permanentlyDeleted(ENTITY, id, processingMethod.getSlug(), processingMethod.getDeletedAt());
                 log.info("ProcessingMethod permanently deleted: {}", processingMethod.getSlug());
         }
 }

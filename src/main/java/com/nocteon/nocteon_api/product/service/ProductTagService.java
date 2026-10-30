@@ -14,9 +14,11 @@ import org.springframework.util.StringUtils;
 import com.nocteon.nocteon_api.audit.enums.AuditAction;
 import com.nocteon.nocteon_api.audit.service.DomainAuditRecorder;
 import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationException;
-import com.nocteon.nocteon_api.common.exception.invalid.ProductTagInUseException;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductTagNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.service.TrashRules;
+import com.nocteon.nocteon_api.common.service.TrashRules.Reference;
+import com.nocteon.nocteon_api.common.service.TrashRules.Table;
 import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.journal.dto.response.TranslationResponseDashboard;
 import com.nocteon.nocteon_api.product.dto.request.ProductTagRequest;
@@ -49,6 +51,7 @@ public class ProductTagService {
     private final ProductTagRepository tagRepository;
     private final LookupServiceHelper helper;
     private final DomainAuditRecorder domainAudit;
+    private final TrashRules trashRules;
 
     @Transactional(readOnly = true)
     public List<ProductTagResponseDashboard> getTags() {
@@ -153,10 +156,7 @@ public class ProductTagService {
     public void deleteTag(Long id) {
         ProductTag tag = tagRepository.findById(id)
                 .orElseThrow(ProductTagNotFoundException::new);
-        long products = tagRepository.countLinkedProducts(id);
-        if (products > 0) {
-            throw new ProductTagInUseException(products);
-        }
+        trashRules.refuseIfReferenced(Reference.PRODUCT_TAG_LINK, id);
         tag.softDelete();
         tagRepository.save(tag);
 
@@ -164,6 +164,44 @@ public class ProductTagService {
                 tag.getDeletedAt());
 
         log.info("Product tag deleted: {}", tag.getSlug());
+    }
+
+    /** Trashed tags, for the trash view. */
+    @Transactional(readOnly = true)
+    public List<ProductTagResponseDashboard> getDeletedTags() {
+        return tagRepository.findAllDeletedNative().stream()
+                .map(ProductTagService::toResponse)
+                .toList();
+    }
+
+    /** Un-delete a tag. Only a trashed id resolves, so a live id is a 404 like an unknown one. */
+    @Transactional
+    public void restore(Long id) {
+        ProductTag tag = tagRepository.findDeletedById(id)
+                .orElseThrow(ProductTagNotFoundException::new);
+        tag.setDeletedAt(null);
+        tagRepository.save(tag);
+        log.info("Product tag restored: {}", tag.getSlug());
+    }
+
+    /**
+     * Permanently deletes a trashed tag: the row, its translations and its product links.
+     *
+     * <p>Trash-only — a live tag answers 409, never a silent delete. A tag a product still
+     * carries is refused by the database (the link rows are its children, so nothing references
+     * it), but the flush keeps that refusal inside the request instead of letting it escape at
+     * commit as a 500.
+     */
+    @Transactional
+    public void permanentDelete(Long id) {
+        trashRules.refuseUnlessTrashed(Table.PRODUCT_TAGS, id);
+        ProductTag tag = tagRepository.findDeletedById(id)
+                .orElseThrow(ProductTagNotFoundException::new);
+        String slug = tag.getSlug();
+        tagRepository.delete(tag);
+        tagRepository.flush();
+        domainAudit.permanentlyDeleted(ENTITY, id, slug, tag.getDeletedAt());
+        log.info("Product tag permanently deleted: {}", slug);
     }
 
     /**

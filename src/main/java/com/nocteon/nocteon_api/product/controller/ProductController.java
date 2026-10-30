@@ -366,6 +366,33 @@ public class ProductController {
                 return ResponseEntity.ok(ApiResponse.success(null, "Tag deleted"));
         }
 
+        /** Trashed tags, for the trash view. Same gate as the trash action. */
+        @GetMapping("/dashboard/product-tags/deleted")
+        @PreAuthorize("hasAuthority('product:delete')")
+        public ResponseEntity<ApiResponse<List<ProductTagResponseDashboard>>> getDeletedTags() {
+                return ResponseEntity.ok(
+                                ApiResponse.success(productTagService.getDeletedTags(), "Deleted tags retrieved"));
+        }
+
+        @PatchMapping("/dashboard/product-tags/{id}/restore")
+        @PreAuthorize("hasAuthority('product:delete')")
+        public ResponseEntity<ApiResponse<Void>> restoreTag(@PathVariable Long id) {
+                productTagService.restore(id);
+                return ResponseEntity.ok(ApiResponse.success(null, "Tag restored"));
+        }
+
+        /**
+         * Permanently deletes a trashed tag. The row must already be in the trash: a live tag is
+         * refused with 409 rather than purged, because that is the one gesture the admin has not
+         * made.
+         */
+        @DeleteMapping("/dashboard/product-tags/{id}/permanent")
+        @PreAuthorize("hasAuthority('product:delete')")
+        public ResponseEntity<Void> permanentDeleteTag(@PathVariable Long id) {
+                productTagService.permanentDelete(id);
+                return ResponseEntity.noContent().build();
+        }
+
         @DeleteMapping("/dashboard/products/media/{mediaId}")
         @PreAuthorize("hasAuthority('product:update')")
         public ResponseEntity<ApiResponse<Void>> deleteMedia(

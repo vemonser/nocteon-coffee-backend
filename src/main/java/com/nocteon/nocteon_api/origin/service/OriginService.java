@@ -23,6 +23,9 @@ import com.nocteon.nocteon_api.common.exception.invalid.EntityInUseException;
 import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.service.TrashRules;
+import com.nocteon.nocteon_api.common.service.TrashRules.Reference;
+import com.nocteon.nocteon_api.common.service.TrashRules.Table;
 import com.nocteon.nocteon_api.common.transaction.AfterCommit;
 import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.origin.dto.request.OriginRequest;
@@ -58,6 +61,7 @@ public class OriginService {
         private final ProductResponseMapper productResponseMapper;
         private final ProductRepository productRepository;
         private final DomainAuditRecorder domainAudit;
+        private final TrashRules trashRules;
 
         @Transactional(readOnly = true)
         public Page<ProductCardResponse> getProductsByOriginSlug(String slug, Pageable pageable) {
@@ -191,10 +195,8 @@ public class OriginService {
         public void delete(String slug) {
                 Origin origin = originRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(OriginNotFoundException::new);
-
-                if (productRepository.countByOriginId(origin.getId()) > 0) {
-                        throw new EntityInUseException();
-                }
+                trashRules.refuseIfReferenced(Reference.PRODUCT_ORIGIN, origin.getId());
+                trashRules.refuseIfReferenced(Reference.FARM_ORIGIN, origin.getId());
 
                 origin.softDelete();
                 originRepository.save(origin);
@@ -447,6 +449,7 @@ public class OriginService {
          */
         @Transactional
         public void permanentDelete(Long id) {
+                trashRules.refuseUnlessTrashed(Table.ORIGINS, id);
                 Origin origin = originRepository.findDeletedById(id)
                                 .orElseThrow(OriginNotFoundException::new);
                 originRepository.delete(origin);
@@ -460,6 +463,7 @@ public class OriginService {
                         log.warn("Cloudinary delete failed for origin {} ({}): {}", slug, imageUrl, e.getMessage());
                     }
                 });
+                domainAudit.permanentlyDeleted(ENTITY, id, origin.getSlug(), origin.getDeletedAt());
                 log.info("Origin permanently deleted: {}", slug);
         }
 }

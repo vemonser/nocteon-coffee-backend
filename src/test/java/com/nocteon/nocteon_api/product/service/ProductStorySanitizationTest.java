@@ -118,7 +118,8 @@ class ProductStorySanitizationTest {
                 productVariantRepository, productResponseMapper, dashboardProductMapper,
                 productVariantService, productCoffeeDetailsService, productRelationService,
                 productIndexingService, htmlSanitizer, productTagService,
-                org.mockito.Mockito.mock(com.nocteon.nocteon_api.audit.service.AuditLogService.class));
+                org.mockito.Mockito.mock(com.nocteon.nocteon_api.audit.service.AuditLogService.class),
+                org.mockito.Mockito.mock(com.nocteon.nocteon_api.common.service.TrashRules.class));
     }
 
     private static ProductRequest request(String story) {

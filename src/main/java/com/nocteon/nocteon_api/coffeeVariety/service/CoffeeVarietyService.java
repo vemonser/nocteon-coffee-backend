@@ -30,6 +30,9 @@ import com.nocteon.nocteon_api.common.exception.invalid.EntityInUseException;
 import com.nocteon.nocteon_api.common.exception.notFound.CoffeeVarietyNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.service.TrashRules;
+import com.nocteon.nocteon_api.common.service.TrashRules.Reference;
+import com.nocteon.nocteon_api.common.service.TrashRules.Table;
 import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.common.repository.SearchPatterns;
 
@@ -49,6 +52,7 @@ public class CoffeeVarietyService {
         private final CoffeeVarietyTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
         private final DomainAuditRecorder domainAudit;
+        private final TrashRules trashRules;
         private final CoffeeDetailsRepository coffeeDetailsRepository;
 
         @Transactional
@@ -149,10 +153,7 @@ public class CoffeeVarietyService {
         public void delete(String slug) {
                 CoffeeVariety coffeeVariety = coffeeVarietyRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(CoffeeVarietyNotFoundException::new);
-
-                if (coffeeDetailsRepository.countByCoffeeVarietyId(coffeeVariety.getId()) > 0) {
-                        throw new EntityInUseException();
-                }
+                trashRules.refuseIfReferenced(Reference.COFFEE_DETAIL_VARIETY, coffeeVariety.getId());
 
                 coffeeVariety.softDelete();
                 coffeeVarietyRepository.save(coffeeVariety);
@@ -366,9 +367,12 @@ public class CoffeeVarietyService {
          */
         @Transactional
         public void permanentDelete(Long id) {
+                trashRules.refuseUnlessTrashed(Table.COFFEE_VARIETIES, id);
                 CoffeeVariety coffeeVariety = coffeeVarietyRepository.findDeletedById(id)
                                 .orElseThrow(CoffeeVarietyNotFoundException::new);
                 coffeeVarietyRepository.delete(coffeeVariety);
+                coffeeVarietyRepository.flush();
+                domainAudit.permanentlyDeleted(ENTITY, id, coffeeVariety.getSlug(), coffeeVariety.getDeletedAt());
                 log.info("CoffeeVariety permanently deleted: {}", coffeeVariety.getSlug());
         }
 }

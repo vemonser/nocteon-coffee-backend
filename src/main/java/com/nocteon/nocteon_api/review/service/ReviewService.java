@@ -28,6 +28,7 @@ import com.nocteon.nocteon_api.common.exception.notFound.ProductNotFoundExceptio
 import com.nocteon.nocteon_api.common.exception.notFound.ReviewNotFoundException;
 import com.nocteon.nocteon_api.common.exception.product.DuplicateReviewException;
 import com.nocteon.nocteon_api.common.security.ActorResolver;
+import com.nocteon.nocteon_api.common.service.TrashRules;
 import com.nocteon.nocteon_api.common.security.AuditActor;
 import com.nocteon.nocteon_api.notifications.event.ReviewCreatedEvent;
 import com.nocteon.nocteon_api.product.entity.Product;
@@ -56,6 +57,7 @@ public class ReviewService {
         private final ApplicationEventPublisher eventPublisher;
         private final OrderRepository orderRepository;
         private final AuditLogService auditLogService;
+        private final TrashRules trashRules;
 
         @Transactional
         public ReviewResponse create(ReviewRequest request, UserPrincipal principal) {
@@ -353,6 +355,46 @@ public class ReviewService {
                 review.softDelete();
                 reviewRepository.save(review);
                 auditDelete(review, before, ActorResolver.currentAuditActor(), false);
+        }
+
+        /**
+         * Un-delete a review: the author or a moderator changed their mind.
+         *
+         * <p>A live id is a not-found, exactly like the trashed-only reads the other domains use,
+         * so an accidental "restore" over a live review cannot change its state.
+         */
+        @Transactional
+        public void restore(Long reviewId) {
+                Review review = reviewRepository.findDeletedById(reviewId)
+                                .orElseThrow(ReviewNotFoundException::new);
+                review.setDeletedAt(null);
+                reviewRepository.save(review);
+                log.info("Review {} restored", reviewId);
+        }
+
+        /**
+         * Permanently deletes a trashed review.
+         *
+         * <p>Trash-only: a live review answers 409 ({@code error.delete.notInTrash}), because the
+         * dashboard's second step is the trash. Nothing references a review, so the delete itself
+         * cannot be refused — the flush is still here so a schema change that adds a reference
+         * would answer 409 instead of 500.
+         */
+        @Transactional
+        public void permanentDelete(Long reviewId) {
+                trashRules.refuseUnlessTrashed(TrashRules.Table.REVIEWS, reviewId);
+                Review review = reviewRepository.findDeletedById(reviewId)
+                                .orElseThrow(ReviewNotFoundException::new);
+                Map<String, Object> oldValues = new LinkedHashMap<>();
+                oldValues.put("productId", review.getProduct() == null ? null : review.getProduct().getId());
+                oldValues.put("rating", review.getRating());
+                oldValues.put("deletedAt",
+                                review.getDeletedAt() == null ? null : review.getDeletedAt().toString());
+                reviewRepository.delete(review);
+                reviewRepository.flush();
+                audit(AuditAction.ENTITY_PERMANENT_DELETE, review, oldValues, null, null,
+                                ActorResolver.currentAuditActor());
+                log.info("Review {} permanently deleted", reviewId);
         }
 
         // ─── the audit rows ──────────────────────────────────────────────────

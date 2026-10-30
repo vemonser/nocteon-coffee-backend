@@ -140,14 +140,6 @@ public interface JournalPostRepository extends JpaRepository<JournalPost, Long> 
 
         boolean existsBySlug(String slug);
 
-    /**
-     * Posts filed under a category, trashed ones included. A native count because
-     * {@code @SQLRestriction} would hide soft-deleted rows, and a category whose only posts are
-     * in the trash must still not disappear — restoring the post would leave it orphaned.
-     */
-    @Query(value = "SELECT COUNT(*) FROM journal_posts WHERE journal_category_id = :categoryId", nativeQuery = true)
-    long countAllByCategoryIdIncludingDeleted(@Param("categoryId") Long categoryId);
-
         /**
          * Trashed posts for the dashboard's deleted-items table.
          *

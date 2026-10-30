@@ -32,6 +32,9 @@ import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationExcept
 import com.nocteon.nocteon_api.common.exception.notFound.BrewingMethodNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.service.TrashRules;
+import com.nocteon.nocteon_api.common.service.TrashRules.Reference;
+import com.nocteon.nocteon_api.common.service.TrashRules.Table;
 import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.product.dto.response.ProductWithScoreResponse;
 import com.nocteon.nocteon_api.product.entity.ProductBrewingMethod;
@@ -55,6 +58,7 @@ public class BrewingMethodService {
         private final BrewingMethodTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
         private final DomainAuditRecorder domainAudit;
+        private final TrashRules trashRules;
         private final ProductBrewingMethodRepository productBrewingMethodRepository;
         private final ProductResponseMapper productResponseMapper;
 
@@ -187,6 +191,8 @@ public class BrewingMethodService {
         public void delete(String slug) {
                 BrewingMethod brewingMethod = brewingMethodRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(BrewingMethodNotFoundException::new);
+                trashRules.refuseIfReferenced(Reference.PRODUCT_BREWING_METHOD, brewingMethod.getId());
+
                 brewingMethod.softDelete();
                 brewingMethodRepository.save(brewingMethod);
 
@@ -391,9 +397,12 @@ public class BrewingMethodService {
          */
         @Transactional
         public void permanentDelete(Long id) {
+                trashRules.refuseUnlessTrashed(Table.BREWING_METHODS, id);
                 BrewingMethod brewingMethod = brewingMethodRepository.findDeletedById(id)
                                 .orElseThrow(BrewingMethodNotFoundException::new);
                 brewingMethodRepository.delete(brewingMethod);
+                brewingMethodRepository.flush();
+                domainAudit.permanentlyDeleted(ENTITY, id, brewingMethod.getSlug(), brewingMethod.getDeletedAt());
                 log.info("BrewingMethod permanently deleted: {}", brewingMethod.getSlug());
         }
 }

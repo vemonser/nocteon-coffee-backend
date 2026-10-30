@@ -32,9 +32,16 @@ public interface ProductTagRepository extends JpaRepository<ProductTag, Long> {
     boolean existsBySlugIncludingDeleted(@Param("slug") String slug);
 
     /**
-     * How many products point at this tag. Counts trashed products as well: the link survives a
-     * product's soft delete, so deleting the tag would leave a restored product without one.
+     * A trashed tag, read past {@code @SQLRestriction}.
+     *
+     * <p>Restore and permanent delete must see only the trash: a derived query would hide the
+     * trashed row (so restore could never find it) and hand back a live one (so a purge could
+     * delete something the admin never trashed).
      */
-    @Query(value = "SELECT COUNT(DISTINCT l.product_id) FROM product_tag_links l WHERE l.tag_id = :tagId", nativeQuery = true)
-    long countLinkedProducts(@Param("tagId") Long tagId);
+    @Query(value = "SELECT * FROM product_tags WHERE id = :id AND deleted_at IS NOT NULL", nativeQuery = true)
+    Optional<ProductTag> findDeletedById(@Param("id") Long id);
+
+    /** Every trashed tag, for the trash list. */
+    @Query(value = "SELECT * FROM product_tags WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC", nativeQuery = true)
+    List<ProductTag> findAllDeletedNative();
 }

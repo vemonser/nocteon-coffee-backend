@@ -25,6 +25,9 @@ import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException
 import com.nocteon.nocteon_api.common.exception.notFound.ProductNotFoundException;
 import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.service.TrashRules;
+import com.nocteon.nocteon_api.common.service.TrashRules.Reference;
+import com.nocteon.nocteon_api.common.service.TrashRules.Table;
 import com.nocteon.nocteon_api.common.security.ActorResolver;
 import com.nocteon.nocteon_api.common.security.AuditActor;
 import com.nocteon.nocteon_api.common.transaction.AfterCommit;
@@ -78,6 +81,7 @@ public class ProductMutationService {
     private final HtmlSanitizer htmlSanitizer;
     private final ProductTagService productTagService;
     private final AuditLogService auditLogService;
+    private final TrashRules trashRules;
 
     @Transactional
     public DashboardProductResponse create(ProductRequest request, List<MultipartFile> files) {
@@ -395,6 +399,12 @@ public class ProductMutationService {
         Product product = productRepository.findBySlugAndLanguage(
                 slug, LocaleContextHolder.getLocale().getLanguage())
                 .orElseThrow(ProductNotFoundException::new);
+        // An order line is the sales history: trashing the product would hide it from the
+        // catalogue while the order keeps pointing at its variants, and only a restore could
+        // put it back. A cart is the same problem one step earlier — the row would survive the
+        // trash and then block the purge forever.
+        trashRules.refuseIfReferenced(Reference.PRODUCT_ORDER_LINES, product.getId());
+        trashRules.refuseIfReferenced(Reference.PRODUCT_CART_ITEMS, product.getId());
         product.softDelete();
         productRepository.save(product);
         log.info("Product soft deleted: {}", slug);
@@ -430,6 +440,7 @@ public class ProductMutationService {
      */
     @Transactional
     public void permanentDelete(Long id) {
+        trashRules.refuseUnlessTrashed(Table.PRODUCTS, id);
         Product product = productRepository.findDeletedById(id)
                 .orElseThrow(ProductNotFoundException::new);
         List<String> mediaUrls = new ArrayList<>(product.getMedia()).stream()
@@ -441,6 +452,10 @@ public class ProductMutationService {
         productRepository.delete(product);
         productRepository.flush();
         String slug = product.getSlug();
+        Map<String, Object> deleted = new LinkedHashMap<>();
+        deleted.put("slug", slug);
+        deleted.put("deletedAt", product.getDeletedAt() == null ? null : product.getDeletedAt().toString());
+        audit(AuditAction.ENTITY_PERMANENT_DELETE, product, deleted, null, null);
         AfterCommit.run(() -> {
             for (String url : mediaUrls) {
                 try {

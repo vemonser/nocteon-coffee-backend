@@ -35,6 +35,9 @@ import com.nocteon.nocteon_api.common.exception.notFound.CategoryNotFoundExcepti
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.transaction.AfterCommit;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.service.TrashRules;
+import com.nocteon.nocteon_api.common.service.TrashRules.Reference;
+import com.nocteon.nocteon_api.common.service.TrashRules.Table;
 import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.product.dto.response.ProductCardResponse;
 import com.nocteon.nocteon_api.product.enums.MediaType;
@@ -57,6 +60,7 @@ public class CategoryService {
         private final CategoryTranslationRepository categoryTranslationRepository;
         private final LookupServiceHelper helper;
         private final DomainAuditRecorder domainAudit;
+        private final TrashRules trashRules;
         private final ProductResponseMapper productResponseMapper;
 
         @Transactional(readOnly = true)
@@ -144,10 +148,7 @@ public class CategoryService {
         public void delete(String slug) {
                 Category category = categoryRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(CategoryNotFoundException::new);
-
-                if (productRepository.countByCategoryId(category.getId()) > 0) {
-                        throw new EntityInUseException();
-                }
+                trashRules.refuseIfReferenced(Reference.PRODUCT_CATEGORY, category.getId());
 
                 category.softDelete();
                 categoryRepository.save(category);
@@ -454,6 +455,7 @@ public class CategoryService {
          */
         @Transactional
         public void permanentDelete(Long id) {
+                trashRules.refuseUnlessTrashed(Table.CATEGORIES, id);
                 Category category = categoryRepository.findDeletedById(id)
                                 .orElseThrow(CategoryNotFoundException::new);
                 categoryRepository.delete(category);
@@ -467,6 +469,7 @@ public class CategoryService {
                         log.warn("Cloudinary delete failed for category {} ({}): {}", slug, imageUrl, e.getMessage());
                     }
                 });
+                domainAudit.permanentlyDeleted(ENTITY, id, category.getSlug(), category.getDeletedAt());
                 log.info("Category permanently deleted: {}", slug);
         }
 }

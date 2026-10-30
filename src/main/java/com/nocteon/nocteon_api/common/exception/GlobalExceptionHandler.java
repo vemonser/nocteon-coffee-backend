@@ -29,7 +29,6 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.nocteon.nocteon_api.common.dto.ApiResponse;
 import com.nocteon.nocteon_api.common.exception.invalid.FieldValidationException;
-import com.nocteon.nocteon_api.common.exception.invalid.JournalCategoryInUseException;
 import com.nocteon.nocteon_api.common.exception.product.OptionInUseException;
 import com.nocteon.nocteon_api.common.exception.product.OptionValueInUseException;
 import com.nocteon.nocteon_api.common.exception.product.ValueExistsException;
@@ -269,22 +268,6 @@ public class GlobalExceptionHandler {
         }
 
         // ─── Custom API Exceptions ─────────────────────────────────────────────
-
-        @ExceptionHandler(JournalCategoryInUseException.class)
-        public ResponseEntity<ApiResponse<Object>> handleJournalCategoryInUse(
-                        JournalCategoryInUseException ex) {
-                java.util.Locale locale = LocaleContextHolder.getLocale();
-                String message = messageSource.getMessage(
-                                ex.getMessageKey(), ex.getMessageArgs(), ex.getMessageKey(), locale);
-                ApiResponse<Object> body = ApiResponse.builder()
-                                .success(false)
-                                .code("JOURNAL_CATEGORY_IN_USE")
-                                .message(message)
-                                .data(java.util.Map.of("postCount", ex.getPostCount()))
-                                .timestamp(java.time.Instant.now())
-                                .build();
-                return ResponseEntity.status(ex.getStatus()).body(body);
-        }
 
         @ExceptionHandler(OptionValueInUseException.class)
         public ResponseEntity<ApiResponse<Object>> handleOptionValueInUse(OptionValueInUseException ex) {

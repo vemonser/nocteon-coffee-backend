@@ -23,6 +23,9 @@ import com.nocteon.nocteon_api.common.exception.notFound.FarmNotFoundException;
 import com.nocteon.nocteon_api.common.exception.notFound.OriginNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.service.TrashRules;
+import com.nocteon.nocteon_api.common.service.TrashRules.Reference;
+import com.nocteon.nocteon_api.common.service.TrashRules.Table;
 import com.nocteon.nocteon_api.common.transaction.AfterCommit;
 import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.farm.dto.request.FarmFilterRequest;
@@ -62,6 +65,7 @@ public class FarmService {
         private final OriginRepository originRepository;
         private final LookupServiceHelper helper;
         private final DomainAuditRecorder domainAudit;
+        private final TrashRules trashRules;
         private final ProductResponseMapper productResponseMapper;
 
         @Transactional(readOnly = true)
@@ -243,10 +247,7 @@ public class FarmService {
         public void delete(String slug) {
                 Farm farm = farmRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(FarmNotFoundException::new);
-
-                if (productRepository.countByFarmId(farm.getId()) > 0) {
-                        throw new EntityInUseException();
-                }
+                trashRules.refuseIfReferenced(Reference.PRODUCT_FARM, farm.getId());
 
                 farm.softDelete();
                 farmRepository.save(farm);
@@ -439,6 +440,7 @@ public class FarmService {
          */
         @Transactional
         public void permanentDelete(Long id) {
+                trashRules.refuseUnlessTrashed(Table.FARMS, id);
                 Farm farm = farmRepository.findDeletedById(id)
                                 .orElseThrow(FarmNotFoundException::new);
                 farmRepository.delete(farm);
@@ -452,6 +454,7 @@ public class FarmService {
                         log.warn("Cloudinary delete failed for farm {} ({}): {}", slug, imageUrl, e.getMessage());
                     }
                 });
+                domainAudit.permanentlyDeleted(ENTITY, id, farm.getSlug(), farm.getDeletedAt());
                 log.info("Farm permanently deleted: {}", slug);
         }
 }

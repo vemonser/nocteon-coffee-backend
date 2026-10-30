@@ -306,3 +306,70 @@ No schema change, no checkout change, no invented rate — `taxAmount` stays out
 the order model until a business answer on inclusive vs exclusive pricing lands.
 Option A remains open if the store must show a separate tax line.
 
+
+## TRASH — a referenced row cannot be trashed; a trashed row can always be purged
+
+The owner's rule, in his words: "everything that has a soft delete should be
+permanently deletable once it is in the trash — and make sure I cannot put
+something in the trash while it is still referenced by a product or by anything
+else."
+
+Both halves live in one class, `common/service/TrashRules.java`:
+
+- `refuseIfReferenced(Reference, id)` — every reference is declared once, as a
+  native count plus the message key that names the referencing thing. Throwing
+  `EntityInUseException(key, count)` answers **409** with e.g. "Move to trash
+  refused — still linked to 3 product(s). Remove it from them first."
+- `refuseUnlessTrashed(Table, id)` — a permanent delete of a live row answers
+  **409** (`error.delete.notInTrash`), never a silent delete. An unknown id keeps
+  its **404**.
+- Permanent deletes call `flush()` inside the transaction, so a reference the
+  rules do not enumerate is refused by the database **inside the request** and the
+  global handler answers 409 — previously it escaped at commit as a 500.
+  Every permanent delete writes one `ENTITY_PERMANENT_DELETE` audit row
+  (`DomainAuditRecorder.permanentlyDeleted`), after the flush: a refused delete
+  leaves no row claiming a removal that did not happen.
+
+### The matrix
+
+| Entity | Trash action | Refused when referenced by | Permanent delete | Rule test |
+| --- | --- | --- | --- | --- |
+| Category | `DELETE /dashboard/categories/{slug}` | products | `…/{id}/permanent` | yes |
+| Origin | `…/origins/{slug}` | products, **farms** | `…/{id}/permanent` | yes |
+| Farm | `…/farms/{slug}` | products | `…/{id}/permanent` | yes |
+| Roast level | `…/roast-levels/{slug}` | coffee_details | `…/{id}/permanent` | yes |
+| Processing method | `…/processing-methods/{slug}` | coffee_details | `…/{id}/permanent` | yes |
+| Coffee variety | `…/coffee-varieties/{slug}` | coffee_details | `…/{id}/permanent` | yes |
+| Brewing method | `…/brewing-methods/{slug}` | product brew guide | `…/{id}/permanent` | yes |
+| Pairing | `…/pairings/{slug}` | products | `…/{id}/permanent` | yes |
+| Tasting note | `…/tasting-notes/{slug}` | products | `…/{id}/permanent` | yes |
+| Journal category | `…/journal-categories/{id}` | journal posts (trashed count too) | `…/{id}/permanent` | yes |
+| Product tag | `…/product-tags/{id}` | products | `…/{id}/permanent` (new), plus `/deleted` + `/restore` | yes |
+| Product | `…/products/{slug}` | order lines, cart items | `…/{id}/permanent` | yes |
+| Promo code | `…/promo-codes/{id}` | orders, order lines | `…/{id}/permanent` | yes |
+| Shipping zone | `…/shipping-zones/{id}` | nothing can point at it | `…/{id}/permanent` | allowed |
+| Journal post | `…/journal/{slug}` | nothing (pure history) | `…/{id}/permanent` | — |
+| Review | `…/reviews/{id}` | nothing (pure history) | `…/{id}/permanent` (new) + `/restore` | — |
+
+### Deliberately allowed
+
+- **Shipping zone** — no order stores a zone id; orders snapshot the address and
+  the cost, so a zone is never "still used by orders". Trash and purge both work.
+- **Journal post, review** — a post and a review are history. Nothing references
+  them (`product_journal_posts` and `reviews` cascade), so they trash and purge
+  freely.
+- **Product variants** — a variant is soft-deleted as part of editing its product
+  and is purged with the product; there is no per-variant trash screen, so no
+  separate purge endpoint exists. A product whose variants appear on an order
+  cannot reach the trash at all (`orderLines` rule), so this path is unreachable.
+- **Users and orders** carry `deleted_at` but expose **no** delete endpoint at
+  all — nothing can put them in the trash, so nothing can be stuck there. Rows
+  for the rules that would apply (`USER_ORDER`, `USER_JOURNAL_POST`) are declared
+  in `TrashRules.Reference` for the day a user trash screen exists.
+
+### Known gap (dashboard, not API)
+
+`GET /api/dashboard/product-tags/deleted` and `…/reviews` have no trash view in
+the dashboard yet: the tag page and the reviews console have no Active/Trash
+switch, so those two purge actions are reachable by API only. Everything the
+dashboard does show a trash tab for has a working "Delete permanently".

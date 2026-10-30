@@ -80,6 +80,24 @@ public class DomainAuditRecorder {
     }
 
     /**
+     * The row for a permanent delete: the item is gone, so the audit row is the only thing left
+     * that names it.
+     *
+     * <p>Always {@link AuditAction#ENTITY_PERMANENT_DELETE}, whichever domain the row belongs
+     * to: "this stopped existing" is one question, and answering it with a different action per
+     * entity is how a purge goes unrecorded. The entity type travels in the payload.
+     *
+     * <p>Called after the delete has been flushed, so a database refusal leaves no row claiming
+     * a removal that did not happen.
+     */
+    public void permanentlyDeleted(String entityType, Long entityId, String entitySlug, Instant deletedAt) {
+        Map<String, Object> oldValues = new LinkedHashMap<>();
+        oldValues.put("slug", entitySlug);
+        oldValues.put("deletedAt", deletedAt == null ? null : deletedAt.toString());
+        deleted(AuditAction.ENTITY_PERMANENT_DELETE, entityType, entityId, entitySlug, oldValues);
+    }
+
+    /**
      * The row for a hard delete, where there is nothing left to point at: the
      * {@code oldValues} are the entity's last state.
      */

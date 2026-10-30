@@ -153,4 +153,23 @@ public class ReviewController {
         reviewService.adminDelete(id);
         return ResponseEntity.noContent().build();
     }
+
+    /** Puts a trashed review back. A live or unknown id is a 404. */
+    @PatchMapping("/dashboard/reviews/{id}/restore")
+    @PreAuthorize("hasAuthority('review:delete')")
+    public ResponseEntity<ApiResponse<Void>> restore(@PathVariable Long id) {
+        reviewService.restore(id);
+        return ResponseEntity.ok(ApiResponse.success(null, "Review restored"));
+    }
+
+    /**
+     * Permanently deletes a trashed review. The row must already be in the trash: a live review
+     * answers 409 rather than vanishing, so the reversible step stays the only way in.
+     */
+    @DeleteMapping("/dashboard/reviews/{id}/permanent")
+    @PreAuthorize("hasAuthority('review:delete')")
+    public ResponseEntity<Void> permanentDelete(@PathVariable Long id) {
+        reviewService.permanentDelete(id);
+        return ResponseEntity.noContent().build();
+    }
 }

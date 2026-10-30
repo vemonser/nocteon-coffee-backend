@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -19,7 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.nocteon.nocteon_api.auth.repository.UserRepository;
-import com.nocteon.nocteon_api.common.exception.invalid.JournalCategoryInUseException;
+import com.nocteon.nocteon_api.common.exception.invalid.EntityInUseException;
 import com.nocteon.nocteon_api.common.exception.invalid.JournalCategorySlugTakenException;
 import com.nocteon.nocteon_api.common.service.HtmlSanitizer;
 import com.nocteon.nocteon_api.common.service.RichTextImageService;
@@ -57,6 +58,8 @@ class JournalCategoryServiceTest {
     private RichTextImageService richTextImageService;
     @Mock
     private com.nocteon.nocteon_api.audit.service.DomainAuditRecorder domainAudit;
+    @Mock
+    private com.nocteon.nocteon_api.common.service.TrashRules trashRules;
 
     @InjectMocks
     private JournalService service;
@@ -140,11 +143,14 @@ class JournalCategoryServiceTest {
     void refusesToDeleteACategoryThatStillHasPostsAndReportsTheCount() {
         JournalCategory category = JournalCategory.builder().id(3L).slug("guides").build();
         when(categoryRepository.findById(3L)).thenReturn(Optional.of(category));
-        when(postRepository.countAllByCategoryIdIncludingDeleted(3L)).thenReturn(4L);
+        doThrow(new EntityInUseException("error.delete.in.use.posts", 4))
+                .when(trashRules)
+                .refuseIfReferenced(com.nocteon.nocteon_api.common.service.TrashRules.Reference.JOURNAL_POST_CATEGORY,
+                        3L);
 
         assertThatThrownBy(() -> service.deleteCategory(3L))
-                .isInstanceOfSatisfying(JournalCategoryInUseException.class,
-                        ex -> assertThat(ex.getPostCount()).isEqualTo(4L));
+                .isInstanceOfSatisfying(EntityInUseException.class,
+                        ex -> assertThat(ex.getCount()).isEqualTo(4L));
         assertThat(category.getDeletedAt()).isNull();
     }
 
@@ -152,7 +158,6 @@ class JournalCategoryServiceTest {
     void softDeletesAnUnusedCategory() {
         JournalCategory category = JournalCategory.builder().id(3L).slug("guides").build();
         when(categoryRepository.findById(3L)).thenReturn(Optional.of(category));
-        when(postRepository.countAllByCategoryIdIncludingDeleted(3L)).thenReturn(0L);
         when(categoryRepository.save(category)).thenReturn(category);
 
         service.deleteCategory(3L);

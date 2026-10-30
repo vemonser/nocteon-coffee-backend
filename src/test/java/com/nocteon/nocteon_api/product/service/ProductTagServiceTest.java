@@ -6,7 +6,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -21,9 +23,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.nocteon.nocteon_api.common.exception.invalid.ProductTagInUseException;
+import com.nocteon.nocteon_api.common.exception.invalid.EntityInUseException;
 import com.nocteon.nocteon_api.common.exception.notFound.ProductTagNotFoundException;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.service.TrashRules;
+import com.nocteon.nocteon_api.common.service.TrashRules.Reference;
 import com.nocteon.nocteon_api.product.dto.request.ProductTagRequest;
 import com.nocteon.nocteon_api.product.dto.request.ProductTagTranslationRequest;
 import com.nocteon.nocteon_api.product.dto.response.ProductTagResponseDashboard;
@@ -46,15 +50,17 @@ class ProductTagServiceTest {
     private ProductTagRepository tagRepository;
 
     private LookupServiceHelper helper;
+    private TrashRules trashRules;
     private ProductTagService service;
 
     @BeforeEach
     void setUp() {
         // Real slug arithmetic and real translation validation; only the advisory lock is stubbed
-        // (it needs a database).
+        // (it needs a database). TrashRules is stubbed too: the reference counts are SQL.
         helper = mock(LookupServiceHelper.class, CALLS_REAL_METHODS);
+        trashRules = mock(TrashRules.class);
         service = new ProductTagService(tagRepository, helper,
-                mock(com.nocteon.nocteon_api.audit.service.DomainAuditRecorder.class));
+                mock(com.nocteon.nocteon_api.audit.service.DomainAuditRecorder.class), trashRules);
     }
 
     private void stubNameLock() {
@@ -105,14 +111,19 @@ class ProductTagServiceTest {
     @Test
     @DisplayName("a tag products still carry is refused with the count")
     void refusesDeletingATagInUse() {
-        when(tagRepository.findById(3L))
-                .thenReturn(Optional.of(tag(3L, "gift-boxes", "Gift boxes", "علب الهدايا")));
-        when(tagRepository.countLinkedProducts(3L)).thenReturn(4L);
-        when(tagRepository.countLinkedProducts(3L)).thenReturn(4L);
+        ProductTag inUse = tag(3L, "gift-boxes", "Gift boxes", "علب الهدايا");
+        when(tagRepository.findById(3L)).thenReturn(Optional.of(inUse));
+        doThrow(new EntityInUseException("error.delete.in.use.products", 4))
+                .when(trashRules).refuseIfReferenced(Reference.PRODUCT_TAG_LINK, 3L);
 
         assertThatThrownBy(() -> service.deleteTag(3L))
-                .isInstanceOf(ProductTagInUseException.class)
-                .satisfies(e -> assertThat(((ProductTagInUseException) e).getProductCount()).isEqualTo(4));
+                .isInstanceOf(EntityInUseException.class)
+                .satisfies(e -> assertThat(((EntityInUseException) e).getCount()).isEqualTo(4));
+
+        // The refusal must leave the row live: trashing it would hide the label its products
+        // show, and nothing would bring the products back without a restore.
+        assertThat(inUse.getDeletedAt()).isNull();
+        verify(tagRepository, never()).save(any());
     }
 
     @Test
@@ -120,7 +131,6 @@ class ProductTagServiceTest {
     void softDeletesAnUnusedTag() {
         ProductTag unused = tag(5L, "summer", "Summer", "الصيف");
         when(tagRepository.findById(5L)).thenReturn(Optional.of(unused));
-        when(tagRepository.countLinkedProducts(5L)).thenReturn(0L);
 
         service.deleteTag(5L);
 

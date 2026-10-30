@@ -19,6 +19,9 @@ import com.nocteon.nocteon_api.common.exception.invalid.InvalidTranslationExcept
 import com.nocteon.nocteon_api.common.exception.notFound.TastingNoteNotFoundException;
 import com.nocteon.nocteon_api.common.service.SoftDeleteRowFolder;
 import com.nocteon.nocteon_api.common.service.LookupServiceHelper;
+import com.nocteon.nocteon_api.common.service.TrashRules;
+import com.nocteon.nocteon_api.common.service.TrashRules.Reference;
+import com.nocteon.nocteon_api.common.service.TrashRules.Table;
 import com.nocteon.nocteon_api.common.util.SlugUtils;
 import com.nocteon.nocteon_api.tastingNote.dto.request.TastingNoteRequest;
 import com.nocteon.nocteon_api.tastingNote.dto.request.TastingNoteTranslationRequest;
@@ -47,6 +50,7 @@ public class TastingNoteService {
         private final TastingNoteTranslationRepository translationRepository;
         private final LookupServiceHelper helper;
         private final DomainAuditRecorder domainAudit;
+        private final TrashRules trashRules;
 
         public PageResponse<TastingNoteResponse> getAll(LookupFilterRequest filter) {
                 String language = LocaleContextHolder.getLocale().getLanguage();
@@ -174,6 +178,8 @@ public class TastingNoteService {
         public void delete(String slug) {
                 TastingNote tastingNote = tastingNoteRepository.findBySlugWithTranslations(slug)
                                 .orElseThrow(TastingNoteNotFoundException::new);
+                trashRules.refuseIfReferenced(Reference.PRODUCT_TASTING_NOTE, tastingNote.getId());
+
                 tastingNote.softDelete();
                 tastingNoteRepository.save(tastingNote);
 
@@ -349,9 +355,12 @@ public class TastingNoteService {
          */
         @Transactional
         public void permanentDelete(Long id) {
+                trashRules.refuseUnlessTrashed(Table.TASTING_NOTES, id);
                 TastingNote tastingNote = tastingNoteRepository.findDeletedById(id)
                                 .orElseThrow(TastingNoteNotFoundException::new);
                 tastingNoteRepository.delete(tastingNote);
+                tastingNoteRepository.flush();
+                domainAudit.permanentlyDeleted(ENTITY, id, tastingNote.getSlug(), tastingNote.getDeletedAt());
                 log.info("TastingNote permanently deleted: {}", tastingNote.getSlug());
         }
 }
