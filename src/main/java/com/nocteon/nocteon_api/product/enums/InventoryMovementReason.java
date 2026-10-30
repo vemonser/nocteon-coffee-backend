@@ -25,5 +25,13 @@ public enum InventoryMovementReason {
      * without a human editing a number: the quantity is what the customer sent
      * back, and {@code source_id} is the return that explains it.
      */
-    RETURN
+    RETURN,
+
+    /**
+     * A cancelled order that had already consumed stock put the units back
+     * (COD confirmed, or any order whose stock was taken off the shelf). The
+     * quantity is what the order held, and {@code source_id} is the order that
+     * explains it.
+     */
+    ORDER_CANCELLED
 }

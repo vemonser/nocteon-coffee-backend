@@ -62,6 +62,15 @@ class OrderServiceTest {
     @org.mockito.Mock
     private com.nocteon.nocteon_api.audit.service.AuditLogService auditLogService;
 
+    /**
+     * The stock ledger. A cancellation asks it what the order consumed before it
+     * restocks anything; a mock answers "nothing", which is what these
+     * transitions are about (the restock itself is proved by
+     * {@code OrderStatusServiceTest} and the integration test).
+     */
+    @org.mockito.Mock
+    private com.nocteon.nocteon_api.product.service.InventoryMovementService inventoryMovementService;
+
     @InjectMocks
     private OrderStatusService orderStatusService;
 

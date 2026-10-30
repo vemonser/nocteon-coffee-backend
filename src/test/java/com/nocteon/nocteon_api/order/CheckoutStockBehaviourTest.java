@@ -168,7 +168,12 @@ class CheckoutStockBehaviourTest {
                         mock(com.nocteon.nocteon_api.order.service.OrderQueryService.class),
                         variantRepository,
                         eventPublisher(),
-                        mock(com.nocteon.nocteon_api.audit.service.AuditLogService.class)),
+                        mock(com.nocteon.nocteon_api.audit.service.AuditLogService.class),
+                        // The real ledger, over the mocked repositories: the sweep
+                        // asks it what the order consumed (nothing — an unpaid order
+                        // only reserved), so a cancellation restocks nothing and the
+                        // reservation is released as before.
+                        inventoryService()),
                 variantRepository, paymentRepository);
 
         // Shared scaffolding: a cheap cart well below the free-shipping line.

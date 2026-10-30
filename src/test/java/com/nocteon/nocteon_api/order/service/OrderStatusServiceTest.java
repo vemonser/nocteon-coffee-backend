@@ -10,6 +10,7 @@ import com.nocteon.nocteon_api.order.exception.InvalidOrderStatusTransitionExcep
 import com.nocteon.nocteon_api.order.repository.OrderRepository;
 import com.nocteon.nocteon_api.order.repository.OrderStatusHistoryRepository;
 import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
+import com.nocteon.nocteon_api.product.service.InventoryMovementService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -20,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,6 +43,7 @@ class OrderStatusServiceTest {
     @Mock private OrderStatusHistoryRepository historyRepository;
     @Mock private OrderQueryService orderQueryService;
     @Mock private ProductVariantRepository variantRepository;
+    @Mock private InventoryMovementService inventoryMovementService;
     @Mock private ApplicationEventPublisher eventPublisher;
 
     @org.mockito.Mock
@@ -228,6 +231,34 @@ class OrderStatusServiceTest {
         orderStatusService.updateStatus(1L, request(OrderStatus.CONFIRMED), "admin");
 
         verify(eventPublisher, never()).publishEvent(any(com.nocteon.nocteon_api.order.event.OrderShippedEvent.class));
+    }
+
+    @Test
+    void aCancellationRestocksWhatTheLedgerSaysTheOrderConsumed() {
+        Order order = Order.builder().id(1L).status(OrderStatus.CONFIRMED).build();
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+        // The ledger is the authority: it reports 3 units out of variant 7.
+        when(inventoryMovementService.consumedByOrder(1L)).thenReturn(Map.of(7L, 3));
+
+        orderStatusService.updateStatus(1L, request(OrderStatus.CANCELLED), "admin@nocteon.test");
+
+        verify(inventoryMovementService).restockForCancelledOrder(
+                7L, 3, "Customer changed their mind", "admin@nocteon.test", 1L);
+    }
+
+    @Test
+    void aCancellationThatConsumedNoStockRestocksNothing() {
+        Order order = Order.builder().id(1L).status(OrderStatus.PENDING).build();
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+        // An unpaid order only reserved its units: the ledger has nothing to mirror.
+        when(inventoryMovementService.consumedByOrder(1L)).thenReturn(Map.of());
+
+        orderStatusService.updateStatus(1L, request(OrderStatus.CANCELLED), "admin");
+
+        verify(inventoryMovementService, never())
+                .restockForCancelledOrder(anyLong(), anyInt(), any(), any(), any());
     }
 
     @Test

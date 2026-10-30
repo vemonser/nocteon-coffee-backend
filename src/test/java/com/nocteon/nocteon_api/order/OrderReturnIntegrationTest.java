@@ -62,6 +62,7 @@ import com.nocteon.nocteon_api.product.enums.ProductType;
 import com.nocteon.nocteon_api.product.repository.InventoryMovementRepository;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
+import com.nocteon.nocteon_api.product.service.InventoryMovementService;
 import com.nocteon.nocteon_api.support.TestJwtKeys;
 
 import jakarta.persistence.EntityManager;
@@ -105,6 +106,8 @@ class OrderReturnIntegrationTest {
     private ProductVariantRepository variantRepository;
     @Autowired
     private InventoryMovementRepository movementRepository;
+    @Autowired
+    private InventoryMovementService movementLog;
     @Autowired
     private ProductRepository productRepository;
     @Autowired
@@ -340,10 +343,11 @@ class OrderReturnIntegrationTest {
         // The shelf moved: 7 + 2.
         assertThat(variantRepository.findStockById(variant.getId())).isEqualTo(9);
 
-        // And the FE-13 log explains it — one row, with the real numbers.
-        List<InventoryMovement> rows = movementRepository.findAll().stream()
-                .filter(row -> variant.getId().equals(row.getVariantId()))
-                .toList();
+        // And the FE-13 log explains it — one row, with the real numbers. Read
+        // THIS variant's rows only: scanning the whole table maps every row in
+        // the database, and a legacy reason the enum no longer knows would fail
+        // the read before the filter runs.
+        List<InventoryMovement> rows = movementLog.recent(variant.getId(), InventoryMovementService.MAX_HISTORY);
         assertThat(rows).hasSize(1);
         InventoryMovement row = rows.get(0);
         assertThat(row.getStockBefore()).isEqualTo(7);

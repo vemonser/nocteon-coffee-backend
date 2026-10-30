@@ -26,7 +26,9 @@ import com.nocteon.nocteon_api.order.exception.CancellationReasonRequiredExcepti
 import com.nocteon.nocteon_api.order.exception.InvalidOrderStatusTransitionException;
 import com.nocteon.nocteon_api.order.repository.OrderRepository;
 import com.nocteon.nocteon_api.order.repository.OrderStatusHistoryRepository;
+import com.nocteon.nocteon_api.product.enums.InventoryMovementReason;
 import com.nocteon.nocteon_api.product.repository.ProductVariantRepository;
+import com.nocteon.nocteon_api.product.service.InventoryMovementService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * The order's status machine.
  *
- * <p>Three rules, and the third is the reason this class exists:
+ * <p>Four rules, and the third is the reason this class exists:
  *
  * <ol>
  *   <li>Only the transitions in {@link #ALLOWED_TRANSITIONS} happen. A
@@ -46,6 +48,11 @@ import lombok.extern.slf4j.Slf4j;
  *   <li>The cancellation reason is REQUIRED, and the shipment timestamps
  *       follow the status: an order that becomes SHIPPED is stamped as
  *       shipped, and one that becomes DELIVERED is stamped as delivered.</li>
+ *   <li>A cancellation gives back what the order ACTUALLY took: the consumed
+ *       units are restocked from the stock ledger (see
+ *       {@link #restockConsumedStock}), and the reservation is released as it
+ *       always was. An order that only reserved — never consumed — gets its
+ *       reservation back and nothing else.</li>
  * </ol>
  */
 @Service
@@ -59,6 +66,7 @@ public class OrderStatusService {
         private final ProductVariantRepository variantRepository;
         private final ApplicationEventPublisher eventPublisher;
         private final AuditLogService auditLogService;
+        private final InventoryMovementService inventoryMovementService;
 
         /**
          * The transitions the order may make.
@@ -166,8 +174,14 @@ public class OrderStatusService {
 
                 order.setStatus(newStatus);
 
+                int restockedUnits = 0;
                 if (newStatus == OrderStatus.CANCELLED) {
                         order.setCancellationReason(request.getReason());
+                        // Before releaseStock: that one hands the RESERVATION back
+                        // (a no-op for units already consumed), this one puts the
+                        // CONSUMED units back. An order can be in both states at
+                        // once only across its lines, never for one line.
+                        restockedUnits = restockConsumedStock(order, request.getReason(), actor);
                         releaseStock(order);
                 } else if (newStatus == OrderStatus.SHIPPED) {
                         if (order.getShippedAt() == null) {
@@ -192,7 +206,7 @@ public class OrderStatusService {
                 // on that.
                 Order changed = order;
                 order = orderRepository.save(order);
-                auditStatusChange(changed, currentStatus, newStatus, request);
+                auditStatusChange(changed, currentStatus, newStatus, request, restockedUnits);
 
                 // The history row is written in the same transaction: if this
                 // fails, the status change is rolled back with it.
@@ -252,6 +266,33 @@ public class OrderStatusService {
                 historyRepository.save(new OrderStatusHistory(order, null, initialStatus, null, actor, false));
         }
 
+        /**
+         * Restock the units a cancelled order had already taken off the shelf.
+         *
+         * <p>The question is answered by the stock ledger, not by the payment
+         * method or the status: {@link InventoryMovementService#consumedByOrder}
+         * reports what the order ACTUALLY consumed, and an order that never took
+         * anything answers with nothing. That covers the three cases that must
+         * write no row — an unpaid order (units only reserved), an order that was
+         * pending and never confirmed, and a second cancellation (the first one
+         * already mirrored the rows, and {@code CANCELLED} is terminal).
+         *
+         * @return the units put back, or {@code 0} when nothing was consumed
+         */
+        private int restockConsumedStock(Order order, String reason, String actor) {
+                Map<Long, Integer> consumed = inventoryMovementService.consumedByOrder(order.getId());
+                if (consumed.isEmpty()) {
+                        return 0;
+                }
+                int units = 0;
+                for (Map.Entry<Long, Integer> line : consumed.entrySet()) {
+                        inventoryMovementService.restockForCancelledOrder(
+                                        line.getKey(), line.getValue(), reason, actor, order.getId());
+                        units += line.getValue();
+                }
+                return units;
+        }
+
         /** Give the reserved stock back to the shelf. */
         private void releaseStock(Order order) {
                 for (var item : order.getItems()) {
@@ -271,7 +312,7 @@ public class OrderStatusService {
          * serialises with a plain ObjectMapper, which has no java.time support.
          */
         private void auditStatusChange(Order order, OrderStatus from, OrderStatus to,
-                        UpdateOrderStatusRequest request) {
+                        UpdateOrderStatusRequest request, int restockedUnits) {
                 AuditAction action = to == OrderStatus.CANCELLED
                                 ? AuditAction.ORDER_CANCEL
                                 : AuditAction.ORDER_STATUS_CHANGE;
@@ -295,6 +336,15 @@ public class OrderStatusService {
                 Map<String, Object> metadata = new LinkedHashMap<>();
                 metadata.put("note", request.getNote());
                 metadata.put("notifyCustomer", request.isNotifyCustomer());
+                if (to == OrderStatus.CANCELLED && restockedUnits > 0) {
+                        // The restock is part of THIS cancellation, not an action of
+                        // its own: the audit page must not show two rows for one
+                        // decision. The metadata says units went back, how many, and
+                        // which ledger reason explains them.
+                        metadata.put("restocked", true);
+                        metadata.put("restockedUnits", restockedUnits);
+                        metadata.put("restockReason", InventoryMovementReason.ORDER_CANCELLED.name());
+                }
 
                 AuditActor actor = ActorResolver.currentAuditActor();
                 auditLogService.logSuccess(action, actor.userId(), actor.userEmail(),

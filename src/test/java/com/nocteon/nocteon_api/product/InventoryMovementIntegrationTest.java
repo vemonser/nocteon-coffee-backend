@@ -389,9 +389,10 @@ class InventoryMovementIntegrationTest {
     // ─── fixtures ────────────────────────────────────────────────────────────
 
     private InventoryMovement onlyRow() {
-        List<InventoryMovement> rows = movementRepository.findAll().stream()
-                .filter(row -> variant.getId().equals(row.getVariantId()))
-                .toList();
+        // Read THIS variant's rows only: scanning the whole table maps every row
+        // in the database, and one legacy reason value that the current enum no
+        // longer knows would fail the read before the filter ever runs.
+        List<InventoryMovement> rows = movements.recent(variant.getId(), InventoryMovementService.MAX_HISTORY);
         assertThat(rows).hasSize(1);
         return rows.get(0);
     }
