@@ -15,3 +15,17 @@ services:
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
       AI_EMBEDDING_PROVIDER: ollama
+
+# NOTE (no NVIDIA GPU): the `ollama` service in docker-compose.yml reserves a GPU
+# (`deploy.resources.reservations.devices: nvidia`), so on a CPU-only machine
+# `--profile local-ai up -d ollama` fails with
+#   could not select device driver "nvidia"
+# Run the same image without that reservation instead, on the compose network:
+#
+#   docker run -d --name ollama --network <project>_default \
+#     -v nocteon-ollama-data:/root/.ollama ollama/ollama:latest
+#   docker exec ollama ollama pull nomic-embed-text
+#   docker compose -f docker-compose.yml -f docker-compose.local-ai.yml up -d app
+#
+# Verified on this machine: the app reaches ollama:11434, the index reports
+# stale=0 after a reindex, and GET /api/products?semantic=true answers.
