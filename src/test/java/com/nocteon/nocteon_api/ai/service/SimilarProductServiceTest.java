@@ -9,7 +9,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.document.Document;
@@ -63,8 +62,18 @@ class SimilarProductServiceTest {
     @Mock
     private AttributeSimilarityFallback fallback;
 
-    @InjectMocks
     private SimilarProductService service;
+
+    @BeforeEach
+    void buildService() {
+        service = new SimilarProductService(
+                VectorStoreProviders.of(vectorStore),
+                aiSearchService,
+                documentFactory,
+                productRepository,
+                productResponseMapper,
+                fallback);
+    }
 
     /**
      * Pinned rather than inherited from {@code Locale.getDefault()} so the language handed to
@@ -134,6 +143,7 @@ class SimilarProductServiceTest {
 
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(true);
+        when(aiSearchService.isSemanticIndexAvailable()).thenReturn(true);
         lenient().when(documentFactory.buildText(source)).thenReturn("Name: Source");
         when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(source, other));
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
@@ -154,6 +164,7 @@ class SimilarProductServiceTest {
 
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(true);
+        when(aiSearchService.isSemanticIndexAvailable()).thenReturn(true);
         lenient().when(documentFactory.buildText(source)).thenReturn("Name: Source");
         when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(source, product(2L, "other")));
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
@@ -174,6 +185,7 @@ class SimilarProductServiceTest {
 
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(true);
+        when(aiSearchService.isSemanticIndexAvailable()).thenReturn(true);
         lenient().when(documentFactory.buildText(source)).thenReturn("Name: Source");
         // Nothing indexed yet: the only hit is the source's own document.
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
@@ -204,6 +216,7 @@ class SimilarProductServiceTest {
 
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(true);
+        when(aiSearchService.isSemanticIndexAvailable()).thenReturn(true);
         lenient().when(documentFactory.buildText(source)).thenReturn("Name: Source");
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenReturn(List.of(hit(3L, 0.23), hit(2L, 0.91)));
@@ -230,6 +243,7 @@ class SimilarProductServiceTest {
 
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(true);
+        when(aiSearchService.isSemanticIndexAvailable()).thenReturn(true);
         lenient().when(documentFactory.buildText(source)).thenReturn("Name: Source");
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenReturn(List.of(hit(1L, 1.0), hit(2L, 0.5)));
@@ -258,6 +272,7 @@ class SimilarProductServiceTest {
 
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(true);
+        when(aiSearchService.isSemanticIndexAvailable()).thenReturn(true);
         when(documentFactory.buildText(source)).thenReturn("Name: Source\nOrigin: ethiopia");
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(hit(2L, 0.5)));
         lenient().when(productRepository.findAllByIdInWithDetails(anyList())).thenReturn(List.of(other));
@@ -279,6 +294,7 @@ class SimilarProductServiceTest {
 
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(true);
+        when(aiSearchService.isSemanticIndexAvailable()).thenReturn(true);
         lenient().when(documentFactory.buildText(source)).thenReturn("text");
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(hit(2L, 0.5)));
         lenient().when(productRepository.findAllByIdInWithDetails(anyList())).thenReturn(List.of(other));
@@ -352,6 +368,7 @@ class SimilarProductServiceTest {
 
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(true);
+        when(aiSearchService.isSemanticIndexAvailable()).thenReturn(true);
         lenient().when(documentFactory.buildText(source)).thenReturn("text");
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenReturn(List.of(noScore, badId, hit(2L, 0.5)));
@@ -459,6 +476,7 @@ class SimilarProductServiceTest {
 
         when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
         when(aiSearchService.isSearchEnabled()).thenReturn(true);
+        when(aiSearchService.isSemanticIndexAvailable()).thenReturn(true);
         lenient().when(documentFactory.buildText(source)).thenReturn("text");
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenReturn(List.of(hit(2L, 0.8), hit(3L, 0.4)));
@@ -525,5 +543,40 @@ class SimilarProductServiceTest {
         when(fallback.rank(any(), any())).thenReturn(Map.of());
 
         assertThat(service.findSimilar("src", 8)).isEmpty();
+    }
+
+    // --- degradation path 4: there is no index at all ----------------------------------
+
+    /**
+     * Keyword-only mode — no embedding provider configured, so no {@code VectorStore} bean —
+     * behaves as an ordinary "no semantic signal" and falls through to attributes. This is the
+     * fourth degradation path and the one the deployment actually runs in when nobody set a key.
+     */
+    @Test
+    void returnsAttributeFallbackWhenThereIsNoVectorStoreAtAll() {
+        Product source = source();
+        Product other = product(2L, "other");
+
+        SimilarProductService keywordOnly = new SimilarProductService(
+                VectorStoreProviders.absent(),
+                aiSearchService,
+                documentFactory,
+                productRepository,
+                productResponseMapper,
+                fallback);
+
+        when(productRepository.findBySlug("src")).thenReturn(java.util.Optional.of(source));
+        when(aiSearchService.isSearchEnabled()).thenReturn(true);
+        when(aiSearchService.isSemanticIndexAvailable()).thenReturn(false);
+        when(productRepository.findAllActiveForAiProjection()).thenReturn(List.of(source, other));
+        when(fallback.rank(source, List.of(source, other))).thenReturn(Map.of(2L, 0.4));
+        when(fallback.reason(source, other, 0.4, "en")).thenReturn("Similar origin: Ethiopia");
+        when(productResponseMapper.buildListResponse(other, "en")).thenReturn(card(2L));
+
+        List<SimilarProductResponse> results = keywordOnly.findSimilar("src", 8);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getReason()).isEqualTo("Similar origin: Ethiopia");
+        verifyNoInteractions(vectorStore);
     }
 }

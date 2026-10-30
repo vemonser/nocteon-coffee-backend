@@ -117,11 +117,14 @@ spring:
     # NONE of these are set here — not `chat`, and neither embedding selector.
     # They are derived from the environment:
     # ChatProviderEnvironmentPostProcessor from GROQ_API_KEY, and
-    # EmbeddingProviderEnvironmentPostProcessor from AI_EMBEDDING_PROVIDER (opt-in;
-    # Gemini is never selected just because GEMINI_API_KEY is present). A YAML
-    # placeholder cannot be conditional, and an environment post-processor runs
-    # before the context exists, which is the only point where the decision can
-    # still be made.
+    # EmbeddingProviderEnvironmentPostProcessor from, in this order:
+    #   AI_EMBEDDING_PROVIDER (the switch, and the only route to Ollama)
+    #   GEMINI_API_KEY        (preferred hosted provider)
+    #   EMBEDDING_API_KEY     (generic OpenAI-compatible provider)
+    #   nothing               (keyword-only: no EmbeddingModel, no vector index)
+    # A YAML placeholder cannot be conditional, and an environment post-processor
+    # runs before the context exists, which is the only point where the decision
+    # can still be made.
     #
     # Set either directly to override that decision — `AI_CHAT_PROVIDER=ollama`,
     # `AI_EMBEDDING_PROVIDER=gemini`, or `spring.ai.model.embedding.text=google-genai` / `=none`.
@@ -133,6 +136,11 @@ spring:
     # constructed with it, so an ambiguous one is a boot failure — so the
     # post-processor switches the rejected providers off rather than leaving their
     # selectors unset.
+    #
+    # Ollama is NOT the fallback. With no key at all the post-processor writes
+    # `spring.ai.vectorstore.type=none` and the app runs keyword-only; a local
+    # model server is a requirement nobody on a hosted deployment can satisfy, so
+    # defaulting to it would be a silent dependency rather than a graceful one.
     model:
       # No image or moderation model is used anywhere in this project, and the
       # OpenAI and Google starters would otherwise auto-configure both against a
@@ -152,34 +160,33 @@ spring:
         # so with `never` Spring AI never pulls and never contacts Ollama at startup.
         pull-model-strategy: never
       chat:
-        # The local fallback model. Used whenever GROQ_API_KEY is unset, which is
-        # the zero-configuration path: no API key, no account, no network.
+        # The local chat fallback. Used whenever GROQ_API_KEY is unset, which is
+        # the zero-configuration path for the assistant alone: no API key, no
+        # account, no network. Chat may fall back to a local model because a chat
+        # failure is visible to the one person who asked; the embedding model may
+        # not, because a silent fallback there corrupts the index instead.
         options:
           model: ${AI_LOCAL_CHAT_MODEL:qwen2.5:3b-instruct}
           temperature: 0.7
       embedding:
         options:
-          # Read whenever the embedding selector resolves to ollama, which is the
-          # default (including when GEMINI_API_KEY is set but Gemini was not
-          # explicitly requested). That is the zero-configuration path: no API
-          # key, no account, no network.
-          model: nomic-embed-text
+          # Read only when AI_EMBEDDING_PROVIDER=ollama — an explicit opt-in, never a
+          # default. `nomic-embed-text` emits 768 dimensions, matching `vector_store`.
+          model: ${EMBEDDING_OLLAMA_MODEL:nomic-embed-text}
 
     # Gemini embeddings, through the AI Studio API (a plain `GEMINI_API_KEY`).
     # NOT the Vertex AI path, which authenticates with Google Cloud credentials
     # and needs a billing-enabled Cloud project; the starter for that is a
     # different artifact (`spring-ai-starter-model-vertex-ai-embedding`).
     #
-    # Gemini is opt-in: it is used only when AI_EMBEDDING_PROVIDER=gemini (or
-    # spring.ai.model.embedding.text=google-genai) is set, alongside a non-blank
-    # GEMINI_API_KEY. Otherwise the post-processor selects Ollama and none of
-    # this is consulted. Groq has no embeddings endpoint, so it is never used
-    # here.
+    # This is the preferred hosted provider: a non-blank GEMINI_API_KEY selects it
+    # unless AI_EMBEDDING_PROVIDER says otherwise. Groq has no embeddings endpoint,
+    # so the chat key is never used here.
     google:
       genai:
         embedding:
           # Blank by default, never a committed value: an unset variable must
-          # leave the project on the local path rather than half-configured.
+          # leave the project on keyword-only search rather than half-configured.
           api-key: ${GEMINI_API_KEY:}
           text:
             # `gemini-embedding-2` rather than `gemini-embedding-001`: it
@@ -233,11 +240,42 @@ spring:
           model: ${GROQ_CHAT_MODEL:qwen/qwen3.8-27b}
           temperature: 0.7
 
+      # ── the generic OpenAI-compatible embedding provider ────────────────
+      # Same starter, different credentials: Spring AI's OpenAI client is one
+      # class of HTTP client, and every hosted vendor that speaks the
+      # OpenAI-compatible embeddings API (OpenAI, Together, Fireworks, DeepInfra,
+      # Voyage's compatible endpoint, a self-hosted vLLM, ...) is reachable from
+      # it without a code change. Selected by `AI_EMBEDDING_PROVIDER=openai-compatible`
+      # or, when the switch is unset, by a non-blank EMBEDDING_API_KEY.
+      #
+      # The embedding block overrides `base-url` and `api-key` per its own
+      # sub-properties — verified in the 2.0.1 bytecode: OpenAiAutoConfigurationUtil
+      # resolves the embedding-specific value first and falls back to the common
+      # one. That is exactly what lets chat stay on Groq while embeddings go to a
+      # different vendor.
+      #
+      # `dimensions` is sent as a request parameter. Vendors that do not accept it
+      # must be given a model that natively emits 768 — the width is not optional,
+      # because `vector_store` is `vector(768)`.
+      embedding:
+        base-url: ${EMBEDDING_BASE_URL:https://api.openai.com/v1}
+        api-key: ${EMBEDDING_API_KEY:}
+        model: ${EMBEDDING_MODEL:text-embedding-3-small}
+        dimensions: ${EMBEDDING_DIMENSIONS:768}
+
     vectorstore:
       pgvector:
         initialize-schema: true
         index-type: hnsw
         distance-type: cosine_distance
+        # The column width every embedding provider has to produce. It is part of
+        # the index fingerprint (EmbeddingModelFingerprint), so both this value and
+        # the provider's requested width have to change together.
+        #
+        # `type` is not set here: the post-processor writes
+        # `spring.ai.vectorstore.type=none` when no embedding provider is
+        # configured, which is what turns "no key" into keyword-only search
+        # instead of "PgVectorStore cannot be constructed".
         dimensions: 768
         max-document-batch-size: 100
 

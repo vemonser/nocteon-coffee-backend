@@ -3,10 +3,10 @@ package com.nocteon.nocteon_api.ai.service;
 import java.util.List;
 import java.util.Map;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.document.Document;
@@ -39,8 +39,12 @@ class AiSearchServiceTest {
     @Mock
     private AiProperties properties;
 
-    @InjectMocks
     private AiSearchService service;
+
+    @BeforeEach
+    void buildService() {
+        service = new AiSearchService(VectorStoreProviders.of(vectorStore), indexingService, properties);
+    }
 
     /**
      * Stubs both flags leniently, and that is deliberate rather than lazy.
@@ -284,7 +288,8 @@ class AiSearchServiceTest {
             }
         }).build();
 
-        AiSearchService hosted = new AiSearchService(geminiBacked, indexingService, properties);
+        AiSearchService hosted =
+                new AiSearchService(VectorStoreProviders.of(geminiBacked), indexingService, properties);
 
         assertThatCode(() -> hosted.semanticCandidates("fruity light roast", 20))
                 .doesNotThrowAnyException();
@@ -368,5 +373,40 @@ class AiSearchServiceTest {
         assertThatCode(() -> service.indexStats()).doesNotThrowAnyException();
         verify(indexingService).indexAll();
         verify(indexingService).stats();
+    }
+
+    // --- keyword-only mode --------------------------------------------------------------
+
+    /**
+     * With no embedding provider configured there is no vector store bean at all, and this is the
+     * shape the service has to tolerate: the optional dependency answers {@code null}.
+     */
+    @Test
+    void reportsNoSemanticIndexWhenThereIsNoVectorStore() {
+        AiSearchService keywordOnly =
+                new AiSearchService(VectorStoreProviders.absent(), indexingService, properties);
+
+        assertThat(keywordOnly.isSemanticIndexAvailable()).isFalse();
+    }
+
+    /** And it is available exactly when the bean is there, which is the only source of that fact. */
+    @Test
+    void reportsASemanticIndexWhenTheVectorStoreIsWired() {
+        assertThat(service.isSemanticIndexAvailable()).isTrue();
+    }
+
+    /**
+     * The no-index path must be silent: it is a configured mode, not a fault. A warning here
+     * would repeat on every catalog request of a keyword-only deployment.
+     */
+    @Test
+    void keywordOnlySearchReturnsNoCandidatesWithoutTouchingAnything() {
+        flags(true, true);
+        AiSearchService keywordOnly =
+                new AiSearchService(VectorStoreProviders.absent(), indexingService, properties);
+
+        assertThat(keywordOnly.semanticCandidates("fruity light roast", 20)).isEmpty();
+        verifyNoInteractions(vectorStore);
+        verifyNoInteractions(indexingService);
     }
 }

@@ -10,12 +10,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import com.nocteon.nocteon_api.ai.dto.response.AiIndexStatsResponse;
 import com.nocteon.nocteon_api.ai.dto.response.AiReindexResponse;
+import com.nocteon.nocteon_api.ai.exception.AiUnavailableException;
 import com.nocteon.nocteon_api.product.entity.Product;
 import com.nocteon.nocteon_api.product.repository.ProductRepository;
 
@@ -78,6 +80,16 @@ import lombok.extern.slf4j.Slf4j;
  * as the embedding calls take. That is deliberate: the alternative (loading
  * everything up front, then embedding outside the transaction) needs a second collaborator and
  * would put every catalog row in memory at once.
+ *
+ * <h2>Why the store is optional</h2>
+ * With no embedding provider configured the application runs keyword-only and no
+ * {@code VectorStore} bean exists at all — {@code PgVectorStore} is constructed with an
+ * {@code EmbeddingModel} and there is none (see
+ * {@link com.nocteon.nocteon_api.ai.config.EmbeddingProviderEnvironmentPostProcessor}). The two
+ * operations that are statements about an index — {@link #indexAll()} and {@link #stats()} — fail
+ * with {@link AiUnavailableException} rather than inventing zeros, while the single-product
+ * {@link #upsertById(Long) upsert} and {@link #remove(String) delete} paths return quietly: those
+ * are after-commit housekeeping, and a catalogue edit must never fail because indexing is off.
  */
 @Service
 @RequiredArgsConstructor
@@ -93,9 +105,30 @@ public class ProductIndexingService {
     /** One hit is enough: the document being looked for is its own text's nearest neighbour. */
     private static final int LOOKUP_TOP_K = 1;
 
-    private final VectorStore vectorStore;
+    private final ObjectProvider<VectorStore> vectorStore;
     private final ProductRepository productRepository;
     private final ProductDocumentFactory documentFactory;
+
+    /**
+     * The store, or a failure that says why there is none.
+     *
+     * <p>Used by the two operations that cannot mean anything without an index — a reindex and a
+     * drift report. Answering "0 indexed, 0 stale" would be a claim about the index rather than
+     * about the configuration, so they fail instead; the admin endpoint maps that to a 503 and the
+     * scheduler and boot hook already catch whatever comes out of them.
+     *
+     * @return the wired {@link VectorStore}
+     * @throws AiUnavailableException when no embedding provider is configured
+     */
+    private VectorStore requireStore() {
+        VectorStore store = vectorStore.getIfAvailable();
+        if (store == null) {
+            // Keyword-only mode has no index, by configuration. Raised rather than logged because
+            // every caller of these two methods is a person or a job asking about the index.
+            throw new AiUnavailableException();
+        }
+        return store;
+    }
 
     /**
      * Set for the duration of a run so a second caller — the scheduler and the admin endpoint
@@ -125,6 +158,7 @@ public class ProductIndexingService {
      */
     @Transactional
     public AiReindexResponse indexAll() {
+        VectorStore store = requireStore();
         if (!reindexInProgress.compareAndSet(false, true)) {
             log.warn("AI reindex already in progress, skipping this run");
             return AiReindexResponse.builder().indexed(0).skipped(0).durationMs(0).build();
@@ -136,7 +170,7 @@ public class ProductIndexingService {
             int skipped = 0;
 
             for (Document document : loadActiveDocuments()) {
-                if (isAlreadyIndexed(document)) {
+                if (isAlreadyIndexed(document, store)) {
                     skipped++;
                 } else {
                     changed.add(document);
@@ -145,7 +179,7 @@ public class ProductIndexingService {
 
             if (!changed.isEmpty()) {
                 // One batch: PgVectorStore upserts by id, so re-indexing is idempotent.
-                vectorStore.add(List.copyOf(changed));
+                store.add(List.copyOf(changed));
             }
 
             long durationMs = elapsedMillis(startNanos);
@@ -208,6 +242,14 @@ public class ProductIndexingService {
             return;
         }
 
+        VectorStore store = vectorStore.getIfAvailable();
+        if (store == null) {
+            // Keyword-only mode: there is no index to write to, and a product edit must not fail
+            // because of it. Checked before the read so this costs a bean lookup, not a query.
+            log.debug("Skipping AI upsert for product {}: no embedding provider is configured", productId);
+            return;
+        }
+
         // findByIdForAiProjection, not findById: the projection walks six relations, and a plain
         // findById leaves every one of them lazy — six extra selects for a single product.
         Product managed = productRepository.findByIdForAiProjection(productId).orElse(null);
@@ -216,7 +258,7 @@ public class ProductIndexingService {
             return;
         }
 
-        vectorStore.add(List.of(documentFactory.toDocument(managed)));
+        store.add(List.of(documentFactory.toDocument(managed)));
         log.debug("AI upsert indexed product {}", managed.getSlug());
     }
 
@@ -237,7 +279,13 @@ public class ProductIndexingService {
             return;
         }
 
-        vectorStore.delete(List.of(ProductDocumentIds.forSlug(slug)));
+        VectorStore store = vectorStore.getIfAvailable();
+        if (store == null) {
+            log.debug("Skipping AI document removal for product {}: no embedding provider is configured", slug);
+            return;
+        }
+
+        store.delete(List.of(ProductDocumentIds.forSlug(slug)));
         log.debug("AI removed document for product {}", slug);
     }
 
@@ -252,11 +300,12 @@ public class ProductIndexingService {
      */
     @Transactional(readOnly = true)
     public AiIndexStatsResponse stats() {
+        VectorStore store = requireStore();
         List<Document> documents = loadActiveDocuments();
         int stale = 0;
 
         for (Document document : documents) {
-            if (!isAlreadyIndexed(document)) {
+            if (!isAlreadyIndexed(document, store)) {
                 stale++;
             }
         }
@@ -294,13 +343,13 @@ public class ProductIndexingService {
      * compare. Being wrong this way costs one embedding; being wrong the other way leaves the
      * store permanently out of date.
      */
-    private boolean isAlreadyIndexed(Document document) {
+    private boolean isAlreadyIndexed(Document document, VectorStore store) {
         SearchRequest lookup = SearchRequest.builder()
                 .query(document.getText())
                 .topK(LOOKUP_TOP_K)
                 .build();
 
-        return vectorStore.similaritySearch(lookup).stream()
+        return store.similaritySearch(lookup).stream()
                 .findFirst()
                 .filter(stored -> isSameContent(stored, document))
                 .isPresent();

@@ -8,6 +8,7 @@ import java.util.Optional;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -27,13 +28,23 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <h2>Degradation is a feature, not an error path</h2>
  * {@link #semanticCandidates(String, int)} returns an empty map — never throws — when the
- * feature is off, when the query is blank, or when the embedding model is unreachable. Whether
- * that model is the local Ollama or the hosted Gemini API, the answer must be the same: the site
- * degrades to plain keyword search rather than turning every catalog page into a 500. So the catch
- * is deliberately broad — a downed Ollama surfaces as a connection error, a Gemini outage or a
- * rate limit as an SDK exception, and both must degrade identically — and the log line is a
- * {@code warn} carrying only the message: a stack trace per request would flood the log precisely
- * when the failure is hardest to diagnose.
+ * feature is off, when the query is blank, when there is no vector index at all, or when the
+ * embedding model is unreachable. Whether that model is Gemini, a hosted OpenAI-compatible vendor
+ * or a local Ollama, the answer must be the same: the site degrades to plain keyword search rather
+ * than turning every catalog page into a 500. So the catch is deliberately broad — a downed
+ * provider surfaces as a connection error, an SDK exception or a rate limit, and all of them must
+ * degrade identically — and the log line is a {@code warn} carrying only the message: a stack
+ * trace per request would flood the log precisely when the failure is hardest to diagnose.
+ *
+ * <h2>Why the vector store is optional</h2>
+ * With no embedding provider configured the application runs keyword-only and no
+ * {@code VectorStore} bean exists at all, because {@code PgVectorStore} cannot be constructed
+ * without an {@code EmbeddingModel} (see
+ * {@link com.nocteon.nocteon_api.ai.config.EmbeddingProviderEnvironmentPostProcessor}). An
+ * {@link ObjectProvider} is how that is expressed: {@link #isSemanticIndexAvailable()} answers
+ * "does an index exist", and every path here treats "no" as an ordinary outcome rather than a
+ * failure. A distinct bean type was rejected — it would have introduced a second source of truth
+ * for the same fact, and could disagree with the wiring.
  *
  * <h2>Why the query is prefixed here</h2>
  * This is the query half of the asymmetric-retrieval pair; {@link EmbeddingTaskPrefix} holds both
@@ -66,7 +77,7 @@ public class AiSearchService {
      */
     private static final double ACCEPT_ALL_SIMILARITY = 0.0;
 
-    private final VectorStore vectorStore;
+    private final ObjectProvider<VectorStore> vectorStore;
     private final ProductIndexingService indexingService;
     private final AiProperties properties;
 
@@ -75,7 +86,8 @@ public class AiSearchService {
      *
      * <p>Requires both the master switch and the search switch: the master switch must be able
      * to turn the whole subsystem off in one place during an incident, which it could not do
-     * if any feature flag were sufficient on its own.
+     * if any feature flag were sufficient on its own. It says nothing about whether an index
+     * exists — that is {@link #isSemanticIndexAvailable()}.
      *
      * @return true only when {@code enabled} and {@code searchEnabled} are both true
      */
@@ -84,9 +96,23 @@ public class AiSearchService {
     }
 
     /**
+     * Whether this application has a vector index to search.
+     *
+     * <p>False exactly when no embedding provider is configured: the store bean is absent, so
+     * there is nothing indexed and nothing that could embed a query. Search is then keyword-only
+     * by design, which {@code ProductIndexBootstrap} states once at startup and
+     * {@link ProductIndexScheduler} respects instead of retrying a chain that cannot work.
+     *
+     * @return true when a {@code VectorStore} is wired
+     */
+    public boolean isSemanticIndexAvailable() {
+        return vectorStore.getIfAvailable() != null;
+    }
+
+    /**
      * Fetches the vector-store candidates for a query, mapped to product ids.
      *
-     * <p>Returns an empty map on every failure path — disabled, blank query, or an
+     * <p>Returns an empty map on every failure path — disabled, blank query, no index, or an
      * unreachable embedding model — so callers can treat "no semantic signal" as an ordinary
      * outcome and fall back to keyword ranking.
      *
@@ -109,8 +135,15 @@ public class AiSearchService {
             return Map.of();
         }
 
+        VectorStore store = vectorStore.getIfAvailable();
+        if (store == null) {
+            // Keyword-only mode. Not a warning: this is a configured state, not a fault, and it
+            // would otherwise repeat on every catalog request.
+            return Map.of();
+        }
+
         try {
-            List<Document> hits = vectorStore.similaritySearch(SearchRequest.builder()
+            List<Document> hits = store.similaritySearch(SearchRequest.builder()
                     .query(EmbeddingTaskPrefix.forQuery(query))
                     .topK(topK)
                     .similarityThreshold(ACCEPT_ALL_SIMILARITY)
@@ -123,8 +156,8 @@ public class AiSearchService {
             }
             return candidates;
         } catch (Exception e) {
-            // Broad on purpose: an unreachable Ollama surfaces as a connection error, a WebClient
-            // exception, or a wrapped runtime exception depending on the transport; Gemini
+            // Broad on purpose: an unreachable provider surfaces as a connection error, a WebClient
+            // exception, or a wrapped runtime exception depending on the transport; a hosted API
             // surfaces an SDK exception for a bad key, a rate limit, or an outage. All of them must
             // degrade the same way. Message only, no stack trace, so a persistent outage does not
             // flood the log once per request.

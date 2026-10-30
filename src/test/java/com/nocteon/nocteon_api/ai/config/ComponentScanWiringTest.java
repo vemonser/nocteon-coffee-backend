@@ -214,7 +214,7 @@ class ComponentScanWiringTest {
 
                     assertThat(context).hasSingleBean(EmbeddingModelFingerprint.class);
                     assertThat(context.getBean(EmbeddingModelFingerprint.class).value())
-                            .isEqualTo("google-genai:gemini-embedding-2:768");
+                            .isEqualTo("google-genai:gemini-embedding-2:768@768");
                 });
     }
 

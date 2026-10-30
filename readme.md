@@ -318,9 +318,12 @@ behind a profile:
 | `ollama` | `ollama/ollama:latest` | Local model inference. |
 | `ollama-init` | `ollama/ollama:latest` | One-shot. Pulls both models into the `ollama-data` volume, then exits. Nothing depends on it, so a failed pull never blocks the other services; re-run it with `docker compose --profile local-ai run --rm ollama-init`. |
 
-You need them only when **both `GEMINI_API_KEY` and `GROQ_API_KEY` are blank**. With a key set the
-application never contacts Ollama, so the profile buys nothing but a ~1 GB image and two more models
-in the volume:
+You need them only when **both `GEMINI_API_KEY` and `GROQ_API_KEY` are blank**, and even then they
+are optional: with no keys the assistant runs on the local chat model and embeddings are
+keyword-only. Ollama is only needed for embeddings if somebody sets
+`AI_EMBEDDING_PROVIDER=ollama` on purpose. With a hosted embedding key set the application never
+contacts Ollama at all, so the profile buys nothing but a ~1 GB image and two more models in the
+volume.
 
 ```bash
 docker compose --profile local-ai up -d
@@ -371,8 +374,9 @@ behaves exactly as it did before.
 # 1. Infrastructure — Postgres + Redis only, no model downloads
 docker compose up -d
 
-# 2. Only if GEMINI_API_KEY and GROQ_API_KEY are both blank: the local
-#    fallback. ~1 GB image plus ~2 GB of models, once.
+# 2. Optional, and only for the local chat fallback: with no embedding key
+#    search is keyword-only, and with no GROQ_API_KEY chat runs locally. ~1 GB
+#    image plus ~2 GB of models, once. Skip it entirely on a hosted setup.
 docker compose --profile local-ai up -d
 docker compose exec ollama ollama list
 #   nomic-embed-text:latest
@@ -414,13 +418,15 @@ AI_ENABLED=true AI_SEARCH_ENABLED=true AI_CHATBOT_ENABLED=true ./mvnw spring-boo
 | `AI_ENABLED` | `false` | Master switch for everything below. |
 | `AI_SEARCH_ENABLED` | `false` | `GET /api/products?semantic=true`, vector path of `/products/{slug}/similar` |
 | `AI_CHATBOT_ENABLED` | `false` | `POST /api/ai/chat`, `GET /api/ai/chat/history`, `DELETE /api/ai/chat/session` |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Embeddings and chat, when their keys are blank. |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | The local chat fallback (when `GROQ_API_KEY` is blank), and embeddings only when `AI_EMBEDDING_PROVIDER=ollama`. |
 | `MAIL_SCHEDULING_ENABLED` | `false` | Unrelated to AI, but ships default-off for the same reason: enabling it starts sending real email. |
 
 Chat-model selection is by `GROQ_API_KEY`, not by a flag — see
 [choosing a chat provider](#choosing-a-chat-provider). Embedding-model selection is by
-`GEMINI_API_KEY` the same way — see [choosing an embedding provider](#choosing-an-embedding-provider).
-The two decisions are independent: a Groq key alone leaves embeddings on the local model.
+`AI_EMBEDDING_PROVIDER`, then `GEMINI_API_KEY`, then `EMBEDDING_API_KEY` — see
+[choosing an embedding provider](#choosing-an-embedding-provider). The two decisions are
+independent, and Groq has no embeddings endpoint: a Groq key alone leaves embeddings keyword-only,
+never on a local model and never on Groq.
 
 ## How this was built, and what went wrong
 
@@ -444,12 +450,16 @@ a real API.
 | Model | Size | Purpose |
 |---|---|---|
 | `gemini-embedding-2` | hosted, Gemini | Embeds product documents and queries when `GEMINI_API_KEY` is set. Requested at **768 dimensions**, which is what the `vector(768)` column is declared as — no schema change, no table rebuild. |
+| any OpenAI-compatible embedding model | hosted | Selected by `EMBEDDING_API_KEY` (+ `EMBEDDING_BASE_URL`, `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS=768`). OpenAI, Together, Fireworks, DeepInfra, a self-hosted vLLM — whatever the owner has a key for. |
 | `qwen/qwen3.8-27b` | hosted, Groq | The shopping assistant, when `GROQ_API_KEY` is set. Must be a **non-reasoning** model — see the note below. |
-| `nomic-embed-text` | 274 MB, local Ollama | Embeddings' **fallback**, used when `GEMINI_API_KEY` is blank. 768 dimensions. |
+| `nomic-embed-text` | 274 MB, local Ollama | Embeddings on **explicit opt-in only** (`AI_EMBEDDING_PROVIDER=ollama`). 768 dimensions. Never the default. |
 | `qwen2.5:3b-instruct` | 1.9 GB (2.0 GB resident, Q4_K_M), local Ollama | The shopping assistant's **fallback**, used when `GROQ_API_KEY` is blank. |
 
-**Nothing in the deployed app needs a local model.** With both keys set, chat runs on Groq and
-embeddings on Gemini, so the hosting target needs no GPU, no model volume and no Ollama container.
+**Embeddings never require a local model.** Chat runs on Groq and embeddings on a hosted provider
+(Gemini, or any OpenAI-compatible vendor), so the hosting target needs no GPU, no model volume and
+no Ollama container. With no embedding key at all the app runs keyword-only — no vector index, no
+local model, one INFO line at startup saying so — rather than quietly depending on a model server
+nobody started. Groq itself cannot embed: its OpenAI-compatible API has no `/embeddings` route.
 
 > **The chat model must not be a reasoning model.** `openai/gpt-oss-20b` and `gpt-oss-120b` return
 > a `reasoning_content` field on every assistant turn. Spring AI's tool-calling loop replays that
@@ -469,7 +479,9 @@ embeddings on Gemini, so the hosting target needs no GPU, no model volume and no
 > access"), and both `gpt-oss` models are reasoning models.
 Both local models remain configured and selectable so the project still runs end to end with
 **no API key, no account and no network** — which matters, because this is a portfolio project
-someone will clone and run.
+someone will clone and run. On that path chat uses the local model and **embeddings are
+keyword-only** unless `AI_EMBEDDING_PROVIDER=ollama` is set: a local embedding model is a
+dependency that has to be started, so it is never assumed.
 
 The cost of moving embeddings off the laptop is a network call per document on the index path.
 That is paid on reindex and on the nightly scheduler, not per visitor request, and it is bounded
@@ -503,22 +515,36 @@ reindex re-embeds all of it. You do not have to remember the paragraph above; th
 ### Choosing an embedding provider
 
 ```bash
-# No key: local Ollama embeddings, nothing else needed
+# No embedding key: keyword-only search. No vector index, no local model, one INFO line.
 ./mvnw spring-boot:run
 
-# Key present: embeddings go to Gemini
+# Gemini key present: embeddings go to Gemini (preferred hosted provider)
 GEMINI_API_KEY=... ./mvnw spring-boot:run
 
-# Force local even with a key in your environment
-GEMINI_API_KEY=... spring.ai.model.embedding.text=none ./mvnw spring-boot:run
+# Any OpenAI-compatible vendor: point at it with variables only
+AI_EMBEDDING_PROVIDER=openai-compatible \
+EMBEDDING_BASE_URL=https://api.together.xyz/v1 \
+EMBEDDING_API_KEY=... \
+EMBEDDING_MODEL=BAAI/bge-base-en-v1.5 \
+EMBEDDING_DIMENSIONS=768 \
+./mvnw spring-boot:run
+
+# Local model: explicit opt-in only, never a default
+AI_EMBEDDING_PROVIDER=ollama ./mvnw spring-boot:run
 ```
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `GEMINI_API_KEY` | *(blank)* | Non-blank ⇒ embeddings come from Gemini. Blank ⇒ local Ollama. |
+| `AI_EMBEDDING_PROVIDER` | *(derived)* | `gemini`, `openai-compatible`, `ollama` or `none`. The only route to Ollama; an unrecognised value fails startup instead of landing on a provider you did not ask for. |
+| `GEMINI_API_KEY` | *(blank)* | With no switch set, non-blank ⇒ embeddings come from Gemini. |
+| `EMBEDDING_API_KEY` | *(blank)* | With no switch and no Gemini key, non-blank ⇒ the generic OpenAI-compatible provider. |
+| `EMBEDDING_BASE_URL` | `https://api.openai.com/v1` | API root the OpenAI client appends `/embeddings` to. Overrides Groq's base URL for embeddings only. |
+| `EMBEDDING_MODEL` | `text-embedding-3-small` | The vendor's embedding model id. |
+| `EMBEDDING_DIMENSIONS` | `768` | Sent as the request's `dimensions` parameter. Must match `vector(768)` unless the schema is migrated with it. |
 | `AI_CHAT_PROVIDER` | *(derived)* | `ollama` or `openai`, overriding the chat derivation. |
-| `spring.ai.model.embedding` | *(derived)* | `ollama` or `none`, overriding the derivation. |
+| `spring.ai.model.embedding` | *(derived)* | `ollama`, `openai` or `none`, overriding the derivation. |
 | `spring.ai.model.embedding.text` | *(derived)* | `google-genai` or `none`, overriding the derivation. |
+| `spring.ai.vectorstore.type` | *(derived)* | `none` when no embedding provider is configured — which is what makes the no-key path keyword-only instead of a boot failure. |
 
 The two embedding selectors are separate properties because Spring AI's autoconfigurations test
 separate names — Ollama and OpenAI read `spring.ai.model.embedding`, Gemini reads
@@ -667,10 +693,10 @@ run and don't, you will measure 429s rather than the endpoint.
 | Chat says "the catalog cannot be searched" | `AI_SEARCH_ENABLED` is off, or the vector store is unreachable. Both are reported honestly rather than answered with an invented coffee — see the flag order above. |
 | Chat hits Groq but gets `404 Unknown request URL: POST /openai/chat/completions` | `GROQ_BASE_URL` lost its `/v1` suffix. Groq's OpenAI-compatible API is at `/openai/v1`. |
 | Startup fails with "At least one credential source must be specified" | An embedding selector is unset, so the OpenAI starter's embedding autoconfiguration also claims the `EmbeddingModel` and needs a key the no-API-key path does not have. `EmbeddingProviderEnvironmentPostProcessor` writes both selectors; check it is still registered in `META-INF/spring.factories`. |
-| Startup fails with "Google GenAI project-id must be set!" | The Gemini connection autoconfiguration was not excluded on the local path. It is the one Gemini autoconfiguration no selector governs, so the post-processor excludes it by name whenever `GEMINI_API_KEY` is blank. |
+| Startup fails with "Google GenAI project-id must be set!" | The Gemini connection autoconfiguration was not excluded on a path that does not select Gemini. It is the one Gemini autoconfiguration no selector governs, so the post-processor excludes it by name whenever Gemini is not the selected provider. |
 | Search returns results but none of them are relevant | Vectors from a previous embedding model are still in the store. This is the silent failure described above: `/api/dashboard/ai/stats` will report a stale count of 0 if the content hashes happen to match, so check the `embeddingModel` metadata before trusting it — a full reindex is the fix. |
 | Two `ChatModel` beans / injection by type fails | `spring.ai.model.chat` is unset, so both providers' autoconfigurations activate. Set it explicitly with `AI_CHAT_PROVIDER`. |
-| Two `EmbeddingModel` beans / injection by type fails | An embedding selector is unset. They are derived from `GEMINI_API_KEY`; set `spring.ai.model.embedding` or `spring.ai.model.embedding.text` explicitly to pin one. |
+| Two `EmbeddingModel` beans / injection by type fails | An embedding selector is unset. They are derived from `AI_EMBEDDING_PROVIDER`/`GEMINI_API_KEY`/`EMBEDDING_API_KEY`; set `spring.ai.model.embedding` or `spring.ai.model.embedding.text` explicitly to pin one. |
 | Everything works but `/actuator/health` returns 401 | Expected — actuator is behind authentication. It is not a sign the app is down. |
 
 # 📬 API Documentation
